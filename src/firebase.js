@@ -15,17 +15,46 @@ const FB = (() => {
     if (!(window.firebase && firebase.firestore && firebase.auth)) return false;
     try {
       if (!firebase.apps.length) firebase.initializeApp(CONFIG);
-      const cred = await Promise.race([firebase.auth().signInAnonymously(), wait(8000).then(() => null)]);
-      if (!cred) return false;
-      uid = cred.user.uid;
+      const auth = firebase.auth();
+      try { const rr = await Promise.race([auth.getRedirectResult(), wait(6000).then(() => null)]); if (rr && rr.user && !rr.user.isAnonymous) pendingGoogle = info(rr.user); } catch (e) { console.warn('Google redirect failed', e); }
+      const existing = await Promise.race([new Promise((r) => { const un = auth.onAuthStateChanged((u) => { un(); r(u); }); }), wait(6000).then(() => null)]);
+      let user = existing;
+      if (!user) { const cred = await Promise.race([auth.signInAnonymously(), wait(8000).then(() => null)]); user = cred && cred.user; }
+      if (!user) return false;
+      uid = user.uid;
       fs = firebase.firestore();
       try { fs.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e) {}
       return true;
     } catch (e) { console.warn('Firebase unavailable', e); return false; }
   }
+  let pendingGoogle = null;
+  const info = (u) => ({ uid: u.uid, name: u.displayName || '', email: u.email || '' });
+  const googleUser = () => { const u = window.firebase && firebase.apps.length && firebase.auth().currentUser; return u && !u.isAnonymous ? info(u) : null; };
+  // Sign in with Google. Returns {uid,name,email}, null if cancelled, or 'redirect' when the page is leaving to sign in.
+  async function googleSignIn() {
+    const auth = firebase.auth(), provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      const cred = await auth.signInWithPopup(provider);
+      uid = cred.user.uid; return info(cred.user);
+    } catch (e) {
+      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(e.code)) { await auth.signInWithRedirect(provider); return 'redirect'; }
+      if (['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(e.code)) return null;
+      throw e;
+    }
+  }
+  async function signOutGoogle() {
+    if (!googleUser()) return;
+    try { await firebase.auth().signOut(); const c = await firebase.auth().signInAnonymously(); uid = c.user.uid; } catch (e) {}
+  }
+  async function playerForGoogle(gUid) {
+    const qs = await fs.collection('players').where('gUid', '==', gUid).limit(1).get();
+    return qs.empty ? null : Object.assign({ id: qs.docs[0].id }, qs.docs[0].data());
+  }
+  const takePending = () => { const p = pendingGoogle; pendingGoogle = null; return p; };
   const col = (c) => fs.collection(c);
   const now = () => Date.now();
-  return { init, col, get fs() { return fs; }, get uid() { return uid; }, now };
+  return { init, col, get fs() { return fs; }, get uid() { return uid; }, now, googleSignIn, signOutGoogle, googleUser, playerForGoogle, takePending };
 })();
 
 /* Friends over Firestore: friend codes, requests, presence, invites */

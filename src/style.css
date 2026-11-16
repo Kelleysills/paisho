@@ -273,3 +273,8 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .game .tray{min-height:68px}
 
 .disclaimer{font-size:10px;line-height:1.35;opacity:.55;text-align:center;margin:10px auto 0;max-width:340px}
+
+.gbtn{background:#fff;color:#1f1f1f;border:1px solid #dadce0;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:600}
+.gbtn svg{flex:none}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted,#a99);font-size:12px;margin:2px 0}
+.or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
