@@ -157,6 +157,7 @@
   };
 
   screens.home = () => {
+    startSocial();
     const nm = myName();
     const st = (me && me.stats) || null;
     app.innerHTML = `<div class="screen">
@@ -165,13 +166,14 @@
       <div class="menu">
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
-        <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs the hosted version'}</small></span></button>
+        <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
+        ${typeof Social !== 'undefined' && Social.ready() && Store.kind !== 'artifact' ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
   };
   function icon(k) {
-    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"') };
+    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"') };
     return s[k];
   }
 
@@ -229,10 +231,10 @@
       <div class="card"><div class="field"><label>Join with a code</label><div class="row"><input class="input" id="joincode" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;font-family:Cinzel"><button class="btn primary" data-act="joinCode">Join</button></div></div></div>
       <button class="btn primary" data-act="createOnline">Create a new game</button>
       <div class="field"><label>Your games</label><div id="mygames" class="menu"><div class="muted tiny">Loading…</div></div></div>
-      <div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>
+      ${Store.p2p() ? '<div id="opengames" style="display:none"></div>' : '<div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>'}
       <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
       ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
-      <div class="tiny muted">Friends need access to this app to join: share it with them as editors.</div>
+      <div class="tiny muted">${Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
     </div>`;
     const pid = myPid();
     const timer = setTimeout(() => { const el = document.getElementById('opengames'); if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="muted tiny">Can’t reach the game list yet.</div>'; }, 10000);
@@ -254,8 +256,10 @@
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
       host: { pid: myPid(), name: myName(), fx: S.fx[0].slice() }, guest: null };
+    if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
     waitOnline(code);
+    return code;
   }
   function waitOnline(code) {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
@@ -269,7 +273,12 @@
   }
   async function joinGame(code) {
     code = (code || '').toUpperCase().trim();
-    const d = await Store.get('games', code).catch(() => null);
+    if (!/^[A-Z]{4}$/.test(code)) return toast('Codes are 4 letters');
+    let d;
+    if (Store.p2p() && !(P2P.get(code) && P2P.get(code).host.pid === myPid())) {
+      toast('Connecting to ' + code + '…', 3000);
+      try { d = await P2P.join(code); } catch (e) { return toast(e.message === 'nohost' ? 'No one is hosting ' + code + ' right now' : 'Couldn’t connect — check the code and try again'); }
+    } else d = await Store.get('games', code).catch(() => null);
     if (!d) return toast('No game with that code');
     const pid = myPid();
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
@@ -282,6 +291,31 @@
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
     startOnline(Object.assign({ id: code }, nd));
   }
+
+
+  // ---------- friends ----------
+  function friendsLine() {
+    const f = Social.friends(), on = f.filter((x) => Social.isOnline(x.code)).length, rq = Social.requests().length;
+    return rq ? `${rq} friend request${rq > 1 ? 's' : ''}` : f.length ? `${on} of ${f.length} online` : 'Add friends with a code';
+  }
+  function startSocial() {
+    if (typeof Social === 'undefined' || Store.kind === 'artifact') return;
+    const go2 = () => Social.start({ pid: myPid(), name: myName() });
+    if (Social.ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Social.ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
+  }
+  screens.friends = () => {
+    if (!Social.active) startSocial();
+    const fr = Social.friends(), rq = Social.requests();
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
+    <div class="screen" id="friends-screen">
+      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Social.code || '……')}</div>
+        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Social.code || '')}">Copy code</button></div>
+        <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
+      <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
+      ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Social.isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+    </div>`;
+  };
 
   // ---------- stats ----------
   screens.stats = async () => {
@@ -323,6 +357,7 @@
     const pid = myPid();
     const my = d.guest && d.guest.pid === pid ? 0 : 1;
     const seats = [{ name: d.guest.name, pid: d.guest.pid, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, kind: my === 1 ? 'human' : 'remote' }];
+    if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
@@ -729,7 +764,7 @@
     choose: (d) => closeSheet(+d.k),
     closeSheet: () => closeSheet(),
     toc: (d, e) => { e.preventDefault(); const el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { me = pp; askKeep(pp); }); },
+    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { if (typeof Social !== 'undefined') Social.stop(); me = pp; askKeep(pp); }); },
     newProfile: () => go('newProfile'),
     guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
     sw: (d, e, el) => el.classList.toggle('on'),
@@ -745,7 +780,7 @@
         <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
     },
     toLogin: () => go('login'),
-    signOut: () => { me = null; Store.LS.set('session', null); go('login'); },
+    signOut: () => { if (typeof Social !== 'undefined') Social.stop(); me = null; Store.LS.set('session', null); go('login'); },
     bioToggle: async () => {
       closeSheet();
       if (me.cred) me.cred = null;
@@ -791,11 +826,16 @@
     beginGame: () => startLocal(setup.mode),
     joinCode: () => joinGame(document.getElementById('joincode').value),
     joinGame: (d) => joinGame(d.code),
-    resumeOnline: async (d) => { const g = await Store.get('games', d.code); if (!g) return; if (g.status === 'open') waitOnline(d.code); else startOnline(g); },
+    resumeOnline: async (d) => { const g = await Store.get('games', d.code); if (!g) return; if (Store.p2p() && g.status === 'open') P2P.host(d.code); if (g.status === 'open') waitOnline(d.code); else startOnline(g); },
     createOnline: () => createOnline(),
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    addFriend: () => { const err = Social.add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
+    acceptFriend: (d) => { Social.accept(d.code); screens.friends(); },
+    declineFriend: (d) => { Social.decline(d.code); screens.friends(); },
+    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { Social.remove(d.code); screens.friends(); } },
+    inviteFriend: async (d) => { const code = await createOnline(); if (code) { Social.invite(d.code, code); toast('Invite sent'); } },
     undo: () => {
       if (!canUndo()) return;
       G.s = G.history.pop();
@@ -837,6 +877,18 @@
     const f = actions[el.dataset.act]; if (f) f(el.dataset, e, el);
   });
   window.addEventListener('beforeunload', () => {});
+  if (typeof P2P !== 'undefined') P2P.onStatus((st) => { if (G && G.mode === 'online') { if (st === 'disconnected') toast('Opponent disconnected — waiting for them to come back'); if (st === 'connected') toast('Opponent connected'); } if (st === 'code-taken') toast('That code is busy — create a new game'); });
+  if (typeof Social !== 'undefined') Social.on(async (ev, d) => {
+    if (ev === 'change' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
+    if (ev === 'request') toast(d.name + ' wants to be friends — see Friends', 3500);
+    if (ev === 'accepted') toast(d.name + ' accepted your friend request');
+    if (ev === 'status' && d === 'elsewhere') toast('You’re signed in on another device — friends will reach you there');
+    if (ev === 'invite') {
+      if (G && G.mode && G.s && G.s.winner === null) { toast(d.name + ' invited you to a game (finish this one first)', 3500); return; }
+      const ok = await choose(d.name + ' invited you to play', [{ label: 'Join game ' + d.game, value: true, cls: 'primary' }]);
+      if (ok) joinGame(d.game);
+    }
+  });
   window.__paisho = { get G() { return G; }, doAction, P };
   go('boot');
 })();

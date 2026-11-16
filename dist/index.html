@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#1b120c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pai Sho</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Nunito+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>:root{
@@ -982,6 +986,181 @@ const Glyphs = (() => {
   return { G, tile, svg, DISC };
 })();
 
+// ---- p2p.js ----
+/* Direct phone-to-phone games (PeerJS / WebRTC) for the GitHub Pages version.
+   The host's game code is its peer address; the full game doc is mirrored on both phones. */
+const P2P = (() => {
+  const PREFIX = 'paisho-kpsho-v1-';
+  let peer = null, conn = null, myCode = null, role = null;
+  const docs = {}, watchers = {};
+  const statusFns = new Set();
+  const LSK = 'paisho.p2pdocs';
+  try { Object.assign(docs, JSON.parse(localStorage.getItem(LSK) || '{}')); } catch (e) {}
+  const persist = () => { try { const keep = {}; Object.entries(docs).forEach(([k, v]) => { if (v && Date.now() - (v.updated || 0) < 14 * 864e5) keep[k] = v; }); localStorage.setItem(LSK, JSON.stringify(keep)); } catch (e) {} };
+  const ready = () => typeof window.Peer === 'function';
+  const notify = (code) => (watchers[code] || []).forEach((f) => { try { f(docs[code] ? Object.assign({ id: code }, docs[code]) : null); } catch (e) { console.warn(e); } });
+  const status = (s) => statusFns.forEach((f) => f(s));
+  const opts = { debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } };
+
+  function wire(c, code) {
+    conn = c;
+    c.on('data', (m) => {
+      if (!m || typeof m !== 'object') return;
+      if (m.t === 'hello') { if (docs[code]) c.send({ t: 'doc', doc: docs[code] }); return; }
+      if (m.t === 'doc' && m.doc && typeof m.doc === 'object') {
+        const cur = docs[code];
+        if (!cur || (m.doc.ver || 0) >= (cur.ver || 0)) { docs[code] = m.doc; persist(); notify(code); }
+      }
+    });
+    c.on('open', () => { status('connected'); c.send({ t: 'hello' }); if (docs[code]) c.send({ t: 'doc', doc: docs[code] }); });
+    c.on('close', () => { status('disconnected'); if (role === 'guest') setTimeout(() => reconnect(code), 2500); });
+    c.on('error', () => status('disconnected'));
+  }
+  function reset() { try { conn && conn.close(); } catch (e) {} try { peer && peer.destroy(); } catch (e) {} peer = null; conn = null; }
+
+  function host(code) {
+    if (myCode === code && role === 'host' && peer && !peer.destroyed) return;
+    reset(); myCode = code; role = 'host';
+    peer = new window.Peer(PREFIX + code, opts);
+    peer.on('open', () => status('waiting'));
+    peer.on('connection', (c) => wire(c, code));
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', (e) => { status(e.type === 'unavailable-id' ? 'code-taken' : 'error:' + e.type); });
+  }
+  function connectTo(code) {
+    const c = peer.connect(PREFIX + code, { reliable: true });
+    wire(c, code);
+  }
+  function reconnect(code) {
+    if (role !== 'guest' || myCode !== code) return;
+    if (!peer || peer.destroyed) { join(code).catch(() => {}); return; }
+    if (conn && conn.open) return;
+    try { connectTo(code); } catch (e) {}
+  }
+  // guest: connect and wait for the host's doc
+  function join(code) {
+    return new Promise((resolve, reject) => {
+      reset(); myCode = code; role = 'guest';
+      peer = new window.Peer(opts);
+      const to = setTimeout(() => reject(new Error('timeout')), 15000);
+      const once = (d) => { if (d) { clearTimeout(to); off(); resolve(d); } };
+      const off = watch(code, once);
+      peer.on('open', () => connectTo(code));
+      peer.on('error', (e) => { if (e.type === 'peer-unavailable') { clearTimeout(to); off(); reject(new Error('nohost')); } });
+    });
+  }
+  function set(code, doc) {
+    docs[code] = doc; persist(); notify(code);
+    if (conn && conn.open) conn.send({ t: 'doc', doc });
+  }
+  function get(code) { return docs[code] ? Object.assign({ id: code }, docs[code]) : null; }
+  function del(code) { delete docs[code]; persist(); if (myCode === code) reset(); }
+  function list() { return Object.keys(docs).map((k) => Object.assign({ id: k }, docs[k])); }
+  function watch(code, f) {
+    (watchers[code] = watchers[code] || []).push(f);
+    if (docs[code]) setTimeout(() => f(Object.assign({ id: code }, docs[code])), 0);
+    return () => { watchers[code] = (watchers[code] || []).filter((x) => x !== f); };
+  }
+  // resume a saved game: hosts re-open their address, guests reconnect
+  function resume(code, amHost) { if (amHost) host(code); else if (!(role === 'guest' && myCode === code && conn && conn.open)) { myCode = code; role = 'guest'; peer = null; reconnect(code); } }
+  const onStatus = (f) => { statusFns.add(f); return () => statusFns.delete(f); };
+  return { ready, host, join, set, get, del, list, watch, resume, onStatus, get connected() { return !!(conn && conn.open); } };
+})();
+
+// ---- social.js ----
+/* Friends: friend codes, online status and game invites, phone-to-phone (PeerJS). */
+const Social = (() => {
+  const PREFIX = 'paisho-kpsho-u1-';
+  let peer = null, me = null, timer = null;
+  const links = new Map(); // code -> DataConnection
+  const online = new Set();
+  const listeners = new Set();
+  const LS = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem('paisho.' + k) || 'null'); localStorage.setItem('paisho.' + k, JSON.stringify(v)); } catch (e) { return null; } };
+  const ready = () => typeof window.Peer === 'function';
+  const emit = (ev, data) => listeners.forEach((f) => { try { f(ev, data); } catch (e) {} });
+  const key = () => 'friends.' + (me ? me.pid : 'none');
+  const friends = () => LS(key()) || [];
+  const saveFriends = (l) => { LS(key(), l); emit('change'); };
+  const requests = () => LS(key() + '.req') || [];
+  const saveReq = (l) => { LS(key() + '.req', l); emit('change'); };
+  function codeFor(pid) {
+    let map = LS('friendcodes') || {};
+    if (!map[pid]) { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; map[pid] = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => A[b % A.length]).join(''); LS('friendcodes', map); }
+    return map[pid];
+  }
+  const hello = () => ({ t: 'hi', code: me.code, name: me.name });
+  function handle(c, m) {
+    if (!m || typeof m !== 'object' || typeof m.code !== 'string' || !/^[A-Z0-9]{6}$/.test(m.code)) return;
+    const name = String(m.name || 'Player').slice(0, 18);
+    links.set(m.code, c);
+    const list = friends(); const f = list.find((x) => x.code === m.code);
+    if (m.t === 'hi' || m.t === 'add') {
+      if (f) { online.add(m.code); if (f.name !== name) { f.name = name; saveFriends(list); } emit('change'); if (m.t === 'add') c.send({ t: 'accepted', code: me.code, name: me.name }); }
+      else if (m.t === 'add') { const r = requests().filter((x) => x.code !== m.code); r.push({ code: m.code, name, t: Date.now() }); saveReq(r); emit('request', { code: m.code, name }); }
+    } else if (m.t === 'accepted') {
+      if (f) { online.add(m.code); f.pending = false; f.name = name; saveFriends(list); emit('accepted', { code: m.code, name }); }
+    } else if (m.t === 'invite' && f && typeof m.game === 'string' && /^[A-Z]{4}$/.test(m.game)) {
+      emit('invite', { code: m.code, name: f.name, game: m.game });
+    } else if (m.t === 'bye') { online.delete(m.code); emit('change'); }
+  }
+  function wire(c) {
+    c.on('data', (m) => handle(c, m));
+    c.on('open', () => { if (me) c.send(hello()); });
+    c.on('close', () => { for (const [k, v] of links) if (v === c) { links.delete(k); online.delete(k); } emit('change'); });
+    c.on('error', () => {});
+  }
+  function start(profile) {
+    if (!ready()) return false;
+    const pid = profile.pid;
+    if (me && me.pid === pid && peer && !peer.destroyed) return true;
+    stop();
+    me = { pid, name: profile.name, code: codeFor(pid) };
+    peer = new window.Peer(PREFIX + me.code, { debug: 0 });
+    peer.on('connection', wire);
+    peer.on('open', () => { emit('status', 'online'); ping(); });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', (e) => { if (e.type === 'peer-unavailable') { const m = /u1-([A-Z0-9]{6})/.exec(e.message || ''); if (m) { online.delete(m[1]); emit('change'); } } else if (e.type === 'unavailable-id') emit('status', 'elsewhere'); });
+    timer = setInterval(ping, 20000);
+    return true;
+  }
+  function stop() {
+    clearInterval(timer); timer = null;
+    links.forEach((c) => { try { c.send({ t: 'bye', code: me.code }); c.close(); } catch (e) {} });
+    links.clear(); online.clear();
+    try { peer && peer.destroy(); } catch (e) {} peer = null; me = null;
+  }
+  function connect(code, first) {
+    if (!peer || peer.destroyed || peer.disconnected) return;
+    const ex = links.get(code); if (ex && ex.open) { if (first) ex.send(first); return; }
+    const c = peer.connect(PREFIX + code, { reliable: true });
+    wire(c);
+    if (first) c.on('open', () => c.send(first));
+  }
+  function ping() { friends().forEach((f) => connect(f.code, f.pending ? { t: 'add', code: me.code, name: me.name } : null)); }
+  function add(code) {
+    code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
+    if (!me) return 'Not connected yet';
+    if (code === me.code) return 'That’s your own code';
+    const list = friends(); if (list.some((f) => f.code === code)) return 'Already on your list';
+    list.push({ code, name: 'Player ' + code, pending: true, added: Date.now() }); saveFriends(list);
+    connect(code, { t: 'add', code: me.code, name: me.name });
+    return null;
+  }
+  function accept(code) {
+    const r = requests(); const q = r.find((x) => x.code === code); if (!q) return;
+    saveReq(r.filter((x) => x.code !== code));
+    const list = friends(); if (!list.some((f) => f.code === code)) list.push({ code, name: q.name, added: Date.now() });
+    saveFriends(list); online.add(code);
+    connect(code, { t: 'accepted', code: me.code, name: me.name });
+  }
+  const decline = (code) => saveReq(requests().filter((x) => x.code !== code));
+  const remove = (code) => { saveFriends(friends().filter((f) => f.code !== code)); const c = links.get(code); if (c) try { c.close(); } catch (e) {} };
+  function invite(code, game) { connect(code, { t: 'invite', code: me.code, name: me.name, game }); }
+  const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
+  return { ready, start, stop, add, accept, decline, remove, invite, friends, requests, on, isOnline: (c) => online.has(c), get code() { return me && me.code; }, get active() { return !!me; } };
+})();
+
 // ---- store.js ----
 /* Storage backends: artifact db (claude.ai), self-hosted server (server.js), or this device only */
 const Store = (() => {
@@ -1006,35 +1185,42 @@ const Store = (() => {
     }
     kind = 'local'; return kind;
   }
-  const online = () => kind !== 'local';
+  const p2p = () => kind === 'local' && typeof P2P !== 'undefined' && P2P.ready();
+  const online = () => kind !== 'local' || p2p();
+  const viaP2P = (col) => col === 'games' && p2p();
 
   // --- local collection emulation (single device) ---
   const localCol = (col) => LS.get('col.' + col, {});
   const localSave = (col, data) => LS.set('col.' + col, data);
 
   async function list(col) {
+    if (viaP2P(col)) return P2P.list();
     if (kind === 'artifact') { const snap = await db.collection(col).limit(500).get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'server') { const r = await fetch('api/c/' + col); return r.json(); }
     const c = localCol(col); return Object.keys(c).map((id) => Object.assign({ id }, c[id]));
   }
   async function get(col, id) {
+    if (viaP2P(col)) return P2P.get(id);
     if (kind === 'artifact') { const d = await db.doc(col + '/' + id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'server') { const r = await fetch('api/d/' + col + '/' + id); if (!r.ok) return null; const j = await r.json(); return j ? Object.assign({ id }, j) : null; }
     const c = localCol(col); return c[id] ? Object.assign({ id }, c[id]) : null;
   }
   async function set(col, id, data) {
     const body = JSON.parse(JSON.stringify(data)); delete body.id;
+    if (viaP2P(col)) return P2P.set(id, body);
     if (kind === 'artifact') return db.doc(col + '/' + id).set(body);
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const c = localCol(col); c[id] = body; localSave(col, c);
   }
   async function del(col, id) {
+    if (viaP2P(col)) return P2P.del(id);
     if (kind === 'artifact') return db.doc(col + '/' + id).delete();
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
     const c = localCol(col); delete c[id]; localSave(col, c);
   }
   // live watch of one doc
   function watch(col, id, cb) {
+    if (viaP2P(col)) return P2P.watch(id, cb);
     if (kind === 'artifact') return db.doc(col + '/' + id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'server') {
       let es; try { es = new EventSource('api/w/' + col + '/' + id); es.onmessage = (e) => { const j = JSON.parse(e.data); cb(j ? Object.assign({ id }, j) : null); }; } catch (e) {}
@@ -1046,6 +1232,7 @@ const Store = (() => {
     return () => {};
   }
   function watchCol(col, cb) {
+    if (viaP2P(col)) { let stop = false; const tick = () => { if (stop) return; cb(P2P.list()); setTimeout(tick, 2000); }; tick(); return () => { stop = true; }; }
     if (kind === 'artifact') return db.collection(col).limit(200).onSnapshot((s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {});
     if (kind === 'server') {
       let stop = false;
@@ -1054,7 +1241,7 @@ const Store = (() => {
     }
     return () => {};
   }
-  return { init, online, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
+  return { init, online, p2p, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
 })();
 
 /* Profiles: name + salted PIN hash, optional passkey (biometric) */
@@ -1362,6 +1549,7 @@ const Guide = (() => {
   };
 
   screens.home = () => {
+    startSocial();
     const nm = myName();
     const st = (me && me.stats) || null;
     app.innerHTML = `<div class="screen">
@@ -1370,13 +1558,14 @@ const Guide = (() => {
       <div class="menu">
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
-        <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs the hosted version'}</small></span></button>
+        <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
+        ${typeof Social !== 'undefined' && Social.ready() && Store.kind !== 'artifact' ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
   };
   function icon(k) {
-    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"') };
+    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"') };
     return s[k];
   }
 
@@ -1434,10 +1623,10 @@ const Guide = (() => {
       <div class="card"><div class="field"><label>Join with a code</label><div class="row"><input class="input" id="joincode" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;font-family:Cinzel"><button class="btn primary" data-act="joinCode">Join</button></div></div></div>
       <button class="btn primary" data-act="createOnline">Create a new game</button>
       <div class="field"><label>Your games</label><div id="mygames" class="menu"><div class="muted tiny">Loading…</div></div></div>
-      <div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>
+      ${Store.p2p() ? '<div id="opengames" style="display:none"></div>' : '<div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>'}
       <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
       ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
-      <div class="tiny muted">Friends need access to this app to join: share it with them as editors.</div>
+      <div class="tiny muted">${Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
     </div>`;
     const pid = myPid();
     const timer = setTimeout(() => { const el = document.getElementById('opengames'); if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="muted tiny">Can’t reach the game list yet.</div>'; }, 10000);
@@ -1459,8 +1648,10 @@ const Guide = (() => {
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
       host: { pid: myPid(), name: myName(), fx: S.fx[0].slice() }, guest: null };
+    if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
     waitOnline(code);
+    return code;
   }
   function waitOnline(code) {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
@@ -1474,7 +1665,12 @@ const Guide = (() => {
   }
   async function joinGame(code) {
     code = (code || '').toUpperCase().trim();
-    const d = await Store.get('games', code).catch(() => null);
+    if (!/^[A-Z]{4}$/.test(code)) return toast('Codes are 4 letters');
+    let d;
+    if (Store.p2p() && !(P2P.get(code) && P2P.get(code).host.pid === myPid())) {
+      toast('Connecting to ' + code + '…', 3000);
+      try { d = await P2P.join(code); } catch (e) { return toast(e.message === 'nohost' ? 'No one is hosting ' + code + ' right now' : 'Couldn’t connect — check the code and try again'); }
+    } else d = await Store.get('games', code).catch(() => null);
     if (!d) return toast('No game with that code');
     const pid = myPid();
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
@@ -1487,6 +1683,31 @@ const Guide = (() => {
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
     startOnline(Object.assign({ id: code }, nd));
   }
+
+
+  // ---------- friends ----------
+  function friendsLine() {
+    const f = Social.friends(), on = f.filter((x) => Social.isOnline(x.code)).length, rq = Social.requests().length;
+    return rq ? `${rq} friend request${rq > 1 ? 's' : ''}` : f.length ? `${on} of ${f.length} online` : 'Add friends with a code';
+  }
+  function startSocial() {
+    if (typeof Social === 'undefined' || Store.kind === 'artifact') return;
+    const go2 = () => Social.start({ pid: myPid(), name: myName() });
+    if (Social.ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Social.ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
+  }
+  screens.friends = () => {
+    if (!Social.active) startSocial();
+    const fr = Social.friends(), rq = Social.requests();
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
+    <div class="screen" id="friends-screen">
+      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Social.code || '……')}</div>
+        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Social.code || '')}">Copy code</button></div>
+        <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
+      <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
+      ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Social.isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+    </div>`;
+  };
 
   // ---------- stats ----------
   screens.stats = async () => {
@@ -1528,6 +1749,7 @@ const Guide = (() => {
     const pid = myPid();
     const my = d.guest && d.guest.pid === pid ? 0 : 1;
     const seats = [{ name: d.guest.name, pid: d.guest.pid, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, kind: my === 1 ? 'human' : 'remote' }];
+    if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
@@ -1934,7 +2156,7 @@ const Guide = (() => {
     choose: (d) => closeSheet(+d.k),
     closeSheet: () => closeSheet(),
     toc: (d, e) => { e.preventDefault(); const el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { me = pp; askKeep(pp); }); },
+    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { if (typeof Social !== 'undefined') Social.stop(); me = pp; askKeep(pp); }); },
     newProfile: () => go('newProfile'),
     guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
     sw: (d, e, el) => el.classList.toggle('on'),
@@ -1950,7 +2172,7 @@ const Guide = (() => {
         <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
     },
     toLogin: () => go('login'),
-    signOut: () => { me = null; Store.LS.set('session', null); go('login'); },
+    signOut: () => { if (typeof Social !== 'undefined') Social.stop(); me = null; Store.LS.set('session', null); go('login'); },
     bioToggle: async () => {
       closeSheet();
       if (me.cred) me.cred = null;
@@ -1996,11 +2218,16 @@ const Guide = (() => {
     beginGame: () => startLocal(setup.mode),
     joinCode: () => joinGame(document.getElementById('joincode').value),
     joinGame: (d) => joinGame(d.code),
-    resumeOnline: async (d) => { const g = await Store.get('games', d.code); if (!g) return; if (g.status === 'open') waitOnline(d.code); else startOnline(g); },
+    resumeOnline: async (d) => { const g = await Store.get('games', d.code); if (!g) return; if (Store.p2p() && g.status === 'open') P2P.host(d.code); if (g.status === 'open') waitOnline(d.code); else startOnline(g); },
     createOnline: () => createOnline(),
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    addFriend: () => { const err = Social.add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
+    acceptFriend: (d) => { Social.accept(d.code); screens.friends(); },
+    declineFriend: (d) => { Social.decline(d.code); screens.friends(); },
+    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { Social.remove(d.code); screens.friends(); } },
+    inviteFriend: async (d) => { const code = await createOnline(); if (code) { Social.invite(d.code, code); toast('Invite sent'); } },
     undo: () => {
       if (!canUndo()) return;
       G.s = G.history.pop();
@@ -2042,9 +2269,22 @@ const Guide = (() => {
     const f = actions[el.dataset.act]; if (f) f(el.dataset, e, el);
   });
   window.addEventListener('beforeunload', () => {});
+  if (typeof P2P !== 'undefined') P2P.onStatus((st) => { if (G && G.mode === 'online') { if (st === 'disconnected') toast('Opponent disconnected — waiting for them to come back'); if (st === 'connected') toast('Opponent connected'); } if (st === 'code-taken') toast('That code is busy — create a new game'); });
+  if (typeof Social !== 'undefined') Social.on(async (ev, d) => {
+    if (ev === 'change' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
+    if (ev === 'request') toast(d.name + ' wants to be friends — see Friends', 3500);
+    if (ev === 'accepted') toast(d.name + ' accepted your friend request');
+    if (ev === 'status' && d === 'elsewhere') toast('You’re signed in on another device — friends will reach you there');
+    if (ev === 'invite') {
+      if (G && G.mode && G.s && G.s.winner === null) { toast(d.name + ' invited you to a game (finish this one first)', 3500); return; }
+      const ok = await choose(d.name + ' invited you to play', [{ label: 'Join game ' + d.game, value: true, cls: 'primary' }]);
+      if (ok) joinGame(d.game);
+    }
+  });
   window.__paisho = { get G() { return G; }, doAction, P };
   go('boot');
 })();
 </script>
+<script>if ('serviceWorker' in navigator && /^https:/.test(location.protocol) && !/claude|anthropic/.test(location.hostname)) { try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch (e) {} }</script>
 </body>
 </html>

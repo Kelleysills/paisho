@@ -4,6 +4,7 @@ A phone-first web version of **Key Pai Sho**, the fan-made garden game. Play the
 
 ## Play
 
+- **Anywhere (recommended):** https://kelleysills.github.io/paisho/ works in any phone browser. Use **Add to Home Screen** to install it like an app. Online games and friends connect phone to phone, so no server is needed. Add friends by swapping 6-character friend codes, see who's online, and invite them to a game. Profiles and stats live on each phone.
 - **Hosted on claude.ai:** profiles, stats and online games are saved with the app. To let friends play online and keep stats, share it with them as **editors**.
 - **On your PC (home Wi-Fi):** run `node server.js` (Node 18+, no installs needed) and open the address it prints on any phone on the same network. Profiles, stats and games are saved in `data.json` next to the server.
 - **Offline:** open `dist/index.html` straight from the file. You can play the computer or pass and play. Profiles are kept on that device only.
@@ -21,6 +22,8 @@ A phone-first web version of **Key Pai Sho**, the fan-made garden game. Play the
 src/engine.js   rules engine (pure JS, JSON state)
 src/ai.js       computer opponent
 src/ui.js       screens, game controller, online play
+src/p2p.js     phone-to-phone online games (PeerJS)
+src/social.js  friend codes, online status, invites
 src/store.js    storage backends (artifact db / server.js / localStorage) + PIN and passkey auth
 src/guide.js    built-in rules guide
 src/glyphs.js   original tile artwork (SVG)

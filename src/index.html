@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#1b120c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pai Sho</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Nunito+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>/*CSS*/</style>
@@ -13,5 +17,6 @@
 <body>
 <div id="app"></div>
 <script>/*JS*/</script>
+<script>if ('serviceWorker' in navigator && /^https:/.test(location.protocol) && !/claude|anthropic/.test(location.hostname)) { try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch (e) {} }</script>
 </body>
 </html>

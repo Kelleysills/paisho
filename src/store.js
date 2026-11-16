@@ -21,35 +21,42 @@ const Store = (() => {
     }
     kind = 'local'; return kind;
   }
-  const online = () => kind !== 'local';
+  const p2p = () => kind === 'local' && typeof P2P !== 'undefined' && P2P.ready();
+  const online = () => kind !== 'local' || p2p();
+  const viaP2P = (col) => col === 'games' && p2p();
 
   // --- local collection emulation (single device) ---
   const localCol = (col) => LS.get('col.' + col, {});
   const localSave = (col, data) => LS.set('col.' + col, data);
 
   async function list(col) {
+    if (viaP2P(col)) return P2P.list();
     if (kind === 'artifact') { const snap = await db.collection(col).limit(500).get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'server') { const r = await fetch('api/c/' + col); return r.json(); }
     const c = localCol(col); return Object.keys(c).map((id) => Object.assign({ id }, c[id]));
   }
   async function get(col, id) {
+    if (viaP2P(col)) return P2P.get(id);
     if (kind === 'artifact') { const d = await db.doc(col + '/' + id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'server') { const r = await fetch('api/d/' + col + '/' + id); if (!r.ok) return null; const j = await r.json(); return j ? Object.assign({ id }, j) : null; }
     const c = localCol(col); return c[id] ? Object.assign({ id }, c[id]) : null;
   }
   async function set(col, id, data) {
     const body = JSON.parse(JSON.stringify(data)); delete body.id;
+    if (viaP2P(col)) return P2P.set(id, body);
     if (kind === 'artifact') return db.doc(col + '/' + id).set(body);
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const c = localCol(col); c[id] = body; localSave(col, c);
   }
   async function del(col, id) {
+    if (viaP2P(col)) return P2P.del(id);
     if (kind === 'artifact') return db.doc(col + '/' + id).delete();
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
     const c = localCol(col); delete c[id]; localSave(col, c);
   }
   // live watch of one doc
   function watch(col, id, cb) {
+    if (viaP2P(col)) return P2P.watch(id, cb);
     if (kind === 'artifact') return db.doc(col + '/' + id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'server') {
       let es; try { es = new EventSource('api/w/' + col + '/' + id); es.onmessage = (e) => { const j = JSON.parse(e.data); cb(j ? Object.assign({ id }, j) : null); }; } catch (e) {}
@@ -61,6 +68,7 @@ const Store = (() => {
     return () => {};
   }
   function watchCol(col, cb) {
+    if (viaP2P(col)) { let stop = false; const tick = () => { if (stop) return; cb(P2P.list()); setTimeout(tick, 2000); }; tick(); return () => { stop = true; }; }
     if (kind === 'artifact') return db.collection(col).limit(200).onSnapshot((s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {});
     if (kind === 'server') {
       let stop = false;
@@ -69,7 +77,7 @@ const Store = (() => {
     }
     return () => {};
   }
-  return { init, online, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
+  return { init, online, p2p, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
 })();
 
 /* Profiles: name + salted PIN hash, optional passkey (biometric) */
