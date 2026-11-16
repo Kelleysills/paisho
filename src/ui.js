@@ -758,6 +758,7 @@
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
+    if (d.host && d.host.pid) Push.send(d.host.pid, '🎮 Game on!', `${myName()} joined your game ${code}`, 'g-' + code);
     startOnline(Object.assign({ id: code }, nd));
   }
 
@@ -927,7 +928,12 @@
     G.ver++;
     const nd = Object.assign({}, G.doc, { state: JSON.stringify(s), ver: G.ver, updated: Date.now(), status: s.winner !== null ? 'done' : 'playing' });
     delete nd.id; G.doc = nd;
-    try { await Store.set('games', G.code, nd); } catch (e) { toast('Couldn’t send your move — check your connection'); }
+    try { await Store.set('games', G.code, nd); } catch (e) { return toast('Couldn’t send your move — check your connection'); }
+    const opp = G.seats[1 - G.my], mine = G.seats[G.my].name;
+    if (opp && opp.pid) {
+      if (s.winner !== null) Push.send(opp.pid, 'Pai Sho', s.winner === 'draw' ? `Your game with ${mine} ended in a draw` : s.winner === G.my ? `${mine} won your game (${G.code})` : `You beat ${mine}! 🎉`, 'g-' + G.code);
+      else if (s.turn !== G.my) Push.send(opp.pid, 'Your turn in Pai Sho', `${mine} has moved — game ${G.code}`, 'g-' + G.code);
+    }
   }
 
   const isHumanTurn = () => G && G.s.winner === null && G.seats[G.s.turn].kind === 'human';
@@ -1845,7 +1851,7 @@
       const wait = 60000 - (Date.now() - last);
       if (wait > 0) return toast(`You can yip again in ${Math.ceil(wait / 1000)}s`);
       G.lastYip = Date.now();
-      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); bump('nudgesSent'); }
+      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); bump('nudgesSent'); Push.send(G.seats[1 - G.my].pid, '📣 Yip yip!', `${G.seats[G.my].name} is waiting for your move (game ${G.code})`, 'n-' + G.code); }
       catch (e) { toast('Couldn’t send the nudge'); }
     },
     storeTab: (d) => { storeTab = d.k; screens.store(); },

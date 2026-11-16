@@ -135,6 +135,7 @@ const FireSocial = (() => {
     const back = reqDocs.find((r) => r.from === them.id);
     if (back) { await accept(code); return null; }
     await FB.col('requests').doc(me.pid + '_' + them.id).set({ from: me.pid, to: them.id, fromCode: me.fcode, fromName: me.name, fromAvatar: me.avatar || null, t: FB.now() });
+    Push.send(them.id, '🤝 Friend request', `${me.name} wants to be friends in Pai Sho`, 'fr-' + me.pid);
     return null;
   }
   async function accept(code) {
@@ -143,6 +144,7 @@ const FireSocial = (() => {
     await FB.col('players').doc(me.pid).set({ friends: FV.arrayUnion(r.from) }, { merge: true });
     await FB.col('players').doc(r.from).set({ friends: FV.arrayUnion(me.pid) }, { merge: true });
     await FB.col('requests').doc(r.id).delete();
+    Push.send(r.from, '🤝 New friend', `${me.name} accepted your friend request`, 'fa-' + me.pid);
     emit('accepted', { code, name: r.fromName });
   }
   async function decline(code) { const r = reqDocs.find((x) => x.fromCode === code); if (r) await FB.col('requests').doc(r.id).delete(); }
@@ -155,6 +157,7 @@ const FireSocial = (() => {
   async function invite(code, game) {
     const f = friendDocs.find((x) => x.code === code); if (!f) return;
     await FB.col('invites').add({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, game, t: FB.now() });
+    Push.send(f.pid, '🎮 Game invite', `${me.name} invited you to a game of Pai Sho`, 'inv-' + me.pid);
   }
   const friends = () => friendDocs.slice().sort((a, b) => (b.seen > Date.now() - ONLINE_MS) - (a.seen > Date.now() - ONLINE_MS) || a.name.localeCompare(b.name));
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
@@ -164,6 +167,37 @@ const FireSocial = (() => {
 })();
 
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */
+/* Closed-app push: subscriptions live in push/{pid}; a small Cloudflare Worker sends them */
+const Push = (() => {
+  const URL_ = 'PUSH_URL_PLACEHOLDER';
+  const ready = () => /^https:/.test(URL_) && 'serviceWorker' in navigator && 'PushManager' in window;
+  const u8 = (b64) => { b64 = b64.replace(/-/g, '+').replace(/_/g, '/'); while (b64.length % 4) b64 += '='; return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); };
+  const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'd' + (h >>> 0).toString(36); };
+  async function subscribe(pid) {
+    if (!ready() || !pid || pid.startsWith('g-') || Store.kind !== 'firebase' || Notification.permission !== 'granted') return false;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const { key } = await (await fetch(URL_ + '/vapid')).json();
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: u8(key) });
+      }
+      const j = sub.toJSON();
+      await FB.col('push').doc(pid).set({ subs: { [hash(j.endpoint)]: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }) }, t: Date.now() }, { merge: true });
+      return true;
+    } catch (e) { console.warn('push subscribe failed', e); return false; }
+  }
+  async function send(to, title, body, tag, url) {
+    if (!/^https:/.test(URL_) || !to || String(to).startsWith('g-') || Store.kind !== 'firebase') return;
+    try {
+      const u = firebase.auth().currentUser; if (!u) return;
+      const tok = await u.getIdToken();
+      fetch(URL_ + '/notify', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify({ to, title, body, tag, url: url || location.href.split('#')[0].split('?')[0] }), keepalive: true }).catch(() => {});
+    } catch (e) {}
+  }
+  return { ready, subscribe, send };
+})();
+
 const TurnAlerts = (() => {
   let unsub = null, pid = null; const seen = {};
   const listeners = new Set();
@@ -171,7 +205,7 @@ const TurnAlerts = (() => {
   const enabled = () => supported() && Notification.permission === 'granted';
   async function enable() {
     if (!supported()) return 'unsupported';
-    try { const r = await Notification.requestPermission(); return r; } catch (e) { return 'denied'; }
+    try { const r = await Notification.requestPermission(); if (r === 'granted') await Push.subscribe(pid); return r; } catch (e) { return 'denied'; }
   }
   async function notify(title, body, tag) {
     if (!enabled()) return;
@@ -185,6 +219,7 @@ const TurnAlerts = (() => {
     if (Store.kind !== 'firebase' || !myPid) return;
     if (pid === myPid && unsub) return;
     stop(); pid = myPid;
+    if (enabled()) Push.subscribe(myPid);
     unsub = FB.col('games').where('pids', 'array-contains', myPid).onSnapshot((qs) => {
       qs.docs.forEach((d) => {
         const g = d.data(); if (!g || g.status !== 'playing' || !g.state) return;
