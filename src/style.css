@@ -278,3 +278,4 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .gbtn svg{flex:none}
 .or{display:flex;align-items:center;gap:10px;color:var(--muted,#a99);font-size:12px;margin:2px 0}
 .or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
+.name-hint{min-height:14px;margin-top:4px;opacity:.8}.name-hint.ok{color:#9fd18b}.name-hint.bad{color:#ff8a80}

@@ -295,6 +295,7 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .gbtn svg{flex:none}
 .or{display:flex;align-items:center;gap:10px;color:var(--muted,#a99);font-size:12px;margin:2px 0}
 .or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
+.name-hint{min-height:14px;margin-top:4px;opacity:.8}.name-hint.ok{color:#9fd18b}.name-hint.bad{color:#ff8a80}
 </style>
 </head>
 <body>
@@ -2368,6 +2369,46 @@ const Guide = (() => {
   // ---------- profiles ----------
   const emptyStats = () => ({ games: 0, wins: 0, losses: 0, draws: 0, ai: { easy: [0, 0, 0], medium: [0, 0, 0], hard: [0, 0, 0] }, local: [0, 0, 0], online: [0, 0, 0], streak: 0, best: 0, rings: 0, recent: [] });
   async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).map(noteHue).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
+  // ---- unique display names: "Aang", "aang" and "A-ang" are the same name ----
+  function normName(n) {
+    const raw = String(n || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+    const k = raw.replace(/[^a-z0-9]/g, '');
+    return k || raw.replace(/\s+/g, '');
+  }
+  const nameKey = (n) => encodeURIComponent(normName(n)).slice(0, 120);
+  async function nameFree(name, pid) {
+    const k = normName(name); if (!k) return false;
+    const list = await players();
+    if (list.some((p) => p.id !== pid && normName(p.name) === k)) return false;
+    if (Store.kind === 'firebase') { try { const d = await FB.col('names').doc(nameKey(name)).get(); if (d.exists && d.data().pid !== pid) return false; } catch (e) {} }
+    return true;
+  }
+  // Reserve a name for this player (atomic online). Returns false if someone else has it.
+  async function claimName(name, pid) {
+    if (!(await nameFree(name, pid))) return false;
+    if (Store.kind !== 'firebase') return true;
+    const ref = FB.col('names').doc(nameKey(name));
+    try {
+      return await FB.fs.runTransaction(async (t) => { const d = await t.get(ref); if (d.exists && d.data().pid !== pid) return false; t.set(ref, { pid, name, t: Date.now() }); return true; });
+    } catch (e) { console.warn('name claim failed', e); return false; }
+  }
+  async function releaseName(name, pid) {
+    if (Store.kind !== 'firebase' || normName(name) === '') return;
+    try { const ref = FB.col('names').doc(nameKey(name)); const d = await ref.get(); if (d.exists && d.data().pid === pid) await ref.delete(); } catch (e) {}
+  }
+  const TAKEN = 'That name is taken — try another';
+  function liveNameCheck(inputId, hintId, pid) {
+    const inp = document.getElementById(inputId), hint = document.getElementById(hintId); if (!inp || !hint) return;
+    let tm = null, seq = 0;
+    const run = () => {
+      const v = inp.value.trim(), my = ++seq;
+      if (!v || (me && pid === me.id && normName(v) === normName(me.name))) { hint.textContent = ''; return; }
+      hint.textContent = 'Checking…'; hint.className = 'tiny name-hint';
+      nameFree(v, pid).then((ok) => { if (my !== seq) return; hint.textContent = ok ? '✓ Available' : '✕ Taken'; hint.className = 'tiny name-hint ' + (ok ? 'ok' : 'bad'); });
+    };
+    inp.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(run, 450); });
+    if (inp.value.trim()) run();
+  }
   function myPid() { if (me) return me.id; let g = Store.LS.get('guestId'); if (!g) { g = 'g-' + Auth.rid(6); Store.LS.set('guestId', g); } return g; }
   const myName = () => (me ? me.name : Store.LS.get('guestName', 'Guest'));
 
@@ -2534,7 +2575,7 @@ const Guide = (() => {
     const bio = await Auth.bioAvailable();
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="login">‹</button><h2>New player</h2><span style="width:42px"></span></div>
       <form class="screen" id="npf">
-        <div class="field"><label>Player name</label><input class="input" id="np-name" maxlength="18" autocomplete="nickname" required value="${esc((gopt.gName || '').split(' ')[0].slice(0, 18))}"></div>
+        <div class="field"><label>Player name</label><input class="input" id="np-name" maxlength="18" autocomplete="nickname" required value="${esc((gopt.gName || '').split(' ')[0].slice(0, 18))}"><div class="tiny name-hint" id="np-hint"></div></div>
         <div class="field"><label>Your nation</label><div class="nat-pick" id="np-nat">${Object.entries(Eco.NATIONS).map(([k, n]) => `<button type="button" class="nat" data-nat="${k}">${Avatars.svg(n.icon, 40)}<b style="color:${n.color}">${n.name}</b></button>`).join('')}</div><div class="tiny muted">Unlocks your nation’s emotes and board. You start with ${Eco.START_GP.toLocaleString()} gold pieces.</div></div>
         <div class="field"><label>Avatar</label><div id="np-av"></div></div>
         <div class="field"><label>PIN (4–6 digits)</label><input class="input" id="np-pin" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" type="password" required></div>
@@ -2543,21 +2584,21 @@ const Guide = (() => {
         <div class="toggle"><div><b>Keep me signed in</b><div class="tiny muted">On this device</div></div><span class="sw on" id="np-keep" data-act="sw"></span></div>
         <div class="tiny muted">Your PIN keeps casual players out of your stats. It isn't bank-grade security — don't reuse an important PIN.</div>
         <button class="btn primary" type="submit">Create player</button></form>`;
+    liveNameCheck('np-name', 'np-hint', null);
     let pickedAv = Eco.FREE_AVATARS[Math.floor(Math.random() * Eco.FREE_AVATARS.length)], pickedNat = null;
     const npav = document.getElementById('np-av'); npav.innerHTML = Avatars.picker(pickedAv, avLock(null)); bindPicker(npav, (id) => (pickedAv = id));
     const npn = document.getElementById('np-nat');
     npn.addEventListener('click', (e) => { const b = e.target.closest('[data-nat]'); if (!b) return; pickedNat = b.dataset.nat; npn.querySelectorAll('.nat').forEach((x) => x.classList.toggle('on', x === b)); });
     document.getElementById('npf').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = document.getElementById('np-name').value.trim();
+      const name = document.getElementById('np-name').value.trim().replace(/\s+/g, ' ');
       const pin = document.getElementById('np-pin').value, pin2 = document.getElementById('np-pin2').value;
       if (!name) return toast('Enter a name');
       if (!/^\d{4,6}$/.test(pin)) return toast('PIN must be 4–6 digits');
       if (pin !== pin2) return toast('PINs don’t match');
       if (!pickedNat) return toast('Pick your nation');
-      const list = await players();
-      if (list.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
       const id = 'p-' + Auth.rid(8).replace(/[^A-Za-z0-9]/g, 'x');
+      if (!(await claimName(name, id))) return toast(TAKEN);
       const salt = Auth.rid(10);
       const p = Eco.ensure({ id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null, avatar: pickedAv, nation: pickedNat, board: pickedNat });
       if (gopt.gUid) p.gUid = gopt.gUid;
@@ -2571,7 +2612,9 @@ const Guide = (() => {
     });
   };
 
+  let nameChecked = null;
   screens.home = () => {
+    if (me && Store.kind === 'firebase' && nameChecked !== me.id) { nameChecked = me.id; claimName(me.name, me.id).catch(() => {}); }
     ensureMe();
     setTimeout(checkAch, 800);
     noteHue(me);
@@ -2640,12 +2683,17 @@ const Guide = (() => {
   };
 
   // ---------- achievements ----------
+  function achBody() {
+    const ach = me.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
+    const order = Eco.ACH.filter((a) => ach[a.id]).concat(Eco.ACH.filter((a) => !ach[a.id]));
+    return `<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.level(me.xp)}</div><div class="tiny muted">${(me.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${(me.bends || 0)}</div><div class="tiny muted">bends</div></div><div><div class="disp" style="font-size:22px">${(me.xp || 0) >= Eco.SUB_XP ? '🌀' : Math.max(0, Eco.SUB_XP - (me.xp || 0))}</div><div class="tiny muted">${(me.xp || 0) >= Eco.SUB_XP ? 'sub-bending on' : 'XP to sub-bending'}</div></div></div>
+      <div class="tlist">${order.map((a) => `<div class="trow" style="align-items:center;${ach[a.id] ? '' : 'opacity:.65'}"><span style="font-size:26px">${ach[a.id] ? '🏆' : '🔒'}</span><div><b>${a.name}</b><br><span class="tiny">${a.desc}</span></div><div class="mv" style="color:#ffd77a">${ach[a.id] ? '✓' : '+' + a.gp}</div></div>`).join('')}</div>`;
+  }
   screens.achievements = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Achievements</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player to earn achievements.</div></div>`; return; }
     const ach = me.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Achievements</h2><span class="gp-pill">${done}/${Eco.ACH.length}</span></div>
-      <div class="screen"><div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.level(me.xp)}</div><div class="tiny muted">${(me.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${(me.bends || 0)}</div><div class="tiny muted">bends</div></div><div><div class="disp" style="font-size:22px">${(me.xp || 0) >= Eco.SUB_XP ? '🌀' : Math.max(0, Eco.SUB_XP - (me.xp || 0))}</div><div class="tiny muted">${(me.xp || 0) >= Eco.SUB_XP ? 'sub-bending on' : 'XP to sub-bending'}</div></div></div>
-      <div class="tlist">${Eco.ACH.map((a) => `<div class="trow" style="align-items:center;${ach[a.id] ? '' : 'opacity:.65'}"><span style="font-size:26px">${ach[a.id] ? '🏆' : '🔒'}</span><div><b>${a.name}</b><br><span class="tiny">${a.desc}</span></div><div class="mv" style="color:#ffd77a">${ach[a.id] ? '✓' : '+' + a.gp}</div></div>`).join('')}</div></div>`;
+      <div class="screen">${achBody()}</div>`;
   };
 
   // ---------- store ----------
@@ -2973,6 +3021,7 @@ const Guide = (() => {
   };
 
   // ---------- stats ----------
+  let statsTab = 'stats';
   screens.stats = async () => {
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Stats</h2><span style="width:42px"></span></div><div class="screen" id="statbody"><div class="muted">Loading…</div></div>`;
     await loadAvatar();
@@ -2982,7 +3031,13 @@ const Guide = (() => {
     const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`;
     const pct = (s) => (s.games ? Math.round((100 * s.wins) / s.games) + '%' : '—');
     const body = document.getElementById('statbody'); if (!body) return;
-    body.innerHTML = (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}
+    if (me) {
+      const done = Eco.ACH.filter((a) => (me.ach || {})[a.id]).length;
+      const tabs = `<div class="seg"><button class="${statsTab === 'stats' ? 'on' : ''}" data-act="statsTab" data-k="stats">Stats</button><button class="${statsTab === 'ach' ? 'on' : ''}" data-act="statsTab" data-k="ach">🏆 Achievements ${done}/${Eco.ACH.length}</button></div>`;
+      if (statsTab === 'ach') { body.innerHTML = tabs + achBody(); return; }
+      body.innerHTML = tabs;
+    }
+    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -2990,7 +3045,7 @@ const Guide = (() => {
       <tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
       <div class="field"><label>Recent games</label><div class="log">${(st.recent || []).map((r) => `<div><span class="dot" style="background:${r.res === 'w' ? 'var(--ok)' : r.res === 'l' ? 'var(--red)' : 'var(--mute)'}"></span><b>${{ w: 'Won', l: 'Lost', d: 'Draw' }[r.res]}</b> vs ${esc(r.opp)} · ${r.turns} turns <span class="muted tiny">${new Date(r.t).toLocaleDateString()}</span></div>`).join('') || '<div class="muted">No games yet.</div>'}</div></div>`
       : `<div class="card muted">You’re playing as a guest. Create a player to track your stats.</div>`) +
-      `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}${esc(p.name)}</td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`;
+      `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}${esc(p.name)}</td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`);
   };
 
   // ======================================================================
@@ -3718,6 +3773,7 @@ const Guide = (() => {
       if (!g || g === 'redirect') return;
       googleContinue(g);
     },
+    statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
       sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
       document.getElementById('fpf').addEventListener('submit', async (e) => {
@@ -3740,12 +3796,13 @@ const Guide = (() => {
       let hue = me && me.hue != null ? me.hue : hueOf(cur);
       let pickedAv = myAvatar() || 'whitelotus';
       sheet(`<h3>${me ? 'Edit profile' : 'Display name'}</h3><form id="epf" class="menu">
-        <div class="field"><label>Display name</label><input class="input" id="ep-name" maxlength="18" value="${esc(cur)}"></div>
+        <div class="field"><label>Display name</label><input class="input" id="ep-name" maxlength="18" value="${esc(cur)}"><div class="tiny name-hint" id="ep-hint"></div></div>
         ${me ? `<div class="field"><label>Nation</label><div class="nat-pick" id="ep-nat">${Object.entries(Eco.NATIONS).map(([k, n]) => `<button type="button" class="nat ${me.nation === k ? 'on' : ''}" data-nat="${k}">${Avatars.svg(n.icon, 36)}<b style="color:${n.color}">${n.name}</b></button>`).join('')}</div><div class="tiny muted">${me.nation ? 'Switching nations costs 300 gp.' : 'Pick your nation for free.'}</div></div>` : ''}
         <div class="field"><label>Avatar</label><div id="ep-av">${Avatars.picker(pickedAv, avLock(me))}</div></div>
         <div class="tiny muted">${me ? 'Your stats, record, PIN and friend code stay the same. Friends see your new name and avatar next time you connect.' : 'Guests don’t keep stats.'}</div>
         <button class="btn primary" type="submit">Save</button></form>`);
       bindPicker(document.getElementById('ep-av'), (id) => (pickedAv = id));
+      if (me) liveNameCheck('ep-name', 'ep-hint', me.id);
       let pickedNat = me ? me.nation : null;
       const epn = document.getElementById('ep-nat');
       if (epn) epn.addEventListener('click', (e) => { const b = e.target.closest('[data-nat]'); if (!b) return; pickedNat = b.dataset.nat; epn.querySelectorAll('.nat').forEach((x) => x.classList.toggle('on', x === b)); });
@@ -3754,10 +3811,9 @@ const Guide = (() => {
         const name = document.getElementById('ep-name').value.trim().replace(/\s+/g, ' ');
         if (!name) return toast('Enter a name');
         if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); Soc().stop(); return go('home'); }
-        if (name.toLowerCase() !== me.name.toLowerCase()) {
-          const list = await players();
-          if (list.some((p) => p.id !== me.id && p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
-        }
+        const renamed = name !== me.name;
+        if (renamed && !(await claimName(name, me.id))) return toast(TAKEN);
+        if (renamed && normName(name) !== normName(me.name)) releaseName(me.name, me.id);
         if (pickedNat && pickedNat !== me.nation) {
           if (me.nation) {
             ensureMe();
