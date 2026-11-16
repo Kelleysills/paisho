@@ -290,3 +290,6 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .tut-glow{animation:tutGlow 1.1s ease-in-out infinite}
 g.tut-glow{filter:drop-shadow(0 0 .35px #fff) drop-shadow(0 0 .25px #f2cf6e)}
 @keyframes tutGlow{50%{opacity:.55}}
+.lb-row{cursor:pointer}.lb-row:active{background:rgba(255,255,255,.06)}
+.ach-chips{display:flex;flex-wrap:wrap;gap:6px}.ach-chips .chip{background:rgba(242,207,110,.12);border:1px solid rgba(242,207,110,.35);border-radius:999px;padding:3px 9px;font-size:12px}
+.seat[data-act]{cursor:pointer}

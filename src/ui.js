@@ -414,6 +414,22 @@
   };
 
   // ---------- achievements ----------
+  async function viewPlayer(d) {
+    let p = d.pid ? await Store.get('players', d.pid).catch(() => null) : null;
+    if (!p && d.name) p = (await players()).find((x) => x.name.toLowerCase() === String(d.name).toLowerCase()) || null;
+    if (!p) return toast('Player not found');
+    Eco.ensure(p);
+    const st = Object.assign(emptyStats(), p.stats || {}), ach = p.ach || {};
+    const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`, pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
+    const card = Object.assign({}, p, { avatar: p.avatar || 'whitelotus', isAvatar: !!(avatarPid && p.id === avatarPid), lvl: Eco.level(p.xp || 0), xp: p.xp || 0 });
+    const got = Eco.ACH.filter((a) => ach[a.id]);
+    sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}
+      <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
+      <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
+      <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr></table></div>
+      <div class="field"><label>🏆 Achievements · ${got.length}/${Eco.ACH.length}</label><div class="ach-chips">${got.slice(-60).reverse().map((a) => `<span class="chip" title="${esc(a.desc)}">🏆 ${esc(a.name)}</span>`).join('') || '<span class="muted tiny">None yet</span>'}${got.length > 60 ? `<span class="chip">+${got.length - 60} more</span>` : ''}</div></div>
+</div>`);
+  }
   function achBody() {
     const ach = me.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
     const order = Eco.ACH.filter((a) => ach[a.id]).concat(Eco.ACH.filter((a) => !ach[a.id]));
@@ -747,7 +763,7 @@
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
       <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
       ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
-      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0" data-act="viewPlayer" data-name="${esc(f.name)}"${f.pid ? ` data-pid="${esc(f.pid)}"` : ''}><div class="nm"><u>${esc(f.name)}</u></div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
     </div>`;
   };
 
@@ -776,7 +792,7 @@
       <tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
       <div class="field"><label>Recent games</label><div class="log">${(st.recent || []).map((r) => `<div><span class="dot" style="background:${r.res === 'w' ? 'var(--ok)' : r.res === 'l' ? 'var(--red)' : 'var(--mute)'}"></span><b>${{ w: 'Won', l: 'Lost', d: 'Draw' }[r.res]}</b> vs ${esc(r.opp)} · ${r.turns} turns <span class="muted tiny">${new Date(r.t).toLocaleDateString()}</span></div>`).join('') || '<div class="muted">No games yet.</div>'}</div></div>`
       : `<div class="card muted">You’re playing as a guest. Create a player to track your stats.</div>`) +
-      `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}${esc(p.name)}</td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`);
+      `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard <span class="tiny muted" style="text-transform:none;letter-spacing:0">· tap a player</span></label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr class="lb-row" data-act="viewPlayer" data-pid="${esc(p.id)}"><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}<u>${esc(p.name)}</u></td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`);
   };
 
   // ======================================================================
@@ -1096,7 +1112,7 @@
   function renderSeats() {
     const H = P.harmonies(G.s);
     const el = document.getElementById('seats'); if (!el) return;
-    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}">${G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
+    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"${G.seats[k].pid && !String(G.seats[k].pid).startsWith('g-') ? ` data-act="viewPlayer" data-pid="${esc(G.seats[k].pid)}"` : ''}>${G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
       <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span></div>
       <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
   }
@@ -1634,6 +1650,7 @@
     tutHome: () => { closeSheet(); Music.stop(); G = null; go('home'); },
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
+    viewPlayer: (d) => viewPlayer(d),
     statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
       sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
