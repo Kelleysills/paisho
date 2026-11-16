@@ -103,7 +103,7 @@
       const out = { gp: Math.round(Eco.earnings(mode, level, res, ring) * bst.gp), delta: 0, rating: p.rating, boost: bst.name ? bst : null };
       p.gp += out.gp;
       const isMe = me && me.id === pid;
-      const spam = isMe && G ? Math.min(20, G.spam || 0) : 0;
+      const spam = isMe && G ? Math.min(60, G.spam || 0) : 0; // 5 XP each, capped at 300 XP a match
       out.xp = Math.round((Eco.xpFor(mode, res) + (mode === 'online' ? spam * 5 : 0)) * bst.xp);
       const lvBefore = Eco.level(p.xp || 0), subBefore = (p.xp || 0) >= Eco.SUB_XP;
       p.xp = (p.xp || 0) + out.xp;
@@ -1537,7 +1537,7 @@
           ${used ? '<p class="muted">Already used this game.</p>' : `<p class="tiny">${costTxt}</p><div class="menu">${els.map((el) => `<button class="btn" data-act="bendGo" data-el="${el}" ${!free && !cost ? 'disabled' : ''}>${Eco.BEND[el].icon} ${Eco.BEND[el].verb}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.BEND[el].desc}</small></button>`).join('')}</div>`}</div>
         <div class="card" style="margin-top:10px"><b>Sub-bending</b> <span class="tiny muted">· ${pw.avatar ? 'any two per game' : 'once per game'}</span>
           ${subs.length ? `<div class="menu" style="margin-top:8px">${subs.map((k) => `<button class="btn" data-act="subGo" data-k="${k}">${Eco.SUBS[k].icon} ${Eco.SUBS[k].name}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.SUBS[k].desc}</small></button>`).join('')}</div>` : usedSubs.length ? '<p class="muted">Used this game.</p>' : `<p class="muted tiny">Unlocks at ${Eco.SUB_XP.toLocaleString()} XP${me ? ` — you have ${xp.toLocaleString()}` : ''}. ${pw.avatar ? 'The Avatar can use any two.' : Eco.SUBS[Eco.SUB_OF[pw.nation]].name + ': ' + Eco.SUBS[Eco.SUB_OF[pw.nation]].desc}</p>`}</div>
-        <div class="card" style="margin-top:10px"><b>Show off</b> <span class="tiny muted">· free, cosmetic, as often as you like</span><p class="tiny muted">Cover their board in your element while they think. Earns bonus XP in online games.</p>
+        <div class="card" style="margin-top:10px"><b>Show off</b> <span class="tiny muted">· free, cosmetic, as often as you like</span><p class="tiny muted">Cover their board in your element while they think. +5 XP each in online games (up to 300 a match).</p>
           <div class="row wrap">${els.map((el) => `<button class="btn small" data-act="spamGo" data-el="${el}">${Eco.BEND[el].icon} ${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</button>`).join('')}</div></div>`);
     },
     bendGo: (d) => { if (G.sel && G.sel.kind === 'bend' && G.sel.el === d.el) { G.sel = null; renderBoard(); renderBendBar(); return; } startBendSel(d.el); renderBendBar(); },
