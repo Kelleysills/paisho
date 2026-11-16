@@ -740,7 +740,7 @@ const PaiSho = (() => {
       let owners = [];
       if (ta.type === 'lotus' || tb.type === 'lotus') {
         if (ta.type === 'lotus' && tb.type === 'lotus') owners = [...new Set([ta.owner, tb.owner])];
-        else owners = [ta.type === 'lotus' ? tb.owner : ta.owner];
+        else owners = [ta.type === 'lotus' ? ta.owner : tb.owner]; // a Lotus's harmonies belong to the Lotus owner
         if (!pathClear(s, a, li, -1, shield)) continue;
       } else {
         if (ta.owner !== tb.owner) continue;
