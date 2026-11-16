@@ -1,7 +1,7 @@
 {
   "name": "Pai Sho",
   "short_name": "Pai Sho",
-  "description": "Key Pai Sho — play the computer, pass and play, or friends online",
+  "description": "Key Pai Sho — play the computer, pass and play, or friends online. Unofficial free fan project.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

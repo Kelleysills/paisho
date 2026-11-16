@@ -41,4 +41,4 @@ Where the booklet leaves room for interpretation:
 - When the turn timer runs out, the app makes a random move for you.
 - The game is a draw at 400 turns.
 
-Pai Sho comes from *Avatar: The Last Airbender*. Key Pai Sho is a fan-made game (keypaisho.wordpress.com, skudpaisho.com). This is an unofficial fan project, and all tile art in it was drawn from scratch.
+Pai Sho comes from *Avatar: The Last Airbender*. Key Pai Sho is a fan-made game (keypaisho.wordpress.com, skudpaisho.com). This is an unofficial, free fan project. It is not affiliated with, endorsed by or sponsored by Nickelodeon, Paramount or Viacom, which own *Avatar: The Last Airbender* and related trademarks. Key Pai Sho rules by The Garden Gate Games. All tile art and music were made from scratch.

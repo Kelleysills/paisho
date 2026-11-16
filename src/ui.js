@@ -175,6 +175,7 @@
 
   const knownIds = () => Store.LS.get('knownProfiles', []);
   function rememberProfile(id) { const k = knownIds().filter((x) => x !== id); k.unshift(id); Store.LS.set('knownProfiles', k.slice(0, 12)); }
+  const DISCLAIMER = `<div class="disclaimer">Unofficial, free fan project. Not affiliated with, endorsed by or sponsored by Nickelodeon, Paramount or Viacom. <i>Avatar: The Last Airbender</i> and related names are trademarks of their owners. Key Pai Sho rules by The Garden Gate Games. All art in this app is original.</div>`;
   screens.login = async () => {
     let list = await players();
     if (Store.kind === 'firebase') list = list.filter((p) => knownIds().includes(p.id));
@@ -186,7 +187,7 @@
       <button class="btn primary" data-act="newProfile">＋ New player</button>
       ${Store.kind === 'firebase' ? '<button class="btn" data-act="findProfile">Sign in to an existing player</button>' : ''}
       <button class="btn ghost" data-act="guestPlay">Play as guest (no stats)</button>
-      <div class="spacer"></div><div class="tiny muted" style="text-align:center">${where}</div></div>`;
+      <div class="spacer"></div><div class="tiny muted" style="text-align:center">${where}</div>${DISCLAIMER}</div>`;
   };
 
   function pinPad(title, sub, onDone, extra = '') {
@@ -287,7 +288,7 @@
         <button class="btn" data-act="go" data-to="loadouts">${icon('loadout')}<span class="lbl">Loadouts<small>Equipped: ${esc(equipped().name)} · ${loIcons(equipped().fx, 16)}</small></span></button>
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
-      </div></div>`;
+      </div><div class="disclaimer">Unofficial free fan project · not affiliated with Nickelodeon · <a href="#" data-act="go" data-to="guide" style="color:inherit">credits</a></div></div>`;
   };
   function icon(k) {
     const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"'), loadout: Glyphs.svg('boat', 1, 'class="ic"'), store: Glyphs.svg('stone', 0, 'class="ic"'), ach: Glyphs.svg('lotus', 1, 'class="ic"') };

@@ -271,3 +271,5 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .bb[disabled]{opacity:.4}
 .bb-sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
 .game .tray{min-height:68px}
+
+.disclaimer{font-size:10px;line-height:1.35;opacity:.55;text-align:center;margin:10px auto 0;max-width:340px}
