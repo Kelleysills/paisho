@@ -35,7 +35,7 @@ node tests/test_random.js · node tests/test_ai.js medium easy 4   engine and AI
 
 Where the booklet leaves room for interpretation:
 - A gate covers the 2×2 block of squares at the board's edge. A flower leaving it steps first into one of the 8 squares around that block.
-- A White Lotus's harmonies count for the Lotus owner, even when linking to an opponent's flower (the booklet says a Lotus–Lotus harmony belongs to both players).
+- The White Lotus is neutral: every harmony it makes counts for both players.
 - The Dahlia moves in straight lines.
 - Moving an accent tile uses your turn's move. Wheel and Koi abilities are free extras, once per turn each.
 - When the turn timer runs out, the app makes a random move for you.
