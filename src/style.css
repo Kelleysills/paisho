@@ -215,3 +215,24 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .fx.locked .fx-ds{opacity:.75}
 
 .status .yip{display:inline-flex;min-height:30px;padding:4px 10px;margin-left:6px;font-size:13px;vertical-align:middle}
+
+.bend-btn{right:auto;left:6px;font-size:22px}
+.bend-btn.spent{opacity:.45}
+.bend-fx{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:hidden;border-radius:50%}
+.bend-fx span{position:absolute;animation:fxrise 2.2s ease-out forwards;opacity:0}
+@keyframes fxrise{0%{transform:translateY(20px) scale(.6);opacity:0}25%{opacity:1}100%{transform:translateY(-60px) scale(1.3);opacity:0}}
+.fx-fire{background:radial-gradient(circle at 50% 70%,#ff7a2a66,#a0100055 60%,transparent 75%);animation:flick .2s infinite alternate}
+.fx-water{background:radial-gradient(circle,#3a8fd855,#1b4a8a66 70%,transparent 80%)}
+.fx-water span{animation-name:fxwave}
+@keyframes fxwave{0%{transform:translateX(-40px);opacity:0}30%{opacity:1}100%{transform:translateX(60px);opacity:0}}
+.fx-earth{background:radial-gradient(circle,#6b4a2a66,#3a2a1a88 70%,transparent 80%)}
+.fx-earth span{animation-name:fxfall}
+@keyframes fxfall{0%{transform:translateY(-80px);opacity:0}20%{opacity:1}100%{transform:translateY(30px) rotate(40deg);opacity:0}}
+.fx-air{background:radial-gradient(circle,#ffffff44,#dfe8f055 70%,transparent 80%);backdrop-filter:blur(3px)}
+.fx-air span{animation-name:fxspin}
+@keyframes fxspin{0%{transform:rotate(0) scale(.5);opacity:0}30%{opacity:1}100%{transform:rotate(540deg) scale(1.4) translateX(40px);opacity:0}}
+@keyframes flick{to{filter:brightness(1.3)}}
+.shake{animation:shake .5s}
+
+.event-banner{text-align:center;padding:10px 12px;border-radius:14px;background:linear-gradient(90deg,#5a3a12,#7a4a14,#5a3a12);border:1px solid #e6b54a;font-size:14px;color:#ffe6a8}
+.event-banner.big{background:linear-gradient(90deg,#f7cf63,#5fb2ea,#8cc152,#f0633f);color:#1b120c;font-weight:800;animation:avglow 3s infinite}

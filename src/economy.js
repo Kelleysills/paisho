@@ -110,5 +110,53 @@ const Eco = (() => {
     if (eligible.length > 1 && eligible[0].r === eligible[1].r) return { pid: null, tie: [eligible[0].p, eligible[1].p] };
     return { pid: eligible[0].p.id, tie: null };
   }
-  return { START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  // ---- XP, sub-bending, achievements ----
+  const SUB_XP = 1000;
+  const SUBS = {
+    metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Swap any two tiles on the board.' },
+    lightning: { name: 'Lightning', el: 'fire', icon: '⚡', desc: 'Your opponent skips their next turn.' },
+    blood: { name: 'Bloodbending', el: 'water', icon: '🩸', desc: 'Make your opponent’s next move for them.' },
+    flight: { name: 'Flight', el: 'air', icon: '🪽', desc: 'See their whole hand and their likely next move.' },
+  };
+  const SUB_OF = { earth: 'metal', fire: 'lightning', water: 'blood', air: 'flight' };
+  const BEND = {
+    fire: { icon: '🔥', verb: 'Burn', desc: 'Burn an opponent’s tile out of the game.' },
+    water: { icon: '🌊', verb: 'Wash out', desc: 'Wash an opponent’s tile back to their hand.' },
+    earth: { icon: '🪨', verb: 'Smash', desc: 'Smash a tile and leave rubble there for 4 turns.' },
+    air: { icon: '🌪️', verb: 'Sweep', desc: 'Sweep a tile up to 3 squares in a straight line.' },
+  };
+  const level = (xp) => 1 + Math.floor((xp || 0) / 500);
+  function powersFor(p, isAvatar) {
+    if (!p || !p.nation) return { nation: null };
+    const xp = p.xp || 0;
+    return { nation: p.nation, avatar: !!isAvatar, subs: xp >= SUB_XP ? (isAvatar ? Object.keys(SUBS) : [SUB_OF[p.nation]]) : [] };
+  }
+  const XP = { online: [100, 30, 50], ai: [40, 10, 20] };
+  const xpFor = (mode, res) => { const t = XP[mode]; if (!t) return 0; return t[res === 'w' ? 0 : res === 'l' ? 1 : 2]; };
+  const ACH = [
+    { id: 'first_win', name: 'First Victory', desc: 'Win your first match', gp: 1000, ok: (p) => (p.stats && p.stats.wins) >= 1 },
+    { id: 'first_online', name: 'Out in the World', desc: 'Win an online match', gp: 300, ok: (p) => (p.stats && p.stats.online && p.stats.online[0]) >= 1 },
+    { id: 'ring', name: 'Full Circle', desc: 'Win by completing a ring', gp: 200, ok: (p) => (p.stats && p.stats.rings) >= 1 },
+    { id: 'hard', name: 'Master Strategist', desc: 'Beat the Hard computer', gp: 400, ok: (p) => (p.stats && p.stats.ai && p.stats.ai.hard && p.stats.ai.hard[0]) >= 1 },
+    { id: 'streak3', name: 'On a Roll', desc: 'Win 3 matches in a row', gp: 300, ok: (p) => (p.stats && p.stats.best) >= 3 },
+    { id: 'vet25', name: 'Veteran', desc: 'Play 25 matches', gp: 500, ok: (p) => (p.stats && p.stats.games) >= 25 },
+    { id: 'lotus', name: 'White Lotus', desc: 'Unlock the White Lotus tile', gp: 250, ok: (p) => p.owned && p.owned.tiles.includes('lotus') },
+    { id: 'arsenal', name: 'Full Arsenal', desc: 'Unlock all 12 effect tiles', gp: 1000, ok: (p) => p.owned && Object.keys(TILE_PRICE).every((t) => p.owned.tiles.includes(t)) },
+    { id: 'board', name: 'Redecorated', desc: 'Buy a board theme', gp: 100, ok: (p) => p.owned && p.owned.boards.some((b) => b !== 'classic' && b !== p.nation) },
+    { id: 'bender', name: 'Bender', desc: 'Use bending in a match', gp: 150, ok: (p) => (p.bends || 0) >= 1 },
+    { id: 'fury25', name: 'Elemental Fury', desc: 'Bend 25 times', gp: 300, ok: (p) => (p.bends || 0) >= 25 },
+    { id: 'fury100', name: 'Force of Nature', desc: 'Bend 100 times', gp: 750, ok: (p) => (p.bends || 0) >= 100 },
+    { id: 'subbender', name: 'Beyond the Basics', desc: `Reach ${SUB_XP} XP to unlock sub-bending`, gp: 500, ok: (p) => (p.xp || 0) >= SUB_XP },
+    { id: 'avatar', name: 'The Avatar', desc: 'Become the Avatar', gp: 1000, ok: (p, c) => !!(c && c.isAvatar) },
+    { id: 'friend', name: 'Better Together', desc: 'Add a friend', gp: 100, ok: (p, c) => !!(c && c.friends >= 1) },
+    { id: 'emotes10', name: 'Expressive', desc: 'Send 10 emotes', gp: 100, ok: (p) => (p.emotesSent || 0) >= 10 },
+    { id: 'rich', name: 'Treasure Keeper', desc: 'Hold 5,000 gp at once', gp: 500, ok: (p) => (p.gp || 0) >= 5000 },
+  ];
+  // reward events (player's local date): Avatar Day beats weekends
+  function boost(d = new Date()) {
+    if (d.getMonth() === 3 && d.getDate() === 28) return { xp: 100, gp: 5, name: 'Avatar Day', icon: '🎉' };
+    if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
+    return { xp: 1, gp: 1, name: null };
+  }
+  return { boost, SUB_XP, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();

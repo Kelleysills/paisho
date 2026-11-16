@@ -105,6 +105,7 @@ const PaiSho = (() => {
       v: 1, board: new Array(N * N).fill(null), gates: [null, null, null, null], center: null,
       hands, turn: 0, turnNo: 1, nextId: 1, winner: null, winReason: '', removed: [],
       tp: freshTP(), opts: o, log: [], lastMove: null,
+      bend: o.bending ? { used: [false, false], subs: [[], []], skip: [0, 0], flight: [false, false] } : null, rubble: null,
     };
   }
   function freshTP() { return { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false }; }
@@ -113,7 +114,7 @@ const PaiSho = (() => {
   // ---------- queries ----------
   const cell = (s, i) => s.board[i];
   const topAt = (s, i) => (s.board[i] ? s.board[i].top : null);
-  const isGateSq = (s, i) => gateOfSq[i] >= 0 || (s.center && CENTER_SQ.includes(i));
+  const isGateSq = (s, i) => gateOfSq[i] >= 0 || (s.center && CENTER_SQ.includes(i)) || !!(s.rubble && s.rubble[i]);
   const plantedCount = (s, p) => s.gates.filter((t) => t && t.owner === p).length + (s.center && s.center.owner === p ? 1 : 0);
   function protectedByBadger(s, i) { const c = s.board[i]; return !!(c && c.under && c.under.type === 'badgermole'); }
   function onSkybison(s, i) { const c = s.board[i]; return !!(c && c.under && c.under.type === 'skybison'); }
@@ -448,10 +449,14 @@ const PaiSho = (() => {
     } else if (a.t === 'koi') {
       const tmp = s.board[a.a]; s.board[a.a] = s.board[a.b]; s.board[a.b] = tmp;
       tp.used[s.board[a.i].top.id] = true;
+    } else if (a.t === 'bend') {
+      applyBend(s, a.by != null ? a.by : p, a);
+    } else if (a.t === 'sub') {
+      applySub(s, a.by != null ? a.by : p, a);
     } else if (a.t === 'end') {
       return endTurn(s, desc);
     }
-    if (desc) s.log.push({ p, turn: s.turnNo, text: desc });
+    if (desc) s.log.push({ p: a.by != null ? a.by : p, turn: s.turnNo, text: desc });
     return s;
   }
   function landFlower(s, to, tile) {
@@ -488,8 +493,106 @@ const PaiSho = (() => {
     if (s.center && s.center.owner === p) s.centerAge = (s.centerAge || 0) + 1;
     s.turn = 1 - p; s.turnNo++;
     s.tp = freshTP();
+    if (s.rubble) { for (const k of Object.keys(s.rubble)) { if (--s.rubble[k] <= 0) delete s.rubble[k]; } if (!Object.keys(s.rubble).length) s.rubble = null; }
+    if (s.winner === null && s.bend && s.bend.skip[s.turn] > 0) {
+      s.bend.skip[s.turn]--;
+      s.log.push({ p: s.turn, turn: s.turnNo, text: 'is stunned and skips a turn' });
+      s.turn = 1 - s.turn; s.turnNo++;
+    }
     if (s.center && s.center.owner === s.turn) s.tp.mustLotus = true;
     return s;
+  }
+
+  // ---------- Elemental mode (bending) ----------
+  const SUB_OF = { earth: 'metal', fire: 'lightning', water: 'blood', air: 'flight' };
+  const powersOf = (s, p) => (s.opts.powers && s.opts.powers[p]) || {};
+  const hasHarmony = (s, p) => harmonies(s).some((h) => h.owners.includes(p));
+  function canBend(s, p, el) {
+    if (!s.bend || s.winner !== null || s.bend.used[p]) return false;
+    const pw = powersOf(s, p);
+    return !!el && (pw.avatar || pw.nation === el);
+  }
+  function bendTargets(s, p) {
+    const out = [];
+    for (let i = 0; i < N * N; i++) { const c = s.board[i]; if (c && c.top.owner !== p && !protectedByBadger(s, i)) out.push(i); }
+    return out;
+  }
+  function sweepDests(s, i) {
+    const c = s.board[i]; if (!c) return [];
+    const out = [];
+    for (const [dr, dc] of ALL8) { let j = i; for (let k = 0; k < 3; k++) { j = step(j, dr, dc); if (j < 0 || isGateSq(s, j) || s.board[j]) break; if (colorOK(s, c.top, j)) out.push(j); } }
+    return out;
+  }
+  // the cost: lose one effect tile (hand first, then board) unless you have a harmony or are the Avatar
+  function bendCost(s, p) {
+    if (powersOf(s, p).avatar || hasHarmony(s, p)) return null;
+    const h = s.hands[p];
+    for (const t of EFFECT_TYPES) if (h[t] > 0) return { from: 'hand', type: t };
+    for (let i = 0; i < N * N; i++) { const c = s.board[i]; if (c && c.top.owner === p && (isAccent(c.top.type) || isSpecial(c.top.type)) && !c.under) return { from: 'board', i, type: c.top.type }; }
+    return null;
+  }
+  // can this player afford to bend right now (free, or has an effect tile to give up)?
+  const canAffordBend = (s, p) => !!(powersOf(s, p).avatar || hasHarmony(s, p) || bendCost(s, p));
+  function payCost(s, p) {
+    const c = bendCost(s, p); if (!c) return null;
+    if (c.from === 'hand') s.hands[p][c.type]--;
+    else { s.removed.push(s.board[c.i].top); s.board[c.i] = null; }
+    return c.type;
+  }
+  function applyBend(s, p, a) {
+    if (!canBend(s, p, a.el)) throw new Error('Cannot bend');
+    if (!canAffordBend(s, p)) throw new Error('No effect tile to give up');
+    const c = s.board[a.target];
+    if (!c || c.top.owner === p || protectedByBadger(s, a.target)) throw new Error('Bad target');
+    if (a.el === 'air' && !sweepDests(s, a.target).includes(a.to)) throw new Error('Bad sweep');
+    const paid = payCost(s, p);
+    const victim = c.top;
+    if (a.el === 'fire') { s.removed.push(victim); s.board[a.target] = c.under ? { top: c.under, under: null } : null; }
+    else if (a.el === 'water') { returnToHand(s, victim); s.board[a.target] = c.under ? { top: c.under, under: null } : null; }
+    else if (a.el === 'earth') { s.removed.push(victim); if (c.under) returnToHand(s, c.under); s.board[a.target] = null; s.rubble = s.rubble || {}; s.rubble[a.target] = 4; }
+    else if (a.el === 'air') { s.board[a.to] = c; s.board[a.target] = null; }
+    s.bend.used[p] = true;
+    s.lastMove = { to: a.el === 'air' ? a.to : a.target };
+    s.lastBend = { p, el: a.el, at: a.el === 'air' ? a.to : a.target, paid, t: s.turnNo };
+  }
+  function subAvailable(s, p) {
+    if (!s.bend || s.winner !== null) return [];
+    const pw = powersOf(s, p), used = s.bend.subs[p];
+    if (!pw.subs || !pw.subs.length) return [];
+    const limit = pw.avatar ? 2 : 1;
+    if (used.length >= limit) return [];
+    return pw.subs.filter((k) => !used.includes(k));
+  }
+  function bloodMoves(s, p) {
+    const t = clone(s); t.turn = 1 - p; t.tp = freshTP(); t.bend = null;
+    return moveActions(t, 1 - p);
+  }
+  function metalPairs(s) {
+    const tiles = []; for (let i = 0; i < N * N; i++) if (s.board[i] && !protectedByBadger(s, i)) tiles.push(i);
+    return tiles;
+  }
+  function applySub(s, p, a) {
+    if (!subAvailable(s, p).includes(a.kind)) throw new Error('Not available');
+    if (a.kind === 'metal') {
+      const A = s.board[a.a], B = s.board[a.b];
+      if (!A || !B || a.a === a.b || protectedByBadger(s, a.a) || protectedByBadger(s, a.b)) throw new Error('Bad swap');
+      if (!colorOK(s, A.top, a.b) || !colorOK(s, B.top, a.a)) throw new Error('Cannot land');
+      s.board[a.a] = B; s.board[a.b] = A;
+    } else if (a.kind === 'lightning') {
+      s.bend.skip[1 - p]++;
+    } else if (a.kind === 'blood') {
+      const ok = bloodMoves(s, p).some((m) => JSON.stringify(m) === JSON.stringify(a.move));
+      if (!ok) throw new Error('Bad puppet move');
+      const keepTp = s.tp, keepTurn = s.turn;
+      s.turn = 1 - p; s.tp = freshTP();
+      const t = apply(s, a.move);
+      Object.assign(s, t); s.turn = keepTurn; s.tp = keepTp; s.log.pop();
+      s.bend.skip[1 - p]++;
+    } else if (a.kind === 'flight') {
+      s.bend.flight[p] = true;
+    }
+    s.bend.subs[p].push(a.kind);
+    s.lastBend = { p, sub: a.kind, t: s.turnNo };
   }
 
   // ---------- harmonies ----------
@@ -603,12 +706,15 @@ const PaiSho = (() => {
     if (a.t === 'place') return `placed ${tname(a.type)} at ${sqName(a.at)}`;
     if (a.t === 'wheel') return `turned Wheel ${a.dir > 0 ? 'clockwise' : 'counter-clockwise'} ${a.n}`;
     if (a.t === 'koi') return `Koi swapped ${sqName(a.a)} ↔ ${sqName(a.b)}`;
+    if (a.t === 'bend') { const t = s.board[a.target] && s.board[a.target].top; return { fire: 'burned', water: 'washed out', earth: 'smashed', air: 'swept' }[a.el] + ` ${t ? 'the ' + tname(t.type) : 'a tile'} at ${sqName(a.target)} with ${a.el}bending`; }
+    if (a.t === 'sub') return { metal: 'metalbent two tiles into each other’s places', lightning: 'struck with lightning — the opponent skips a turn', blood: 'took control of the opponent’s turn', flight: 'took flight and can see the opponent’s plans' }[a.kind];
     return '';
   }
 
   return {
     N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
     KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
+    SUB_OF, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,
     newGame, clone, legalActions, apply, harmonies, findRing, plantedCount, knotted, colorOK,
     flowerDests, stoneSpots, wheelOptions, koiOptions, isGateSq, sqName, describe, neighbors, angleOf, dAngle,
   };

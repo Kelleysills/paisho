@@ -49,7 +49,7 @@ const Avatars = (() => {
     const st = p.stats || {};
     const pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
     const nat = p.nation && typeof Eco !== 'undefined' && Eco.NATIONS[p.nation] ? Eco.NATIONS[p.nation].name + ' Nation' : e.name + ' · ' + byId[id].label;
-    const econ = typeof p.gp === 'number' ? `<div class="pc-econ"><span>🪙 ${p.gp.toLocaleString()} gp</span>${typeof p.rating === 'number' ? `<span>⭐ ${p.rating} ranked</span>` : ''}</div>` : '';
+    const econ = typeof p.gp === 'number' ? `<div class="pc-econ"><span>🪙 ${p.gp.toLocaleString()}</span>${typeof p.rating === 'number' ? `<span>⭐ ${p.rating}</span>` : ''}${p.lvl ? `<span>Lv ${p.lvl}</span>` : ''}</div>` : '';
     return `<div class="pcard ${(opts.avatarTitle || p.isAvatar) ? 'is-avatar' : ''}" style="--c1:${e.c[0]};--c2:${e.c[1]};--ink:${e.ink}">
       ${(opts.avatarTitle || p.isAvatar) ? '<div class="pc-crown">👑 THE AVATAR</div>' : ''}
       <div class="pc-top">${svg(id, opts.big ? 84 : 64)}<div class="pc-id"><div class="pc-name">${esc(p.name)}</div><div class="pc-sub">${nat}${opts.code ? ` · <span class="pc-code">${esc(opts.code)}</span>` : ''}</div>${econ}</div></div>
