@@ -230,6 +230,8 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .fx-ds{font-size:10.5px;line-height:1.25;color:var(--dim);text-align:center;padding:0 4px;min-height:40px}
 .fx-i{position:absolute;top:2px;left:6px;font-size:15px;color:var(--gold2);padding:2px 4px}
 .fx.locked .fx-ds{opacity:.75}
+
+.status .yip{display:inline-flex;min-height:30px;padding:4px 10px;margin-left:6px;font-size:13px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -1073,6 +1075,7 @@ const Eco = (() => {
     { id: 'hmm', e: '🤔', t: 'Hmm…', kind: 'common' },
     { id: 'oops', e: '😅', t: 'Oops', kind: 'common' },
     { id: 'gg', e: '🙏', t: 'Good game', kind: 'common' },
+    { id: 'yip', e: '🦬', t: 'Yip yip!', kind: 'common' },
     { id: 'air1', e: '🌬️', t: 'Light as a breeze', kind: 'air' },
     { id: 'air2', e: '🍃', t: 'Go with the wind', kind: 'air' },
     { id: 'air3', e: '🌀', t: 'Spun you around!', kind: 'air' },
@@ -1695,6 +1698,16 @@ const TurnAlerts = (() => {
     unsub = FB.col('games').where('pids', 'array-contains', myPid).onSnapshot((qs) => {
       qs.docs.forEach((d) => {
         const g = d.data(); if (!g || g.status !== 'playing' || !g.state) return;
+        // Yip yip nudges
+        const nz = g.nudge, nkey = 'n:' + d.id, mineSeat = g.guest && g.guest.pid === myPid ? 0 : 1;
+        if (nz && nz.t) {
+          const pn = seen[nkey]; seen[nkey] = nz.t;
+          if (pn !== undefined && nz.t > pn && nz.seat !== mineSeat && Date.now() - nz.t < 10 * 60000) {
+            const who = nz.seat === 0 ? g.guest.name : g.host.name;
+            if (document.hidden) notify('📣 Yip yip!', `${who} is waiting for your move (game ${d.id})`, 'n-' + d.id);
+            listeners.forEach((f) => f('nudge', { code: d.id, who }));
+          }
+        }
         const v = g.ver || 0, prev = seen[d.id]; seen[d.id] = v;
         if (prev === undefined || v <= prev) return;
         let s; try { s = JSON.parse(g.state); } catch (e) { return; }
@@ -1955,7 +1968,7 @@ const Guide = (() => {
       ['win', 'Winning', `<p>The first player to complete a closed chain of at least 4 harmonies that <b>encircles the centre</b> wins. The app checks at the end of every turn and draws the ring in gold. (Harmony Minima variation: change 4 to 3, 6 or 10.)</p>`],
       ['effects', 'Effect tiles', `<p>Before the game each player may choose up to <b>6 effect tiles</b>, one of each kind, from the special flowers and accent tiles below. Beginners should play with none until the basics feel natural.</p><h3>Special flowers</h3><p>They are planted in gates like key flowers, can land in any garden colour, and each has its own movement.</p><div class="tlist">${Object.keys(P.SPECIAL).map(trow).join('')}</div><h3>Accent tiles</h3><p>Accent tiles are never planted. You <b>place</b> one by swapping it with one of your blooming flowers. They don’t harmonize or block harmonies, but they <b>do block flower movement</b>. They move once per turn in any of the 8 directions and may jump over tiles.</p><div class="tlist">${Object.keys(P.ACCENT).map(trow).join('')}</div>`],
       ['fine', 'Fine print', `<ul><li>You can’t pass: you must plant, place or move something.</li><li>Steps leaving a gate count the first square outside the gate as step one.</li><li>A tile only "lands" on its final square, and harmonies form only after it stops.</li><li>Tiles in the garden never affect planted tiles, and a tile in the garden can never go back onto a gate.</li><li>Only one tile per gate.</li><li>Moving a flower by carrying it with an accent counts as moving the accent.</li><li>Knotweed affects your own flowers too, but accent tiles can still move those flowers.</li><li>An accent that moves another tile can’t drop it where it couldn’t normally land.</li><li>Badgermoles and Sky Bisons can’t land on a tile while carrying one, and flowers can land on them but can’t move over them.</li><li>A Dragon can’t land on a tile sitting on a Badgermole; landing on a tile with a Sky Bison underneath removes both.</li></ul>`],
-      ['ranks', 'Gold, ranks & the Avatar', `<ul><li><b>Gold pieces (gp):</b> every new player starts with 1,000. Computer games pay a little (more on Hard), online games pay much more, and even a loss earns some. Completing a ring adds a bonus. Pass-and-play doesn’t pay.</li><li><b>Store:</b> spend gp on effect tiles (new players start with Stone and Boat), profile pictures, emotes and board themes.</li><li><b>Nations:</b> pick Air, Water, Earth or Fire. Your nation unlocks its own emotes and its board theme for free.</li><li><b>Ranked rating:</b> online games only. Beat stronger players to climb faster.</li><li><b>The Avatar:</b> the top-rated player (after 3 ranked games) holds the title, and only one player can hold it at a time. If someone passes your rating, the title moves to them. A tie at the top automatically starts an Avatar Trial match. The Avatar can use every nation’s emotes.</li><li><b>Emotes:</b> tap 😊 on the board during a game.</li></ul>`],
+      ['ranks', 'Gold, ranks & the Avatar', `<ul><li><b>Gold pieces (gp):</b> every new player starts with 1,000. Computer games pay a little (more on Hard), online games pay much more, and even a loss earns some. Completing a ring adds a bonus. Pass-and-play doesn’t pay.</li><li><b>Store:</b> spend gp on effect tiles (new players start with Stone and Boat), profile pictures, emotes and board themes.</li><li><b>Nations:</b> pick Air, Water, Earth or Fire. Your nation unlocks its own emotes and its board theme for free.</li><li><b>Ranked rating:</b> online games only. Beat stronger players to climb faster.</li><li><b>The Avatar:</b> the top-rated player (after 3 ranked games) holds the title, and only one player can hold it at a time. If someone passes your rating, the title moves to them. A tie at the top automatically starts an Avatar Trial match. The Avatar can use every nation’s emotes.</li><li><b>Emotes:</b> tap 😊 on the board during a game.</li><li><b>📣 Yip yip!:</b> in an online game, if your opponent is slow, tap Yip yip! to nudge them (once a minute). They get a notification if they have turn alerts on.</li></ul>`],
       ['vars', 'Variations', `<ul><li><b>Basic Key Pai Sho</b> — no effect tiles.</li><li><b>Harmony Minima</b> — change the ring size needed to win (3, 6 or 10).</li><li><b>Timed Turns</b> — a clock per turn. When it runs out, the app makes a random move for you.</li><li><b>Game of Chance</b> — key flowers are drawn at random when you plant.</li><li><b>Effect Tile Enigma</b> — your opponent’s effect tiles stay hidden until played.</li></ul>`],
       ['app', 'Using the app', `<ul><li>Tap one of your tiles to see where it can go (gold dots), then tap a dot.</li><li>Tap a tile in the tray at the bottom to plant it (gates light up) or to place an accent (your flowers light up).</li><li>Tap an accent you own on the board to move it or use its ability.</li><li>When you’ve done your move and nothing optional is left, the turn ends by itself; otherwise press <b>End turn</b>.</li><li>The ↔ button shows or hides harmony lines. Undo works against the computer and in pass-and-play.</li></ul>
         <div class="note"><b>House readings</b> where the booklet leaves room: a gate covers a 2×2 block with 8 exit squares; a Lotus’s harmonies count for both players (it’s neutral); Dahlia jumps in straight lines; moving an accent tile uses your turn’s move; abilities (Wheel, Koi) are free extras.</div>`],
@@ -2557,9 +2570,10 @@ const Guide = (() => {
     const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
-    G.lastEmoteT = (d.emote && d.emote.t) || 0;
+    G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
+      if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
       if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
       if ((nd.ver || 0) > G.ver) {
         G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
@@ -2727,7 +2741,7 @@ const Guide = (() => {
     const s = G.s, tp = s.tp;
     if (s.winner !== null) return s.winner === 'draw' ? '<b>Draw</b>' : `<b>${esc(G.seats[s.winner].name)}</b> wins by ${s.winReason}`;
     const nm = esc(G.seats[s.turn].name);
-    if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>…`;
+    if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>… ${G.mode === 'online' ? '<button class="btn small yip" data-act="yipYip">📣 Yip yip!</button>' : ''}`;
     const pre = G.mode === 'local' ? `<b>${nm}</b>: ` : '<b>Your turn</b> — ';
     if (G.sel && G.sel.kind === 'plant') return pre + 'tap a glowing gate to plant';
     if (G.sel && G.sel.kind === 'place') return pre + 'tap one of your ringed tiles to swap it out';
@@ -3198,6 +3212,15 @@ const Guide = (() => {
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    yipYip: async () => {
+      if (!G || G.mode !== 'online' || isHumanTurn()) return;
+      const last = (G.doc && G.doc.nudge && G.doc.nudge.seat === G.my && G.doc.nudge.t) || G.lastYip || 0;
+      const wait = 60000 - (Date.now() - last);
+      if (wait > 0) return toast(`You can yip again in ${Math.ceil(wait / 1000)}s`);
+      G.lastYip = Date.now();
+      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); }
+      catch (e) { toast('Couldn’t send the nudge'); }
+    },
     storeTab: (d) => { storeTab = d.k; screens.store(); },
     buyItem: async (d) => {
       const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? Eco.AVATAR_PRICE : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
@@ -3308,6 +3331,7 @@ const Guide = (() => {
   };
   Social.on(socialHandler); FireSocial.on(socialHandler);
   TurnAlerts.on((ev, d) => {
+    if (ev === 'nudge') { if (!(G && G.mode === 'online' && G.code === d.code)) toast('📣 Yip yip! ' + d.who + ' is waiting for your move (game ' + d.code + ')', 4000); return; }
     if (ev !== 'turn') return;
     if (G && G.mode === 'online' && G.code === d.code) return;
     toast('Your turn vs ' + d.opp + ' (game ' + d.code + ') — open it from Play online', 4000);

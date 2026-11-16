@@ -21,6 +21,7 @@ const Eco = (() => {
     { id: 'hmm', e: '🤔', t: 'Hmm…', kind: 'common' },
     { id: 'oops', e: '😅', t: 'Oops', kind: 'common' },
     { id: 'gg', e: '🙏', t: 'Good game', kind: 'common' },
+    { id: 'yip', e: '🦬', t: 'Yip yip!', kind: 'common' },
     { id: 'air1', e: '🌬️', t: 'Light as a breeze', kind: 'air' },
     { id: 'air2', e: '🍃', t: 'Go with the wind', kind: 'air' },
     { id: 'air3', e: '🌀', t: 'Spun you around!', kind: 'air' },

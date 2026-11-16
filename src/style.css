@@ -213,3 +213,5 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .fx-ds{font-size:10.5px;line-height:1.25;color:var(--dim);text-align:center;padding:0 4px;min-height:40px}
 .fx-i{position:absolute;top:2px;left:6px;font-size:15px;color:var(--gold2);padding:2px 4px}
 .fx.locked .fx-ds{opacity:.75}
+
+.status .yip{display:inline-flex;min-height:30px;padding:4px 10px;margin-left:6px;font-size:13px;vertical-align:middle}

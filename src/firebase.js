@@ -148,6 +148,16 @@ const TurnAlerts = (() => {
     unsub = FB.col('games').where('pids', 'array-contains', myPid).onSnapshot((qs) => {
       qs.docs.forEach((d) => {
         const g = d.data(); if (!g || g.status !== 'playing' || !g.state) return;
+        // Yip yip nudges
+        const nz = g.nudge, nkey = 'n:' + d.id, mineSeat = g.guest && g.guest.pid === myPid ? 0 : 1;
+        if (nz && nz.t) {
+          const pn = seen[nkey]; seen[nkey] = nz.t;
+          if (pn !== undefined && nz.t > pn && nz.seat !== mineSeat && Date.now() - nz.t < 10 * 60000) {
+            const who = nz.seat === 0 ? g.guest.name : g.host.name;
+            if (document.hidden) notify('📣 Yip yip!', `${who} is waiting for your move (game ${d.id})`, 'n-' + d.id);
+            listeners.forEach((f) => f('nudge', { code: d.id, who }));
+          }
+        }
         const v = g.ver || 0, prev = seen[d.id]; seen[d.id] = v;
         if (prev === undefined || v <= prev) return;
         let s; try { s = JSON.parse(g.state); } catch (e) { return; }

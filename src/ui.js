@@ -560,9 +560,10 @@
     const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
-    G.lastEmoteT = (d.emote && d.emote.t) || 0;
+    G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
+      if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
       if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
       if ((nd.ver || 0) > G.ver) {
         G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
@@ -730,7 +731,7 @@
     const s = G.s, tp = s.tp;
     if (s.winner !== null) return s.winner === 'draw' ? '<b>Draw</b>' : `<b>${esc(G.seats[s.winner].name)}</b> wins by ${s.winReason}`;
     const nm = esc(G.seats[s.turn].name);
-    if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>…`;
+    if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>… ${G.mode === 'online' ? '<button class="btn small yip" data-act="yipYip">📣 Yip yip!</button>' : ''}`;
     const pre = G.mode === 'local' ? `<b>${nm}</b>: ` : '<b>Your turn</b> — ';
     if (G.sel && G.sel.kind === 'plant') return pre + 'tap a glowing gate to plant';
     if (G.sel && G.sel.kind === 'place') return pre + 'tap one of your ringed tiles to swap it out';
@@ -1201,6 +1202,15 @@
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    yipYip: async () => {
+      if (!G || G.mode !== 'online' || isHumanTurn()) return;
+      const last = (G.doc && G.doc.nudge && G.doc.nudge.seat === G.my && G.doc.nudge.t) || G.lastYip || 0;
+      const wait = 60000 - (Date.now() - last);
+      if (wait > 0) return toast(`You can yip again in ${Math.ceil(wait / 1000)}s`);
+      G.lastYip = Date.now();
+      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); }
+      catch (e) { toast('Couldn’t send the nudge'); }
+    },
     storeTab: (d) => { storeTab = d.k; screens.store(); },
     buyItem: async (d) => {
       const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? Eco.AVATAR_PRICE : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
@@ -1311,6 +1321,7 @@
   };
   Social.on(socialHandler); FireSocial.on(socialHandler);
   TurnAlerts.on((ev, d) => {
+    if (ev === 'nudge') { if (!(G && G.mode === 'online' && G.code === d.code)) toast('📣 Yip yip! ' + d.who + ' is waiting for your move (game ' + d.code + ')', 4000); return; }
     if (ev !== 'turn') return;
     if (G && G.mode === 'online' && G.code === d.code) return;
     toast('Your turn vs ' + d.opp + ' (game ' + d.code + ') — open it from Play online', 4000);
