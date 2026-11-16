@@ -2616,10 +2616,10 @@ const Guide = (() => {
     setTimeout(() => fx.remove(), 2700);
   }
   async function spamBend(el) {
-    if (Date.now() - lastSpam < 3500) return toast('Catch your breath — bend again in a moment');
+    if (Date.now() - lastSpam < 800) return;
     lastSpam = Date.now(); closeSheet();
     G.spam = (G.spam || 0) + 1;
-    if (G.mode === 'online') { Store.patch('games', G.code, { spam: { seat: G.my, el, t: Date.now() } }).catch(() => {}); toast(Eco.BEND[el].icon + ' Sent to their board!'); }
+    if (G.mode === 'online') { Store.patch('games', G.code, { spam: { seat: G.my, el, t: Date.now() } }).catch(() => {}); if (G.spam === 1) toast(Eco.BEND[el].icon + ' Sent to their board!'); buzz(6); }
     else showFx(el);
   }
   function startBendSel(el) {
