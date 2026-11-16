@@ -1,0 +1,78 @@
+/* Built-in rules guide (paraphrased from the Key Pai Sho booklet) */
+const Guide = (() => {
+  const P = PaiSho;
+  const INFO = {
+    rose: ['Dark key flower', 'Moves up to 3 squares in any of the 8 directions. Harmonizes the same way.', 3],
+    chrys: ['Dark key flower', 'Moves up to 5 squares straight up, down, left or right.', 5],
+    rhodo: ['Dark key flower', 'Moves up to 5 squares diagonally.', 5],
+    lily: ['Light key flower', 'Moves up to 3 squares in any of the 8 directions.', 3],
+    jasmine: ['Light key flower', 'Moves up to 5 squares straight up, down, left or right.', 5],
+    jade: ['Light key flower', 'Moves up to 5 squares diagonally.', 5],
+    orchid: ['Special flower', 'Moves 1 square. If you move the Orchid as your turn’s move, you get one more move that turn (another tile, or the Orchid again).', 1],
+    lotus: ['Special flower', 'Moves 1 square, up to twice a turn. Harmonizes with any flower of either player at any distance in a straight line (flowers in between block it). Can be planted on the centre point if the four centre squares are empty — it must leave next turn.', 1],
+    firelily: ['Special flower', 'Moves 1 square, up to 6 times a turn. Never harmonizes (except with a Lotus), but blocks your opponent’s harmonies — never yours.', 1],
+    dahlia: ['Special flower', 'Moves any distance in a straight line and may jump over tiles, but must finish right beside another tile.', '∞'],
+    stone: ['Accent tile', 'When switched in, it can be put on any empty garden square. Lets all your key flowers land in its quarter of the board regardless of colour. Cannot move.', 0],
+    knotweed: ['Accent tile', 'Flowers next to it (yours too) cannot harmonize and cannot move by themselves. Moves 2.', 2],
+    wheel: ['Accent tile', 'Switched in for one of your accent tiles, not a flower. Once a turn it can spin every tile around it 1–3 places clockwise or counter-clockwise (all must be able to land). Moves 3.', 3],
+    boat: ['Accent tile', 'When it moves it can take every tile around it along, keeping their positions (all must be able to land). Moves 4.', 4],
+    badgermole: ['Accent tile', 'Can land on a tile and slide underneath it. The tile on top ignores all other accent tiles. Can carry the top tile when it moves. Moves 5.', 5],
+    dragon: ['Accent tile', 'Land on a tile to send it back to its owner’s hand. If any effect tile lands on the Dragon, the Dragon leaves the game for good. Moves 5.', 5],
+    skybison: ['Accent tile', 'Can land on a tile and slide underneath. A flower on top cannot have its harmonies blocked by flowers. After carrying a tile, that tile may move once more straight away. Moves 5.', 5],
+    koi: ['Accent tile', 'Once a turn, swap two tiles that sit on opposite sides of it in a straight or diagonal line (both must be allowed to land). Moves 5.', 5],
+  };
+
+  // ----- mini diagram renderer -----
+  function mini({ size = 7, cells = [], dots = [], lines = [], colors = null, gate = false, label = '' }) {
+    const s = size; let o = `<svg viewBox="-0.2 -0.2 ${s + 0.4} ${s + 0.4}">`;
+    for (let r = 0; r < s; r++) for (let c = 0; c < s; c++) {
+      const col = colors ? colors(r, c) : 'n';
+      const f = { n: '#9a6a3e', l: '#eae2cf', d: '#b8332e', g: '#5a1f1c', x: '#24170f' }[col];
+      o += `<rect x="${c}" y="${r}" width="1" height="1" fill="${f}" stroke="#2a1a10" stroke-width="0.03"/>`;
+    }
+    lines.forEach(([r1, c1, r2, c2, col]) => (o += `<line x1="${c1 + 0.5}" y1="${r1 + 0.5}" x2="${c2 + 0.5}" y2="${r2 + 0.5}" stroke="${col || '#f5d98a'}" stroke-width="0.14" stroke-linecap="round"/>`));
+    dots.forEach(([r, c, col]) => (o += `<circle cx="${c + 0.5}" cy="${r + 0.5}" r="0.16" fill="${col || '#f5d98a'}"/>`));
+    cells.forEach(([r, c, t, ow, sc]) => (o += `<g transform="translate(${c + 0.5},${r + 0.5}) scale(${(sc || 1) * 0.44})">${Glyphs.tile(t, ow || 0)}</g>`));
+    return o + '</svg>';
+  }
+  function moveDots(r0, c0, dirs, range, size) {
+    const out = [];
+    dirs.forEach(([a, b]) => { for (let k = 1; k <= range; k++) { const r = r0 + a * k, c = c0 + b * k; if (r >= 0 && c >= 0 && r < size && c < size) out.push([r, c]); } });
+    return out;
+  }
+  const O4 = [[-1,0],[1,0],[0,-1],[0,1]], D4 = [[-1,-1],[-1,1],[1,-1],[1,1]], A8 = O4.concat(D4);
+  function fullBoard(opts = {}) {
+    let o = `<svg viewBox="-9.6 -9.6 19.2 19.2">` + Board.base(true);
+    (opts.tiles || []).forEach(([r, c, t, ow]) => (o += `<g transform="translate(${c - 8.5},${r - 8.5}) scale(0.44)">${Glyphs.tile(t, ow)}</g>`));
+    (opts.lines || []).forEach(([a, b, c, d]) => (o += `<line x1="${b - 8.5}" y1="${a - 8.5}" x2="${d - 8.5}" y2="${c - 8.5}" stroke="#f5d98a" stroke-width="0.2" stroke-linecap="round"/>`));
+    (opts.dots || []).forEach(([r, c]) => (o += `<circle cx="${c - 8.5}" cy="${r - 8.5}" r="0.25" fill="#f5d98a"/>`));
+    return o + '</svg>';
+  }
+  const fig = (svgs) => `<div class="fig">${svgs.map(([s, cap]) => `<figure>${s}<figcaption>${cap}</figcaption></figure>`).join('')}</div>`;
+  const trow = (t) => `<div class="trow">${Glyphs.svg(t, 0)}<div><b>${P.tname(t)}</b> <span class="tiny muted">${INFO[t][0]}</span><br>${INFO[t][1]}</div><div class="mv">${INFO[t][2]}</div></div>`;
+
+  function html() {
+    const ring = [[6, 6, 'jasmine', 0], [6, 11, 'chrys', 0], [11, 11, 'jasmine', 0], [11, 6, 'chrys', 0]];
+    const sec = [
+      ['goal', 'Goal', `<p>Two players take turns growing a garden. Link your flowers with <b>harmonies</b> — invisible lines between two of your flowers — and be the first to close a chain of at least <b>four harmonies that circles the centre</b> of the board.</p>` +
+        fig([[fullBoard({ tiles: ring, lines: [[6, 6, 6, 11], [6, 11, 11, 11], [11, 11, 11, 6], [11, 6, 6, 6]] }), 'A winning ring of four harmonies around the centre']])],
+      ['board', 'The board', `<p>The board is a circle of squares. Tiles sit <b>inside squares</b>. There are three kinds of garden:</p><ul><li><b>Light gardens</b> (cream) — top-left and bottom-right quarters of the central diamond.</li><li><b>Dark gardens</b> (red) — top-right and bottom-left quarters.</li><li><b>Neutral garden</b> (wood) — everything outside the diamond. Squares cut in half by the diamond’s edge count as half neutral, so anyone may land there.</li></ul><p>The four <b>gates</b> sit at the edge at north, east, south and west. Each gate covers the 2×2 block of squares at the edge; no tile in the garden can land on or pass through those squares.</p>` + fig([[fullBoard({}), 'Gardens and the four gates']])],
+      ['turn', 'Your turn', `<p>On your turn you must do <b>one</b> of these:</p><ul><li><b>Plant</b> a flower from your hand into an empty gate. You may have at most <b>2 planted</b> flowers at once.</li><li><b>Move</b> one of your tiles already on the board.</li></ul><p>You may <b>also</b>, once per turn, before or after that: <b>place</b> an accent tile by swapping it with one of your flowers in the garden (the flower goes back to your hand), and use each accent tile’s ability once.</p><p>A flower leaving a gate takes its first step into any of the squares around the gate block:</p>` +
+        fig([[mini({ size: 6, colors: (r, c) => (r >= 4 && (c === 2 || c === 3) ? 'g' : 'n'), dots: [[3, 1], [3, 2], [3, 3], [3, 4], [4, 1], [5, 1], [4, 4], [5, 4]], cells: [[4.5, 2.5, 'rose', 0, 1.6]] }), 'Planted Rose: first-step squares']])],
+      ['keys', 'Key flowers', `<p>Each player starts with 3 of each of the 6 key flowers. A key flower moves <b>once</b> per turn, in <b>one</b> straight direction, up to its number of squares, and never over other tiles.</p><div class="tlist">${P.KEY_TYPES.map(trow).join('')}</div>` +
+        fig([[mini({ dots: moveDots(3, 3, A8, 3, 7), cells: [[3, 3, 'rose', 0]] }), 'Rose / Lily: 3, any direction'], [mini({ dots: moveDots(3, 3, O4, 5, 7), cells: [[3, 3, 'chrys', 0]] }), 'Chrysanthemum / Jasmine: 5, straight'], [mini({ dots: moveDots(3, 3, D4, 5, 7), cells: [[3, 3, 'rhodo', 0]] }), 'Rhododendron / Jade: 5, diagonal']]) +
+        `<p><b>Garden colour:</b> dark flowers (orange) can’t <i>finish</i> a move in a light garden and light flowers (white) can’t finish in a dark garden. Both may pass through, and both may land in neutral or half-neutral squares.</p>`],
+      ['harmony', 'Harmonies', `<p>A harmony is a line between two of your blooming flowers (not planted ones). It follows four rules:</p><ul><li>It forms when one key flower’s movement could reach the other flower’s square (garden colour is ignored here).</li><li>There must be <b>at least one square between</b> them.</li><li>Never between two flowers of the <b>same kind</b>.</li><li>It is <b>broken</b> if an opponent’s flower sits between them. Accent tiles in between don’t break it.</li></ul><p>Harmonies can’t stretch across the exact centre point or across gate squares.</p>` +
+        fig([[mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0]], lines: [[3, 1, 3, 5]] }), 'Chrysanthemum reaches the Lily → harmony'], [mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0], [3, 3, 'rose', 1]], lines: [[3, 1, 3, 2.6, '#7a5a3a'], [3, 3.4, 3, 5, '#7a5a3a']] }), 'Opponent’s Rose in between breaks it']])],
+      ['win', 'Winning', `<p>The first player to complete a closed chain of at least 4 harmonies that <b>encircles the centre</b> wins. The app checks at the end of every turn and draws the ring in gold. (Harmony Minima variation: change 4 to 3, 6 or 10.)</p>`],
+      ['effects', 'Effect tiles', `<p>Before the game each player may choose up to <b>6 effect tiles</b>, one of each kind, from the special flowers and accent tiles below. Beginners should play with none until the basics feel natural.</p><h3>Special flowers</h3><p>They are planted in gates like key flowers, can land in any garden colour, and each has its own movement.</p><div class="tlist">${Object.keys(P.SPECIAL).map(trow).join('')}</div><h3>Accent tiles</h3><p>Accent tiles are never planted. You <b>place</b> one by swapping it with one of your blooming flowers. They don’t harmonize or block harmonies, but they <b>do block flower movement</b>. They move once per turn in any of the 8 directions and may jump over tiles.</p><div class="tlist">${Object.keys(P.ACCENT).map(trow).join('')}</div>`],
+      ['fine', 'Fine print', `<ul><li>You can’t pass: you must plant, place or move something.</li><li>Steps leaving a gate count the first square outside the gate as step one.</li><li>A tile only "lands" on its final square, and harmonies form only after it stops.</li><li>Tiles in the garden never affect planted tiles, and a tile in the garden can never go back onto a gate.</li><li>Only one tile per gate.</li><li>Moving a flower by carrying it with an accent counts as moving the accent.</li><li>Knotweed affects your own flowers too, but accent tiles can still move those flowers.</li><li>An accent that moves another tile can’t drop it where it couldn’t normally land.</li><li>Badgermoles and Sky Bisons can’t land on a tile while carrying one, and flowers can land on them but can’t move over them.</li><li>A Dragon can’t land on a tile sitting on a Badgermole; landing on a tile with a Sky Bison underneath removes both.</li></ul>`],
+      ['vars', 'Variations', `<ul><li><b>Basic Key Pai Sho</b> — no effect tiles.</li><li><b>Harmony Minima</b> — change the ring size needed to win (3, 6 or 10).</li><li><b>Timed Turns</b> — a clock per turn. When it runs out, the app makes a random move for you.</li><li><b>Game of Chance</b> — key flowers are drawn at random when you plant.</li><li><b>Effect Tile Enigma</b> — your opponent’s effect tiles stay hidden until played.</li></ul>`],
+      ['app', 'Using the app', `<ul><li>Tap one of your tiles to see where it can go (gold dots), then tap a dot.</li><li>Tap a tile in the tray at the bottom to plant it (gates light up) or to place an accent (your flowers light up).</li><li>Tap an accent you own on the board to move it or use its ability.</li><li>When you’ve done your move and nothing optional is left, the turn ends by itself; otherwise press <b>End turn</b>.</li><li>The ↔ button shows or hides harmony lines. Undo works against the computer and in pass-and-play.</li></ul>
+        <div class="note"><b>House readings</b> where the booklet leaves room: a gate covers a 2×2 block with 8 exit squares; Lotus harmonies count for the other flower’s owner (Lotus–Lotus counts for both); Dahlia jumps in straight lines; moving an accent tile uses your turn’s move; abilities (Wheel, Koi) are free extras.</div>`],
+    ];
+    return `<nav class="toc">${sec.map(([id, t]) => `<a href="#g-${id}" data-act="toc" data-id="g-${id}">${t}</a>`).join('')}</nav>` +
+      `<div class="guide">${sec.map(([id, t, body]) => `<section id="g-${id}"><h3>${t}</h3>${body}</section>`).join('')}</div>`;
+  }
+  return { html, INFO, mini };
+})();

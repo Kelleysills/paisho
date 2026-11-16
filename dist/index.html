@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1b120c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pai Sho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Nunito+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
+<style>:root{
+  --bg:#1b120c; --bg2:#2a1b12; --panel:#33221a; --panel2:#3e2a1f; --line:#5a3d2b;
+  --ink:#f3e8d4; --dim:#c4ad8f; --mute:#8f7760; --gold:#e6b54a; --gold2:#f5d98a;
+  --red:#b8332e; --orange:#e07b2e; --cream:#f4ecd8; --ok:#7cc48a; --p0:#f2cf6e; --p1:#6fc6e8;
+  --r:14px; --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito Sans',system-ui,sans-serif;font-size:16px;overscroll-behavior:none}
+body{background:radial-gradient(120% 70% at 50% 0%,#3a2518 0%,var(--bg) 60%) fixed}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+input{font:inherit}
+h1,h2,h3,.disp{font-family:'Cinzel',serif;letter-spacing:.04em;margin:0}
+#app{max-width:560px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;padding-top:var(--safe-t)}
+.screen{flex:1;display:flex;flex-direction:column;padding:18px 16px calc(18px + var(--safe-b));gap:14px}
+.title{text-align:center;padding:18px 0 4px}
+.title h1{font-size:34px;color:var(--gold2);text-shadow:0 2px 0 #0008}
+.title .sub{color:var(--dim);font-size:13px;letter-spacing:.2em;text-transform:uppercase;margin-top:4px}
+.logo{width:120px;height:120px;margin:0 auto 6px;display:block;filter:drop-shadow(0 6px 16px #000a)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 16px;border-radius:var(--r);background:var(--panel2);border:1px solid var(--line);font-weight:700;min-height:52px;transition:transform .08s,background .2s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(180deg,#e9bd57,#c88f2a);color:#2a1606;border-color:#f3d48a}
+.btn.danger{background:#5a1f1c;border-color:#8a302a}
+.btn.ghost{background:transparent}
+.btn.small{min-height:40px;padding:8px 12px;font-size:14px}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.menu{display:grid;gap:10px}
+.menu .btn{justify-content:flex-start;padding:14px 18px}
+.menu .btn .ic{width:34px;height:34px;flex:none}
+.menu .btn .lbl{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+.menu .btn small{font-weight:400;color:var(--dim);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.row{display:flex;gap:10px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.spacer{flex:1}
+.muted{color:var(--dim)} .tiny{font-size:12px}
+.topbar{display:flex;align-items:center;gap:8px;padding:12px 14px 0}
+.topbar h2{font-size:20px;color:var(--gold2);flex:1;text-align:center}
+.iconbtn{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line);font-size:20px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);font-weight:700}
+.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#2a1606;background:var(--gold);font-size:14px;flex:none}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;color:var(--dim);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.input{padding:14px;border-radius:12px;border:1px solid var(--line);background:#1f150f;color:var(--ink);font-size:17px;width:100%}
+.input:focus{outline:2px solid var(--gold);border-color:transparent}
+.seg{display:flex;background:#1f150f;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;padding:10px 6px;border-radius:9px;font-weight:700;font-size:14px;color:var(--dim)}
+.seg button.on{background:var(--panel2);color:var(--gold2);box-shadow:0 1px 0 #0006}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
+.sw{width:50px;height:30px;border-radius:99px;background:#1f150f;border:1px solid var(--line);position:relative;flex:none}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--mute);transition:.2s}
+.sw.on{background:#6b4a17;border-color:var(--gold)} .sw.on::after{left:23px;background:var(--gold2)}
+/* profiles */
+.plist{display:grid;gap:10px}
+.prof{display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line);text-align:left;width:100%}
+.prof .avatar{width:44px;height:44px;font-size:18px}
+.prof .nm{font-weight:800;font-size:17px}
+/* pin pad */
+.pin-dots{display:flex;gap:14px;justify-content:center;margin:12px 0}
+.pin-dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--gold);display:block}
+.pin-dots i.f{background:var(--gold)}
+.pin-dots.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:300px;margin:0 auto;width:100%}
+.pad button{height:64px;border-radius:50%;width:64px;margin:0 auto;background:var(--panel2);border:1px solid var(--line);font-size:24px;font-weight:700}
+.pad button:active{background:var(--gold);color:#2a1606}
+/* game */
+.game{display:flex;flex-direction:column;height:100dvh}
+.g-top{display:flex;gap:8px;padding:8px 10px 6px;align-items:stretch}
+.seat{flex:1;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:12px;background:var(--panel);border:1px solid var(--line);min-width:0;transition:.2s}
+.seat.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset,0 0 16px #e6b54a33}
+.seat .disc{width:26px;height:26px;border-radius:50%;flex:none}
+.seat .meta{min-width:0;flex:1;display:flex;flex-direction:column}
+.seat .nm{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat .st{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat .hc{flex:none;font-family:'Cinzel',serif;font-weight:700;color:var(--gold2);font-size:18px;text-align:center;line-height:1}
+.seat .hc small{display:block;font-family:'Nunito Sans';font-size:9px;color:var(--mute);letter-spacing:.08em}
+.board-wrap{position:relative;width:100%;aspect-ratio:1/1;max-height:62dvh;margin:auto;display:flex;justify-content:center}
+#board{width:100%;height:100%;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.status{text-align:center;font-size:14px;padding:4px 12px;min-height:26px;color:var(--dim)}
+.status b{color:var(--gold2)}
+.status .timer{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:#5a1f1c;color:#fff;font-weight:800}
+.tray{display:flex;gap:6px;overflow-x:auto;padding:6px 10px;scrollbar-width:none;min-height:74px;align-items:center}
+.tray::-webkit-scrollbar{display:none}
+.tt{flex:none;width:58px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 2px;border-radius:12px;border:1px solid transparent;position:relative}
+.tt svg{width:44px;height:44px}
+.tt .n{position:absolute;top:0;right:4px;background:var(--gold);color:#2a1606;font-size:11px;font-weight:900;border-radius:99px;min-width:18px;padding:0 4px;text-align:center}
+.tt .lb{font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;max-width:56px;text-overflow:ellipsis}
+.tt.sel{border-color:var(--gold);background:#4a321f}
+.tt.off{opacity:.35}
+.tray .sep{width:1px;align-self:stretch;background:var(--line);flex:none;margin:6px 2px}
+.g-bar{display:flex;gap:8px;padding:6px 10px 10px}
+.g-bar .btn{flex:1;min-height:48px;padding:8px;font-size:14px}
+.g-bar .btn.end.glow{animation:glow 1.4s infinite}
+@keyframes glow{50%{box-shadow:0 0 0 3px #e6b54a66,0 0 22px #e6b54a88}}
+.info{margin:0 10px;padding:8px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--dim);display:flex;gap:10px;align-items:center;min-height:44px}
+.info svg{width:34px;height:34px;flex:none}
+.info b{color:var(--ink)}
+/* board svg */
+.tile{transition:transform .32s cubic-bezier(.3,.7,.2,1)}
+.tile.lift{filter:drop-shadow(0 0 .25px #fff) drop-shadow(0 0 .35px var(--gold))}
+.dest{fill:var(--gold2);opacity:.85;pointer-events:none;animation:pulse 1.2s infinite}
+.dest-cap{fill:none;stroke:var(--gold2);stroke-width:.09;pointer-events:none}
+@keyframes pulse{50%{opacity:.45}}
+.harm{stroke-width:.12;stroke-linecap:round;opacity:.9;pointer-events:none}
+.ring{stroke:#fff6d0;stroke-width:.32;fill:#e6b54a40;stroke-linejoin:round;animation:pulse 1.4s infinite;pointer-events:none;filter:drop-shadow(0 0 .3px #e6b54a)}
+/* sheet */
+.sheet-bg{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:fade .15s}
+.sheet{width:100%;max-width:560px;max-height:88dvh;overflow:auto;background:var(--bg2);border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:16px 16px calc(18px + var(--safe-b));animation:up .2s}
+.sheet h3{font-size:20px;color:var(--gold2);margin-bottom:8px}
+.sheet .grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:-4px auto 12px}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+@keyframes fade{from{opacity:0}}
+.toast{position:fixed;left:50%;top:calc(14px + var(--safe-t));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);padding:10px 16px;border-radius:12px;z-index:80;font-weight:700;font-size:14px;animation:up .2s;max-width:90vw;text-align:center}
+/* effect picker */
+.fx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fx{display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;border-radius:12px;background:var(--panel);border:1px solid var(--line);gap:4px;position:relative}
+.fx svg{width:46px;height:46px}
+.fx .nm{font-size:12px;font-weight:800}
+.fx .ty{font-size:10px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.fx.on{border-color:var(--gold);background:#4a321f}
+.fx.on::after{content:'✓';position:absolute;top:4px;right:6px;color:var(--gold2);font-weight:900}
+/* guide */
+.guide{padding:8px 16px calc(24px + var(--safe-b));display:flex;flex-direction:column;gap:14px}
+.guide h3{color:var(--gold2);font-size:19px;margin-top:6px}
+.guide p,.guide li{line-height:1.5;color:#e9dcc6;font-size:15px}
+.guide ul{padding-left:20px;margin:6px 0}
+.guide .fig{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.guide .fig figure{margin:0;text-align:center;flex:1;min-width:140px}
+.guide .fig svg{width:100%;max-width:220px;border-radius:12px;background:#24170f}
+.guide figcaption{font-size:12px;color:var(--dim);margin-top:4px}
+.toc{display:flex;gap:6px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none;position:sticky;top:0;background:var(--bg);z-index:5}
+.toc::-webkit-scrollbar{display:none}
+.toc a{flex:none;padding:6px 12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:13px;font-weight:700;text-decoration:none}
+.tlist{display:grid;gap:8px}
+.trow{display:flex;gap:12px;align-items:flex-start;padding:10px;border-radius:12px;background:var(--panel)}
+.trow svg{width:44px;height:44px;flex:none}
+.trow b{color:var(--gold2)}
+.trow .mv{margin-left:auto;font-family:'Cinzel';color:var(--gold);font-weight:700;flex:none}
+.note{border-left:3px solid var(--gold);padding:8px 12px;background:#2a1d14;border-radius:0 10px 10px 0;font-size:14px;color:var(--dim)}
+/* stats */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 6px;text-align:center}
+.stat .v{font-family:'Cinzel';font-size:26px;color:var(--gold2);font-weight:700}
+.stat .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+table.lb{width:100%;border-collapse:collapse;font-size:14px}
+table.lb td,table.lb th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+table.lb th{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
+.code{font-family:'Cinzel';font-size:40px;letter-spacing:.3em;color:var(--gold2);text-align:center;padding:10px 0}
+.log{max-height:40dvh;overflow:auto;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.log div{padding:6px 8px;border-radius:8px;background:var(--panel)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+.btn.primary small{color:#5a3a12}
+.g-bar{padding-bottom:calc(10px + var(--safe-b))}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>// ---- engine.js ----
+/* Key Pai Sho rules engine — pure JS, JSON-serializable state.
+   Players: 0 = Guest (moves first), 1 = Host. */
+const PaiSho = (() => {
+  const N = 18;
+  const R = 9; // board radius in squares
+  const idx = (r, c) => r * N + c;
+  const rc = (i) => [Math.floor(i / N), i % N];
+  const xy = (i) => { const [r, c] = rc(i); return [c - 8.5, 8.5 - r]; };
+
+  const ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
+  const DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  const ALL8 = ORTHO.concat(DIAG);
+
+  const KEY = {
+    rose:   { color: 'dark',  dirs: 'all',   range: 3, name: 'Rose' },
+    chrys:  { color: 'dark',  dirs: 'ortho', range: 5, name: 'Chrysanthemum' },
+    rhodo:  { color: 'dark',  dirs: 'diag',  range: 5, name: 'Rhododendron' },
+    lily:   { color: 'light', dirs: 'all',   range: 3, name: 'Lily' },
+    jasmine:{ color: 'light', dirs: 'ortho', range: 5, name: 'Jasmine' },
+    jade:   { color: 'light', dirs: 'diag',  range: 5, name: 'Jade' },
+  };
+  const SPECIAL = {
+    orchid:  { name: 'Orchid' },
+    lotus:   { name: 'White Lotus' },
+    firelily:{ name: 'Firelily' },
+    dahlia:  { name: 'Dahlia' },
+  };
+  const ACCENT = {
+    stone:     { range: 0, name: 'Stone' },
+    knotweed:  { range: 2, name: 'Knotweed' },
+    wheel:     { range: 3, name: 'Wheel' },
+    boat:      { range: 4, name: 'Boat' },
+    badgermole:{ range: 5, name: 'Badgermole' },
+    dragon:    { range: 5, name: 'Dragon' },
+    skybison:  { range: 5, name: 'Sky Bison' },
+    koi:       { range: 5, name: 'Koi' },
+  };
+  const KEY_TYPES = Object.keys(KEY);
+  const EFFECT_TYPES = Object.keys(SPECIAL).concat(Object.keys(ACCENT));
+  const isKey = (t) => !!KEY[t];
+  const isSpecial = (t) => !!SPECIAL[t];
+  const isFlower = (t) => isKey(t) || isSpecial(t);
+  const isAccent = (t) => !!ACCENT[t];
+  const isCarrier = (t) => t === 'badgermole' || t === 'skybison';
+  const dirsOf = (d) => d === 'all' ? ALL8 : d === 'ortho' ? ORTHO : DIAG;
+  const tname = (t) => (KEY[t] || SPECIAL[t] || ACCENT[t] || {}).name || t;
+
+  // ---------- static board geometry ----------
+  const onBoard = new Array(N * N).fill(false);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    let inside = 0; const S = 12;
+    for (let a = 0; a < S; a++) for (let b = 0; b < S; b++) {
+      const x = c - 9 + (a + 0.5) / S, y = 9 - r - (b + 0.5) / S;
+      if (x * x + y * y <= R * R) inside++;
+    }
+    onBoard[idx(r, c)] = inside / (S * S) > 0.5;
+  }
+  // gates: 0 N, 1 E, 2 S, 3 W — each a 2x2 block at the edge midpoint
+  const GATE_BLOCK = [[0, 8], [8, 16], [16, 8], [8, 0]];
+  const GATE_NAMES = ['North', 'East', 'South', 'West'];
+  const gateSquares = GATE_BLOCK.map(([r0, c0]) => [idx(r0, c0), idx(r0, c0 + 1), idx(r0 + 1, c0), idx(r0 + 1, c0 + 1)]);
+  const gateOfSq = new Array(N * N).fill(-1);
+  gateSquares.forEach((sqs, g) => sqs.forEach((s) => (gateOfSq[s] = g)));
+  const gateExits = GATE_BLOCK.map(([r0, c0]) => {
+    const out = [];
+    for (let r = r0 - 1; r <= r0 + 2; r++) for (let c = c0 - 1; c <= c0 + 2; c++) {
+      if (r < 0 || c < 0 || r >= N || c >= N) continue;
+      if (r >= r0 && r <= r0 + 1 && c >= c0 && c <= c0 + 1) continue;
+      if (onBoard[idx(r, c)]) out.push(idx(r, c));
+    }
+    return out;
+  });
+  const CENTER_SQ = [idx(8, 8), idx(8, 9), idx(9, 8), idx(9, 9)];
+  const sqType = new Array(N * N).fill('off');
+  const quadrant = new Array(N * N).fill(-1);
+  for (let i = 0; i < N * N; i++) {
+    if (!onBoard[i]) continue;
+    const [x, y] = xy(i);
+    const s = Math.abs(x) + Math.abs(y);
+    const q = y > 0 ? (x < 0 ? 0 : 1) : (x < 0 ? 2 : 3); // 0 TL,1 TR,2 BL,3 BR
+    quadrant[i] = q;
+    if (gateOfSq[i] >= 0) sqType[i] = 'gate';
+    else if (s <= 8) sqType[i] = (q === 0 || q === 3) ? 'light' : 'dark';
+    else if (s === 9) sqType[i] = 'half';
+    else sqType[i] = 'neutral';
+  }
+  const step = (i, dr, dc) => {
+    const [r, c] = rc(i); const r2 = r + dr, c2 = c + dc;
+    if (r2 < 0 || c2 < 0 || r2 >= N || c2 >= N) return -1;
+    const j = idx(r2, c2);
+    return onBoard[j] ? j : -1;
+  };
+  const neighbors = (i) => ALL8.map(([a, b]) => step(i, a, b)).filter((j) => j >= 0);
+  const RING_ORDER = [[-1,-1],[-1,0],[-1,1],[0,1],[1,1],[1,0],[1,-1],[0,-1]]; // clockwise
+
+  // ---------- state ----------
+  function newGame(opts = {}) {
+    const o = Object.assign({ minHarmonies: 4, effects: [[], []], chance: false, maxTurns: 400 }, opts);
+    const hands = [0, 1].map((p) => {
+      const h = {}; KEY_TYPES.forEach((t) => (h[t] = 3));
+      (o.effects[p] || []).slice(0, 6).forEach((t) => { if (EFFECT_TYPES.includes(t)) h[t] = 1; });
+      return h;
+    });
+    return {
+      v: 1, board: new Array(N * N).fill(null), gates: [null, null, null, null], center: null,
+      hands, turn: 0, turnNo: 1, nextId: 1, winner: null, winReason: '', removed: [],
+      tp: freshTP(), opts: o, log: [], lastMove: null,
+    };
+  }
+  function freshTP() { return { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false }; }
+  const clone = (s) => JSON.parse(JSON.stringify(s));
+
+  // ---------- queries ----------
+  const cell = (s, i) => s.board[i];
+  const topAt = (s, i) => (s.board[i] ? s.board[i].top : null);
+  const isGateSq = (s, i) => gateOfSq[i] >= 0 || (s.center && CENTER_SQ.includes(i));
+  const plantedCount = (s, p) => s.gates.filter((t) => t && t.owner === p).length + (s.center && s.center.owner === p ? 1 : 0);
+  function protectedByBadger(s, i) { const c = s.board[i]; return !!(c && c.under && c.under.type === 'badgermole'); }
+  function onSkybison(s, i) { const c = s.board[i]; return !!(c && c.under && c.under.type === 'skybison'); }
+  function knotted(s, i) {
+    if (protectedByBadger(s, i)) return false;
+    return neighbors(i).some((j) => { const t = topAt(s, j); return t && t.type === 'knotweed'; });
+  }
+  function stoneAllows(s, p, i) {
+    const q = quadrant[i];
+    for (let j = 0; j < N * N; j++) { const t = topAt(s, j); if (t && t.type === 'stone' && t.owner === p && quadrant[j] === q) return true; }
+    return false;
+  }
+  // can tile physically end in square i (ignoring occupancy)
+  function colorOK(s, tile, i) {
+    if (!onBoard[i] || isGateSq(s, i)) return false;
+    if (!isKey(tile.type)) return true;
+    const st = sqType[i];
+    const bad = KEY[tile.type].color === 'dark' ? 'light' : 'dark';
+    if (st !== bad) return true;
+    return stoneAllows(s, tile.owner, i);
+  }
+  const isLoneCarrier = (s, i) => { const c = s.board[i]; return !!(c && !c.under && isCarrier(c.top.type)); };
+  const isLoneDragon = (s, i) => { const c = s.board[i]; return !!(c && !c.under && c.top.type === 'dragon'); };
+  const isEffect = (t) => isSpecial(t) || isAccent(t);
+
+  // ---------- movement generation ----------
+  // returns array of {to, path?} destinations for a flower moving from square/gate/center
+  function flowerDests(s, tile, from) {
+    const t = tile.type;
+    const res = new Map();
+    const passable = (j) => j >= 0 && !isGateSq(s, j) && !s.board[j];
+    const finalOK = (j) => {
+      if (j < 0 || !colorOK(s, tile, j)) return false;
+      const c = s.board[j];
+      if (!c) return true;
+      if (isLoneCarrier(s, j)) return true; // land on top of a badgermole / sky bison
+      if (isEffect(t) && isLoneDragon(s, j)) return true; // effect tile on dragon removes it
+      return false;
+    };
+    const add = (j) => { if (finalOK(j)) res.set(j, true); };
+    // starting cells for the first step
+    let starts; // list of [square, stepsUsed] where square is already step 1
+    if (from.kind === 'sq') starts = null;
+    else if (from.kind === 'gate') starts = gateExits[from.g];
+    else starts = CENTER_SQ; // lotus leaving centre
+    const centerFree = from.kind === 'center'; // centre squares become normal once lotus leaves
+    const passableC = (j) => j >= 0 && !s.board[j] && (!isGateSq(s, j) || (centerFree && CENTER_SQ.includes(j)));
+    const finalOKC = (j) => {
+      if (centerFree && CENTER_SQ.includes(j)) return !s.board[j];
+      return finalOK(j);
+    };
+
+    if (isKey(t) || t === 'orchid' || t === 'dahlia') {
+      const dirs = isKey(t) ? dirsOf(KEY[t].dirs) : ALL8;
+      const range = isKey(t) ? KEY[t].range : t === 'orchid' ? 1 : 99;
+      const over = t === 'dahlia';
+      const lineFrom = (i0, left) => {
+        for (const [dr, dc] of dirs) {
+          let j = i0;
+          for (let k = 0; k < left; k++) {
+            j = step(j, dr, dc);
+            if (j < 0 || isGateSq(s, j)) break;
+            if (s.board[j]) { if (!over) { add(j); break; } else continue; }
+            add(j);
+          }
+        }
+      };
+      if (!starts) lineFrom(from.i, range);
+      else for (const e of starts) {
+        if (s.board[e]) { if (!over) add(e); continue; }
+        add(e);
+        lineFrom(e, range - 1);
+      }
+      if (t === 'dahlia') { // must land beside another tile
+        for (const j of [...res.keys()]) {
+          const ok = neighbors(j).some((n) => n !== (from.kind === 'sq' ? from.i : -1) && s.board[n]);
+          if (!ok && !s.board[j]) res.delete(j);
+        }
+      }
+    } else { // lotus (2 steps) / firelily (6 steps): BFS of single steps
+      const maxSteps = t === 'lotus' ? 2 : 6;
+      const seen = new Map();
+      let frontier = [];
+      if (!starts) frontier = [from.i];
+      else {
+        for (const e of starts) {
+          if (passableC(e)) { seen.set(e, 1); frontier.push(e); if (finalOKC(e)) res.set(e, true); }
+          else if (finalOK(e)) res.set(e, true);
+        }
+      }
+      const used0 = starts ? 1 : 0;
+      for (let d = used0; d < maxSteps; d++) {
+        const next = [];
+        for (const f of frontier) for (const n of neighbors(f)) {
+          if (seen.has(n) || n === from.i) continue;
+          if (passable(n)) { seen.set(n, d + 1); next.push(n); add(n); }
+          else if (finalOK(n)) res.set(n, true);
+        }
+        frontier = next;
+      }
+    }
+    return [...res.keys()];
+  }
+
+  function accentDests(s, tile, i, carrying) {
+    const t = tile.type; const range = ACCENT[t].range; const res = [];
+    if (range === 0) return res;
+    const top = carrying ? s.board[i].top : null;
+    for (const [dr, dc] of ALL8) {
+      let j = i;
+      for (let k = 0; k < range; k++) {
+        j = step(j, dr, dc);
+        if (j < 0 || isGateSq(s, j)) break;
+        const c = s.board[j];
+        if (!c) {
+          if (top && !colorOK(s, top, j)) continue;
+          res.push(j); continue;
+        }
+        // landing on an occupied square
+        if (isLoneDragon(s, j) && !carrying) { res.push(j); continue; }
+        if (t === 'dragon' && !c.under) { res.push(j); continue; }
+        if (t === 'dragon' && c.under && c.under.type === 'skybison') { res.push(j); continue; }
+        if (isCarrier(t) && !carrying && !c.under && c.top.type !== 'dragon') { res.push(j); continue; }
+      }
+    }
+    return [...new Set(res)];
+  }
+
+  // which of my pieces can make a "move" right now, as move actions
+  function moveActions(s, p, only) {
+    const acts = [];
+    const pushMoves = (from, tile, dests, extra = {}) => dests.forEach((to) => acts.push(Object.assign({ t: 'move', from, to }, extra)));
+    // planted flowers
+    s.gates.forEach((tile, g) => {
+      if (!tile || tile.owner !== p) return;
+      if (only && only !== tile.id) return;
+      pushMoves({ kind: 'gate', g }, tile, flowerDests(s, tile, { kind: 'gate', g }));
+    });
+    if (s.center && s.center.owner === p && (!only || only === s.center.tile.id)) {
+      pushMoves({ kind: 'center' }, s.center.tile, flowerDests(s, s.center.tile, { kind: 'center' }));
+    }
+    for (let i = 0; i < N * N; i++) {
+      const c = s.board[i]; if (!c) continue;
+      const top = c.top;
+      if (top.owner === p && (!only || only === top.id)) {
+        if (isFlower(top.type)) {
+          if (!knotted(s, i)) pushMoves({ kind: 'sq', i }, top, flowerDests(s, top, { kind: 'sq', i }));
+        } else if (isAccent(top.type) && !c.under) {
+          const ds = accentDests(s, top, i, false);
+          pushMoves({ kind: 'sq', i }, top, ds);
+          if (top.type === 'boat') ds.forEach((to) => { if (boatValid(s, i, to)) acts.push({ t: 'move', from: { kind: 'sq', i }, to, boat: true }); });
+        }
+      }
+      if (c.under && c.under.owner === p && (!only || only === c.under.id)) {
+        // carrier underneath someone: move carrying or alone
+        accentDests(s, c.under, i, true).forEach((to) => { if (!s.board[to]) acts.push({ t: 'move', from: { kind: 'sq', i }, to, carry: true, mover: 'under' }); });
+        accentDests(s, c.under, i, false).forEach((to) => acts.push({ t: 'move', from: { kind: 'sq', i }, to, carry: false, mover: 'under' }));
+      }
+    }
+    return acts;
+  }
+
+  function boatValid(s, from, to) {
+    const [r0, c0] = rc(from), [r1, c1] = rc(to);
+    const dr = r1 - r0, dc = c1 - c0;
+    const group = neighbors(from).filter((j) => s.board[j]);
+    if (!group.length) return false;
+    const moving = new Set([from, ...group]);
+    for (const j of group) {
+      if (protectedByBadger(s, j)) return false;
+      const [r, c] = rc(j); const r2 = r + dr, c2 = c + dc;
+      if (r2 < 0 || c2 < 0 || r2 >= N || c2 >= N) return false;
+      const k = idx(r2, c2);
+      if (!onBoard[k] || isGateSq(s, k)) return false;
+      if (s.board[k] && !moving.has(k)) return false;
+      if (k === to) return false;
+      const top = s.board[j].top; if (!colorOK(s, top, k)) return false;
+      if (s.board[j].under && !colorOK(s, s.board[j].under, k)) return false;
+    }
+    if (s.board[to]) return false;
+    return true;
+  }
+
+  function wheelOptions(s, i) {
+    const out = [];
+    const ring = RING_ORDER.map(([a, b]) => step(i, a, b));
+    const occ = ring.map((j) => (j >= 0 ? s.board[j] : null));
+    if (!occ.some(Boolean)) return out;
+    for (const dir of [1, -1]) for (let n = 1; n <= 3; n++) {
+      let ok = true;
+      for (let k = 0; k < 8 && ok; k++) {
+        if (!occ[k]) continue;
+        if (protectedByBadger(s, ring[k])) { ok = false; break; }
+        const dest = ring[(k + dir * n + 80) % 8];
+        if (dest < 0 || isGateSq(s, dest)) { ok = false; break; }
+        if (!colorOK(s, occ[k].top, dest)) ok = false;
+      }
+      if (ok) out.push({ t: 'wheel', i, dir, n });
+    }
+    return out;
+  }
+  function koiOptions(s, i) {
+    const out = [];
+    for (const [dr, dc] of [[-1, 0], [0, -1], [-1, -1], [-1, 1]]) {
+      const side = (a, b) => { const l = []; let j = i; for (;;) { j = step(j, a, b); if (j < 0) break; if (s.board[j]) l.push(j); } return l; };
+      const A = side(dr, dc), B = side(-dr, -dc);
+      for (const a of A) for (const b of B) {
+        if (protectedByBadger(s, a) || protectedByBadger(s, b)) continue;
+        if (isGateSq(s, a) || isGateSq(s, b)) continue;
+        const ta = s.board[a], tb = s.board[b];
+        if (!colorOK(s, ta.top, b) || !colorOK(s, tb.top, a)) continue;
+        out.push({ t: 'koi', i, a, b });
+      }
+    }
+    return out;
+  }
+
+  function placeActions(s, p) {
+    const out = [];
+    const h = s.hands[p];
+    for (const type of Object.keys(ACCENT)) {
+      if (!h[type]) continue;
+      for (let i = 0; i < N * N; i++) {
+        const c = s.board[i]; if (!c || c.under || c.top.owner !== p) continue;
+        if (type === 'wheel') { if (isAccent(c.top.type) && c.top.type !== 'wheel') out.push({ t: 'place', type, target: i, at: i }); }
+        else if (isFlower(c.top.type)) out.push({ t: 'place', type, target: i, at: i });
+      }
+    }
+    return out;
+  }
+  function stoneSpots(s) { const o = []; for (let i = 0; i < N * N; i++) if (onBoard[i] && !isGateSq(s, i) && !s.board[i]) o.push(i); return o; }
+
+  function plantActions(s, p) {
+    const out = [];
+    if (plantedCount(s, p) >= 2) return out;
+    const h = s.hands[p];
+    const types = Object.keys(h).filter((t) => h[t] > 0 && isFlower(t));
+    s.gates.forEach((g, gi) => { if (!g) types.forEach((type) => out.push({ t: 'plant', type, gate: gi })); });
+    if (h.lotus && !s.center && CENTER_SQ.every((i) => !s.board[i])) out.push({ t: 'plant', type: 'lotus', gate: 'center' });
+    return out;
+  }
+
+  function legalActions(s, opts = {}) {
+    if (s.winner !== null) return [];
+    const p = s.turn, tp = s.tp, out = [];
+    if (!tp.mainDone) {
+      if (tp.mustLotus && s.center && s.center.owner === p) {
+        const lm = moveActions(s, p, s.center.tile.id);
+        if (lm.length) out.push(...lm); else { out.push(...plantActions(s, p), ...moveActions(s, p)); }
+      } else out.push(...plantActions(s, p), ...moveActions(s, p));
+    } else if (tp.extra) out.push(...moveActions(s, p, tp.extra.only || null));
+    if (!tp.placed && !opts.noPlace) out.push(...placeActions(s, p));
+    if (!opts.noAbility) for (let i = 0; i < N * N; i++) {
+      const c = s.board[i]; if (!c || c.under || c.top.owner !== p || tp.used[c.top.id]) continue;
+      if (c.top.type === 'wheel') out.push(...wheelOptions(s, i));
+      if (c.top.type === 'koi') out.push(...koiOptions(s, i));
+    }
+    const mainAvail = tp.mainDone || !out.some((a) => a.t === 'move' || a.t === 'plant');
+    if (tp.mainDone || mainAvail) out.push({ t: 'end' });
+    return out;
+  }
+
+  // ---------- applying actions ----------
+  function returnToHand(s, tile) {
+    if (!tile) return;
+    s.hands[tile.owner][tile.type] = (s.hands[tile.owner][tile.type] || 0) + 1;
+  }
+  function apply(s0, a) {
+    const s = clone(s0); const p = s.turn; const tp = s.tp;
+    const desc = describe(s0, a);
+    if (a.t === 'plant') {
+      if (s.hands[p][a.type] <= 0) throw new Error('No tile');
+      s.hands[p][a.type]--;
+      const tile = { id: s.nextId++, owner: p, type: a.type };
+      if (a.gate === 'center') { s.center = { owner: p, tile }; }
+      else { if (s.gates[a.gate]) throw new Error('Gate occupied'); s.gates[a.gate] = tile; }
+      tp.mainDone = true;
+      s.lastMove = { to: a.gate === 'center' ? 'center' : 'g' + a.gate };
+    } else if (a.t === 'move') {
+      let tile, carriedTop = null;
+      const wasExtra = tp.mainDone;
+      if (a.from.kind === 'gate') { tile = s.gates[a.from.g]; s.gates[a.from.g] = null; }
+      else if (a.from.kind === 'center') { tile = s.center.tile; s.center = null; }
+      const fromI = a.from.kind === 'sq' ? a.from.i : -1;
+      if (a.from.kind === 'sq') {
+        const c = s.board[a.from.i];
+        if (a.mover === 'under') {
+          tile = c.under;
+          if (a.carry) { s.board[a.from.i] = null; landCarrier(s, a.to, { top: c.top, under: c.under }); carriedTop = c.top; }
+          else { s.board[a.from.i] = { top: c.top, under: null }; landAccent(s, a.to, c.under); }
+        } else {
+          tile = c.top;
+          s.board[a.from.i] = c.under ? { top: c.under, under: null } : null;
+          if (a.boat) {
+            const [r0, c0] = rc(a.from.i), [r1, c1] = rc(a.to);
+            const group = neighbors(a.from.i).filter((j) => s.board[j]);
+            const lifted = group.map((j) => [j, s.board[j]]);
+            group.forEach((j) => (s.board[j] = null));
+            lifted.forEach(([j, cc]) => { const [r, c2] = rc(j); s.board[idx(r + r1 - r0, c2 + c1 - c0)] = cc; });
+            s.board[a.to] = { top: tile, under: null };
+          } else if (isFlower(tile.type)) landFlower(s, a.to, tile);
+          else landAccent(s, a.to, tile);
+        }
+      } else landFlower(s, a.to, tile);
+      tp.extra = null;
+      if (!wasExtra) {
+        tp.mainDone = true;
+        if (tile.type === 'orchid' && a.mover !== 'under') tp.extra = { only: null, kind: 'orchid' };
+      }
+      if (carriedTop && tile.type === 'skybison') tp.extra = { only: carriedTop.id, kind: 'bison' };
+      if (tp.mustLotus && tile.type === 'lotus') tp.mustLotus = false;
+      s.lastMove = { from: a.from.kind === 'sq' ? a.from.i : a.from.kind === 'gate' ? 'g' + a.from.g : 'center', to: a.to };
+    } else if (a.t === 'place') {
+      if (tp.placed) throw new Error('Already placed');
+      if (!s.hands[p][a.type]) throw new Error('No accent');
+      const c = s.board[a.target];
+      if (!c || c.under || c.top.owner !== p) throw new Error('Bad target');
+      if (a.at !== a.target && (a.type !== 'stone' || s.board[a.at] || isGateSq(s, a.at) || !onBoard[a.at])) throw new Error('Bad spot');
+      s.hands[p][a.type]--;
+      returnToHand(s, c.top);
+      const tile = { id: s.nextId++, owner: p, type: a.type };
+      s.board[a.target] = null;
+      s.board[a.at] = { top: tile, under: null };
+      tp.placed = true;
+      s.lastMove = { to: a.at };
+    } else if (a.t === 'wheel') {
+      const ring = RING_ORDER.map(([x, y]) => step(a.i, x, y));
+      const occ = ring.map((j) => (j >= 0 ? s.board[j] : null));
+      ring.forEach((j) => { if (j >= 0) s.board[j] = null; });
+      occ.forEach((cc, k) => { if (cc) s.board[ring[(k + a.dir * a.n + 80) % 8]] = cc; });
+      tp.used[s.board[a.i].top.id] = true;
+    } else if (a.t === 'koi') {
+      const tmp = s.board[a.a]; s.board[a.a] = s.board[a.b]; s.board[a.b] = tmp;
+      tp.used[s.board[a.i].top.id] = true;
+    } else if (a.t === 'end') {
+      return endTurn(s, desc);
+    }
+    if (desc) s.log.push({ p, turn: s.turnNo, text: desc });
+    return s;
+  }
+  function landFlower(s, to, tile) {
+    const c = s.board[to];
+    if (!c) s.board[to] = { top: tile, under: null };
+    else if (isLoneCarrier(s, to)) s.board[to] = { top: tile, under: c.top };
+    else if (isLoneDragon(s, to)) { s.removed.push(c.top); s.board[to] = { top: tile, under: null }; }
+    else throw new Error('Square occupied');
+  }
+  function landCarrier(s, to, stack) {
+    s.board[to] = stack;
+  }
+  function landAccent(s, to, tile) {
+    const c = s.board[to];
+    if (!c) { s.board[to] = { top: tile, under: null }; return; }
+    if (isLoneDragon(s, to)) { s.removed.push(c.top); s.board[to] = { top: tile, under: null }; return; }
+    if (tile.type === 'dragon') {
+      if (c.under && c.under.type === 'skybison') { returnToHand(s, c.top); returnToHand(s, c.under); }
+      else returnToHand(s, c.top);
+      s.board[to] = { top: tile, under: null }; return;
+    }
+    if (isCarrier(tile.type)) { s.board[to] = { top: c.top, under: tile }; return; }
+    throw new Error('Square occupied');
+  }
+
+  function endTurn(s, desc) {
+    const p = s.turn;
+    // win check: mover first, then opponent
+    for (const q of [p, 1 - p]) {
+      const ring = findRing(s, q);
+      if (ring) { s.winner = q; s.winRing = ring; s.winReason = 'harmony ring'; break; }
+    }
+    if (s.winner === null && s.turnNo >= s.opts.maxTurns) { s.winner = 'draw'; s.winReason = 'turn limit'; }
+    if (s.center && s.center.owner === p) s.centerAge = (s.centerAge || 0) + 1;
+    s.turn = 1 - p; s.turnNo++;
+    s.tp = freshTP();
+    if (s.center && s.center.owner === s.turn) s.tp.mustLotus = true;
+    return s;
+  }
+
+  // ---------- harmonies ----------
+  function lineInfo(a, b) {
+    const [r1, c1] = rc(a), [r2, c2] = rc(b);
+    const dr = r2 - r1, dc = c2 - c1;
+    if (!(dr === 0 || dc === 0 || Math.abs(dr) === Math.abs(dc))) return null;
+    const d = Math.max(Math.abs(dr), Math.abs(dc));
+    if (d === 0) return null;
+    return { d, sr: Math.sign(dr), sc: Math.sign(dc), kind: dr === 0 || dc === 0 ? 'ortho' : 'diag' };
+  }
+  function crossesCenter(a, b) {
+    const [x1, y1] = xy(a), [x2, y2] = xy(b);
+    return Math.abs(x1 * y2 - x2 * y1) < 1e-9 && x1 * x2 + y1 * y2 < 0;
+  }
+  function keyReaches(type, li) {
+    const k = KEY[type]; if (!k) return false;
+    if (li.d < 2 || li.d > k.range) return false;
+    return k.dirs === 'all' || k.dirs === li.kind;
+  }
+  function pathClear(s, a, li, owner, ignoreFlowers) {
+    const [r, c] = rc(a);
+    for (let k = 1; k < li.d; k++) {
+      const j = idx(r + li.sr * k, c + li.sc * k);
+      if (!onBoard[j] || isGateSq(s, j)) return false;
+      if (ignoreFlowers) continue;
+      const t = topAt(s, j);
+      if (t && isFlower(t.type)) {
+        if (t.type === 'firelily' && t.owner === owner) continue; // firelily only blocks opponents
+        return false;
+      }
+    }
+    return true;
+  }
+  // returns list of {a,b,owners:[...]}
+  function harmonies(s) {
+    const flowers = [];
+    for (let i = 0; i < N * N; i++) { const t = topAt(s, i); if (t && isFlower(t.type)) flowers.push([i, t]); }
+    const out = [];
+    for (let x = 0; x < flowers.length; x++) for (let y = x + 1; y < flowers.length; y++) {
+      const [a, ta] = flowers[x], [b, tb] = flowers[y];
+      const li = lineInfo(a, b); if (!li) continue;
+      if (crossesCenter(a, b)) continue;
+      if (knotted(s, a) || knotted(s, b)) continue;
+      const shield = onSkybison(s, a) || onSkybison(s, b);
+      let owners = [];
+      if (ta.type === 'lotus' || tb.type === 'lotus') {
+        if (ta.type === 'lotus' && tb.type === 'lotus') owners = [...new Set([ta.owner, tb.owner])];
+        else owners = [ta.type === 'lotus' ? tb.owner : ta.owner];
+        if (!pathClear(s, a, li, -1, shield)) continue;
+      } else {
+        if (ta.owner !== tb.owner) continue;
+        if (ta.type === tb.type) continue;
+        if (ta.type === 'firelily' || tb.type === 'firelily') continue;
+        const ka = isKey(ta.type), kb = isKey(tb.type);
+        if (!ka && !kb) continue;
+        let ok = false;
+        if (ka && keyReaches(ta.type, li)) ok = true;
+        if (kb && keyReaches(tb.type, li)) ok = true;
+        if (!ok) continue;
+        if (!pathClear(s, a, li, ta.owner, shield)) continue;
+        owners = [ta.owner];
+      }
+      out.push({ a, b, owners });
+    }
+    return out;
+  }
+  function angleOf(i) { const [x, y] = xy(i); return Math.atan2(y, x); }
+  function dAngle(a, b) { let d = angleOf(b) - angleOf(a); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+  function findRing(s, p, H) {
+    const hs = (H || harmonies(s)).filter((h) => h.owners.includes(p));
+    const minLen = s.opts.minHarmonies || 4;
+    if (hs.length < minLen) return null;
+    const adj = new Map();
+    hs.forEach(({ a, b }) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); });
+    const nodes = [...adj.keys()].sort((x, y) => x - y);
+    let budget = 200000;
+    for (const start of nodes) {
+      const path = [start]; const inPath = new Set([start]);
+      const dfs = (u, ang) => {
+        if (--budget < 0) return null;
+        for (const v of adj.get(u)) {
+          if (v === start && path.length >= minLen) {
+            const tot = ang + dAngle(u, v);
+            if (Math.abs(tot) > Math.PI) return path.slice();
+            continue;
+          }
+          if (v <= start || inPath.has(v)) continue;
+          path.push(v); inPath.add(v);
+          const r = dfs(v, ang + dAngle(u, v));
+          if (r) return r;
+          path.pop(); inPath.delete(v);
+        }
+        return null;
+      };
+      const r = dfs(start, 0);
+      if (r) return r;
+    }
+    return null;
+  }
+
+  // ---------- descriptions ----------
+  function sqName(i) { const [r, c] = rc(i); return String.fromCharCode(65 + c) + (N - r); }
+  function fromName(f) { return f.kind === 'sq' ? sqName(f.i) : f.kind === 'gate' ? GATE_NAMES[f.g] + ' gate' : 'centre'; }
+  function describe(s, a) {
+    if (a.t === 'plant') return `planted ${tname(a.type)} in ${a.gate === 'center' ? 'the centre' : GATE_NAMES[a.gate] + ' gate'}`;
+    if (a.t === 'move') {
+      let tile = a.from.kind === 'gate' ? s.gates[a.from.g] : a.from.kind === 'center' ? s.center.tile : (a.mover === 'under' ? s.board[a.from.i].under : s.board[a.from.i].top);
+      return `moved ${tname(tile.type)} ${fromName(a.from)} → ${sqName(a.to)}${a.boat ? ' (with cargo)' : ''}${a.carry ? ' (carrying)' : ''}`;
+    }
+    if (a.t === 'place') return `placed ${tname(a.type)} at ${sqName(a.at)}`;
+    if (a.t === 'wheel') return `turned Wheel ${a.dir > 0 ? 'clockwise' : 'counter-clockwise'} ${a.n}`;
+    if (a.t === 'koi') return `Koi swapped ${sqName(a.a)} ↔ ${sqName(a.b)}`;
+    return '';
+  }
+
+  return {
+    N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
+    KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
+    newGame, clone, legalActions, apply, harmonies, findRing, plantedCount, knotted, colorOK,
+    flowerDests, stoneSpots, wheelOptions, koiOptions, isGateSq, sqName, describe, neighbors, angleOf, dAngle,
+  };
+})();
+
+
+// ---- ai.js ----
+/* Heuristic computer opponent for Key Pai Sho */
+const PaiShoAI = (() => {
+  const P = (typeof PaiSho !== 'undefined') ? PaiSho : require('./engine.js');
+  const SECT = 16;
+  function sectorsOf(a, b) {
+    const out = [];
+    let a1 = P.angleOf(a); const d = P.dAngle(a, b);
+    const steps = Math.max(1, Math.ceil(Math.abs(d) / (Math.PI / 32)));
+    for (let k = 0; k <= steps; k++) {
+      let ang = a1 + (d * k) / steps; ang = (ang + 4 * Math.PI) % (2 * Math.PI);
+      out.push(Math.floor(ang / (2 * Math.PI / SECT)) % SECT);
+    }
+    return out;
+  }
+  function sideScore(s, q, H) {
+    let sc = 0;
+    const edges = H.filter((h) => h.owners.includes(q));
+    sc += edges.length * 10;
+    // components by union-find
+    const parent = new Map();
+    const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+    edges.forEach(({ a, b }) => { if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); parent.set(find(a), find(b)); });
+    const cover = new Map();
+    edges.forEach(({ a, b }) => {
+      const [x1, y1] = P.xy(a), [x2, y2] = P.xy(b);
+      if (Math.sign(x1) !== Math.sign(x2) || Math.sign(y1) !== Math.sign(y2)) sc += 5;
+      const root = find(a);
+      if (!cover.has(root)) cover.set(root, new Set());
+      sectorsOf(a, b).forEach((x) => cover.get(root).add(x));
+    });
+    let best = 0; cover.forEach((set) => (best = Math.max(best, set.size)));
+    sc += best * best * 0.9;
+    // material
+    for (let i = 0; i < P.N * P.N; i++) {
+      const c = s.board[i]; if (!c || c.top.owner !== q) continue;
+      if (P.isFlower(c.top.type)) {
+        const [x, y] = P.xy(i); const r = Math.hypot(x, y);
+        sc += 3 + (r > 2 && r < 6.5 ? 2.5 : 0) - (r > 7.5 ? 1 : 0);
+        if (P.knotted(s, i)) sc -= 3;
+      }
+    }
+    sc += P.plantedCount(s, q) * 1.5;
+    return sc;
+  }
+  function evaluate(s, p) {
+    if (s.winner === p) return 1e6;
+    if (s.winner === 1 - p) return -1e6;
+    if (s.winner === 'draw') return 0;
+    const H = P.harmonies(s);
+    if (P.findRing(s, p, H)) return 9e5;
+    if (P.findRing(s, 1 - p, H)) return -9e5;
+    return sideScore(s, p, H) - 1.15 * sideScore(s, 1 - p, H);
+  }
+  // play out a main action plus optional extra (orchid / bison) greedily, return state before 'end'
+  function mainOptions(s) {
+    return P.legalActions(s, { noPlace: true, noAbility: true }).filter((a) => a.t === 'move' || a.t === 'plant');
+  }
+  function afterMain(s, a, p) {
+    let s2 = P.apply(s, a);
+    if (s2.tp.extra) {
+      const ex = mainOptions(s2);
+      let best = null, bv = -Infinity;
+      for (const e of ex.slice(0, 80)) { const v = evaluate(P.apply(s2, e), p); if (v > bv) { bv = v; best = e; } }
+      if (best && bv > evaluate(s2, p)) s2 = P.apply(s2, best);
+    }
+    return s2;
+  }
+  function sample(arr, n) {
+    if (arr.length <= n) return arr;
+    const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a.slice(0, n);
+  }
+  /* returns an array of actions to perform in order (ending with {t:'end'}) */
+  function chooseTurn(s, level = 'medium') {
+    const p = s.turn;
+    const seq = [];
+    let opts = mainOptions(s);
+    if (!opts.length) return [{ t: 'end' }];
+    const scored = opts.map((a) => { const s2 = afterMain(s, a, p); return { a, s2, v: evaluate(s2, p) + Math.random() * (level === 'easy' ? 25 : 3) }; });
+    scored.sort((x, y) => y.v - x.v);
+    let pick;
+    if (level === 'easy') {
+      pick = scored[Math.floor(Math.random() * Math.min(scored.length, Math.max(3, scored.length / 3)))];
+      if (scored[0].v > 8e5) pick = scored[0];
+    } else if (level === 'medium' || scored[0].v > 8e5) pick = scored[0];
+    else {
+      // hard: 2-ply on top candidates
+      let best = null, bv = -Infinity;
+      for (const cand of scored.slice(0, 8)) {
+        const se = P.apply(cand.s2, { t: 'end' });
+        if (se.winner === p) { best = cand; break; }
+        const replies = sample(mainOptions(se), 70);
+        let worst = Infinity;
+        for (const r of replies) {
+          const v = evaluate(P.apply(P.apply(se, r), { t: 'end' }), p);
+          if (v < worst) worst = v;
+          if (worst < bv) break;
+        }
+        if (!replies.length) worst = cand.v;
+        if (worst > bv) { bv = worst; best = cand; }
+      }
+      pick = best || scored[0];
+    }
+    seq.push(pick.a);
+    let cur = P.apply(s, pick.a);
+    if (cur.tp.extra) {
+      const s2 = afterMain(s, pick.a, p);
+      // replay the extra that afterMain chose by diffing log length
+      if (s2.log.length > cur.log.length) {
+        const ex = mainOptions(cur).find((e) => JSON.stringify(P.apply(cur, e).board) === JSON.stringify(s2.board));
+        if (ex) { seq.push(ex); cur = P.apply(cur, ex); }
+      }
+    }
+    // consider placing an accent
+    if (level !== 'easy') {
+      const places = P.legalActions(cur).filter((a) => a.t === 'place');
+      if (places.length) {
+        const base = evaluate(cur, p);
+        let best = null, bv = base + 6;
+        for (const pl of sample(places, 60)) { const v = evaluate(P.apply(cur, pl), p); if (v > bv) { bv = v; best = pl; } }
+        if (best) { seq.push(best); cur = P.apply(cur, best); }
+      }
+    }
+    seq.push({ t: 'end' });
+    return seq;
+  }
+  const AI_EFFECTS = { easy: [], medium: ['lotus', 'orchid', 'knotweed'], hard: ['lotus', 'orchid', 'firelily', 'knotweed', 'dragon', 'stone'] };
+  return { chooseTurn, evaluate, AI_EFFECTS };
+})();
+
+
+// ---- glyphs.js ----
+/* Original tile artwork (SVG), drawn in a -1..1 box */
+const Glyphs = (() => {
+  const O = '#e07b2e', W = '#f4ecd8', K = '#2a1a10', SW = 'stroke="' + K + '" stroke-width="0.045"';
+  const rot = (n, fn) => Array.from({ length: n }, (_, k) => fn((360 / n) * k)).join('');
+  const G = {
+    rose: () => rot(5, (a) => `<circle cx="0" cy="-0.42" r="0.33" fill="${O}" ${SW} transform="rotate(${a})"/>`) +
+      `<circle r="0.3" fill="${O}" ${SW}/><circle r="0.14" fill="${W}" ${SW}/>`,
+    chrys: () => rot(16, (a) => `<ellipse cx="0" cy="-0.5" rx="0.075" ry="0.34" fill="${O}" ${SW} transform="rotate(${a})"/>`) +
+      `<circle r="0.2" fill="${O}" ${SW}/>` + rot(8, (a) => `<circle cx="0" cy="-0.11" r="0.035" fill="${W}" transform="rotate(${a})"/>`),
+    rhodo: () => rot(5, (a) => `<ellipse cx="0" cy="-0.4" rx="0.25" ry="0.36" fill="${O}" ${SW} transform="rotate(${a})"/>`) +
+      `<path d="M0,-0.7 C0.1,-0.55 0.06,-0.42 0,-0.32 C-0.06,-0.42 -0.1,-0.55 0,-0.7Z" fill="${W}"/>` +
+      `<circle r="0.12" fill="${W}" ${SW}/>`,
+    lily: () => `<path d="M0,0.72 C-0.55,0.35 -0.5,-0.2 -0.22,-0.45 C-0.12,-0.2 -0.05,-0.1 0,-0.05 C0.05,-0.1 0.12,-0.2 0.22,-0.45 C0.5,-0.2 0.55,0.35 0,0.72Z" fill="${W}" ${SW}/>` +
+      `<path d="M-0.62,-0.1 C-0.75,-0.35 -0.6,-0.55 -0.42,-0.5 C-0.55,-0.4 -0.55,-0.25 -0.45,-0.1Z M0.62,-0.1 C0.75,-0.35 0.6,-0.55 0.42,-0.5 C0.55,-0.4 0.55,-0.25 0.45,-0.1Z" fill="${W}" ${SW}/>` +
+      [-0.12, -0.04, 0.04, 0.12].map((x) => `<line x1="${x}" y1="0" x2="${x * 1.6}" y2="-0.7" stroke="${W}" stroke-width="0.05"/><circle cx="${x * 1.6}" cy="-0.72" r="0.05" fill="${O}"/>`).join(''),
+    jasmine: () => rot(8, (a) => `<path d="M0,-0.85 C0.2,-0.55 0.14,-0.25 0,-0.1 C-0.14,-0.25 -0.2,-0.55 0,-0.85Z" fill="${W}" ${SW} transform="rotate(${a})"/>`) +
+      `<circle r="0.11" fill="${O}" ${SW}/>`,
+    jade: () => `<path d="M-0.55,0.15 C-0.55,-0.25 -0.25,-0.55 0,-0.6 C0.25,-0.55 0.55,-0.25 0.55,0.15 Z" fill="${W}" ${SW}/>` +
+      `<path d="M-0.65,0.35 C-0.6,0.05 -0.35,-0.15 0,-0.15 C0.35,-0.15 0.6,0.05 0.65,0.35 Z" fill="${W}" ${SW}/>` +
+      `<path d="M-0.3,0.4 C-0.2,0.7 0.2,0.7 0.3,0.4 Z" fill="${O}" ${SW}/><circle cy="-0.68" r="0.08" fill="${O}" ${SW}/>`,
+    orchid: () => `<path d="M0,-0.78 C0.55,-0.3 0.5,0.55 0,0.72 C-0.5,0.55 -0.55,-0.3 0,-0.78Z" fill="${W}" ${SW}/>` +
+      `<path d="M0,0.5 L0,-0.35 M-0.2,-0.12 L0,-0.4 L0.2,-0.12" stroke="${O}" stroke-width="0.14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    lotus: () => rot(8, (a) => `<ellipse cx="0" cy="-0.55" rx="0.2" ry="0.3" fill="${W}" ${SW} transform="rotate(${a + 22.5})"/>`) +
+      rot(8, (a) => `<ellipse cx="0" cy="-0.32" rx="0.13" ry="0.2" fill="${O}" ${SW} transform="rotate(${a})"/>`) +
+      `<circle r="0.17" fill="${W}" ${SW}/><circle r="0.07" fill="${O}"/>`,
+    firelily: () => rot(6, (a) => `<path d="M0,-0.88 L0.16,-0.25 L-0.16,-0.25Z" fill="${W}" ${SW} transform="rotate(${a})"/>`) +
+      rot(6, (a) => `<path d="M0,-0.5 L0.1,-0.15 L-0.1,-0.15Z" fill="${O}" transform="rotate(${a + 30})"/>`) +
+      `<circle r="0.16" fill="${O}" ${SW}/>` + rot(6, (a) => `<circle cx="0" cy="-0.68" r="0.05" fill="${O}" transform="rotate(${a + 30})"/>`),
+    dahlia: () => rot(12, (a) => `<circle cx="0" cy="-0.68" r="0.13" fill="${O}" ${SW} transform="rotate(${a})"/>`) +
+      rot(8, (a) => `<circle cx="0" cy="-0.42" r="0.12" fill="${W}" ${SW} transform="rotate(${a + 22.5})"/>`) +
+      rot(5, (a) => `<circle cx="0" cy="-0.18" r="0.08" fill="${O}" transform="rotate(${a})"/>`),
+    stone: () => `<circle r="0.72" fill="${O}" ${SW}/><circle r="0.58" fill="none" stroke="${K}" stroke-width="0.04"/><rect x="-0.18" y="-0.18" width="0.36" height="0.36" fill="${W}" ${SW}/>`,
+    knotweed: () => rot(3, (a) => `<ellipse cx="0" cy="-0.28" rx="0.3" ry="0.46" fill="none" stroke="${W}" stroke-width="0.11" transform="rotate(${a})"/>`) +
+      rot(3, (a) => `<ellipse cx="0" cy="-0.28" rx="0.3" ry="0.46" fill="none" stroke="${K}" stroke-width="0.03" transform="rotate(${a})"/>`) +
+      `<circle r="0.13" fill="${O}" ${SW}/>`,
+    wheel: () => `<circle r="0.7" fill="none" stroke="${O}" stroke-width="0.14"/>` +
+      rot(8, (a) => `<line x1="0" y1="-0.18" x2="0" y2="-0.66" stroke="${O}" stroke-width="0.09" transform="rotate(${a})"/>`) +
+      `<circle r="0.18" fill="${W}" ${SW}/>`,
+    boat: () => `<path d="M-0.75,0.25 L0.75,0.25 C0.6,0.6 -0.45,0.65 -0.75,0.25Z" fill="${O}" ${SW}/>` +
+      `<path d="M-0.05,0.2 L-0.05,-0.75 L-0.55,0.15Z" fill="${W}" ${SW}/><path d="M0.05,0.2 L0.05,-0.6 L0.5,0.15Z" fill="${W}" ${SW}/>`,
+    badgermole: () => `<path d="M-0.75,0.45 C-0.65,-0.35 0.65,-0.35 0.75,0.45Z" fill="${W}" ${SW}/>` +
+      [-0.25, 0, 0.25].map((x) => `<path d="M${x},0.42 L${x * 1.3},0.05" stroke="${O}" stroke-width="0.1" stroke-linecap="round"/>`).join('') +
+      `<circle cx="-0.25" cy="-0.05" r="0.06" fill="${K}"/><circle cx="0.25" cy="-0.05" r="0.06" fill="${K}"/>`,
+    dragon: () => `<path d="M-0.55,-0.45 C0.2,-0.85 0.75,-0.2 0.2,0.05 C-0.3,0.25 -0.2,0.75 0.55,0.55" fill="none" stroke="${W}" stroke-width="0.17" stroke-linecap="round"/>` +
+      `<path d="M-0.55,-0.45 C0.2,-0.85 0.75,-0.2 0.2,0.05 C-0.3,0.25 -0.2,0.75 0.55,0.55" fill="none" stroke="${K}" stroke-width="0.03"/>` +
+      `<path d="M0.55,0.55 C0.7,0.4 0.8,0.55 0.7,0.75 C0.6,0.7 0.55,0.65 0.55,0.55Z" fill="${O}"/><circle cx="-0.55" cy="-0.45" r="0.12" fill="${O}" ${SW}/>`,
+    skybison: () => `<path d="M-0.7,0.3 C-0.85,0 -0.55,-0.25 -0.3,-0.15 C-0.25,-0.5 0.25,-0.55 0.35,-0.2 C0.65,-0.3 0.85,0.05 0.65,0.3Z" fill="${W}" ${SW}/>` +
+      `<path d="M0,0.7 L0,0.05 M-0.18,0.25 L0,0.02 L0.18,0.25" stroke="${O}" stroke-width="0.12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    koi: () => `<path d="M0,-0.7 C0.55,-0.7 0.55,0 0,0 C-0.55,0 -0.55,0.7 0,0.7 C-0.75,0.7 -0.75,-0.7 0,-0.7Z" fill="${W}" ${SW}/>` +
+      `<path d="M0,-0.7 C0.75,-0.7 0.75,0.7 0,0.7 C0.55,0.7 0.55,0 0,0 C-0.55,0 -0.55,-0.7 0,-0.7Z" fill="${O}" ${SW}/>` +
+      `<circle cy="-0.35" r="0.08" fill="${K}"/><circle cy="0.35" r="0.08" fill="${K}"/>`,
+    random: () => `<circle r="0.7" fill="none" stroke="${W}" stroke-width="0.08" stroke-dasharray="0.15 0.12"/><text y="0.28" text-anchor="middle" font-size="0.85" font-weight="900" fill="${O}" font-family="Cinzel,serif">?</text>`,
+  };
+  const DISC = [{ fill: '#d9b27c', rim: '#7a4a22', in: '#c79a62' }, { fill: '#4a2a17', rim: '#d4a24c', in: '#3a2010' }];
+  function tile(type, owner, r = 1) {
+    const d = DISC[owner == null ? 0 : owner];
+    return `<circle r="${r}" fill="${d.fill}" stroke="${d.rim}" stroke-width="${0.09 * r}"/>` +
+      `<circle r="${0.86 * r}" fill="none" stroke="${d.in}" stroke-width="${0.04 * r}"/>` +
+      `<g transform="scale(${0.74 * r})">${(G[type] || G.random)()}</g>`;
+  }
+  function svg(type, owner, extra = '') { return `<svg viewBox="-1.12 -1.12 2.24 2.24" ${extra}>${tile(type, owner)}</svg>`; }
+  return { G, tile, svg, DISC };
+})();
+
+// ---- store.js ----
+/* Storage backends: artifact db (claude.ai), self-hosted server (server.js), or this device only */
+const Store = (() => {
+  let kind = 'local', db = null, user = null, uid = null;
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem('paisho.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('paisho.' + k, JSON.stringify(v)); } catch (e) {} },
+  };
+  const timeout = (ms, v) => new Promise((r) => setTimeout(() => r(v), ms));
+
+  async function init() {
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        db = await Promise.race([window.claude.use('db'), timeout(10000, null)]);
+        user = await Promise.race([window.claude.use('user'), timeout(4000, null)]);
+        if (user && user.id) uid = await user.id().catch(() => null);
+        if (db) { kind = 'artifact'; return kind; }
+      }
+    } catch (e) {}
+    if (/^https?:/.test(location.protocol)) {
+      try { const r = await Promise.race([fetch('api/ping'), timeout(2500, null)]); if (r && r.ok) { kind = 'server'; return kind; } } catch (e) {}
+    }
+    kind = 'local'; return kind;
+  }
+  const online = () => kind !== 'local';
+
+  // --- local collection emulation (single device) ---
+  const localCol = (col) => LS.get('col.' + col, {});
+  const localSave = (col, data) => LS.set('col.' + col, data);
+
+  async function list(col) {
+    if (kind === 'artifact') { const snap = await db.collection(col).limit(500).get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
+    if (kind === 'server') { const r = await fetch('api/c/' + col); return r.json(); }
+    const c = localCol(col); return Object.keys(c).map((id) => Object.assign({ id }, c[id]));
+  }
+  async function get(col, id) {
+    if (kind === 'artifact') { const d = await db.doc(col + '/' + id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
+    if (kind === 'server') { const r = await fetch('api/d/' + col + '/' + id); if (!r.ok) return null; const j = await r.json(); return j ? Object.assign({ id }, j) : null; }
+    const c = localCol(col); return c[id] ? Object.assign({ id }, c[id]) : null;
+  }
+  async function set(col, id, data) {
+    const body = JSON.parse(JSON.stringify(data)); delete body.id;
+    if (kind === 'artifact') return db.doc(col + '/' + id).set(body);
+    if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const c = localCol(col); c[id] = body; localSave(col, c);
+  }
+  async function del(col, id) {
+    if (kind === 'artifact') return db.doc(col + '/' + id).delete();
+    if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
+    const c = localCol(col); delete c[id]; localSave(col, c);
+  }
+  // live watch of one doc
+  function watch(col, id, cb) {
+    if (kind === 'artifact') return db.doc(col + '/' + id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
+    if (kind === 'server') {
+      let es; try { es = new EventSource('api/w/' + col + '/' + id); es.onmessage = (e) => { const j = JSON.parse(e.data); cb(j ? Object.assign({ id }, j) : null); }; } catch (e) {}
+      let stop = false; // polling fallback
+      const poll = async () => { if (stop) return; if (!es || es.readyState === 2) { cb(await get(col, id)); } setTimeout(poll, 4000); };
+      setTimeout(poll, 4000);
+      return () => { stop = true; es && es.close(); };
+    }
+    return () => {};
+  }
+  function watchCol(col, cb) {
+    if (kind === 'artifact') return db.collection(col).limit(200).onSnapshot((s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {});
+    if (kind === 'server') {
+      let stop = false;
+      const poll = async () => { if (stop) return; try { cb(await list(col)); } catch (e) {} setTimeout(poll, 3000); };
+      poll(); return () => { stop = true; };
+    }
+    return () => {};
+  }
+  return { init, online, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
+})();
+
+/* Profiles: name + salted PIN hash, optional passkey (biometric) */
+const Auth = (() => {
+  const enc = new TextEncoder();
+  const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+  async function hash(pin, salt) {
+    const data = enc.encode(salt + ':' + pin + ':paisho');
+    if (crypto.subtle) { let h = data; for (let i = 0; i < 2000; i++) h = new Uint8Array(await crypto.subtle.digest('SHA-256', h)); return b64(h); }
+    let x = 5381; for (const b of data) x = ((x * 33) ^ b) >>> 0; return 'w' + x.toString(36);
+  }
+  const rid = (n = 12) => b64(crypto.getRandomValues(new Uint8Array(n)));
+  async function bioAvailable() {
+    try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; }
+  }
+  async function bioRegister(profile) {
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'Pai Sho' },
+      user: { id: enc.encode(profile.id), name: profile.name, displayName: profile.name },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' }, timeout: 60000,
+    } });
+    return b64(cred.rawId);
+  }
+  async function bioVerify(credId) {
+    const a = await navigator.credentials.get({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: 'public-key', id: unb64(credId) }], userVerification: 'required', timeout: 60000,
+    } });
+    return !!a;
+  }
+  return { hash, rid, bioAvailable, bioRegister, bioVerify };
+})();
+
+// ---- board.js ----
+/* Board SVG rendering. Square (r,c) centre = (c-8.5, r-8.5) */
+const Board = (() => {
+  const P = PaiSho;
+  const cx = (i) => (i % 18) - 8.5, cy = (i) => Math.floor(i / 18) - 8.5;
+  const GATE_POS = [[0, -8], [8, 0], [0, 8], [-8, 0]];
+  function base() {
+    let o = `<defs>
+      <radialGradient id="wood" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#b27a47"/><stop offset="1" stop-color="#7c4f2a"/></radialGradient>
+      <clipPath id="bc"><circle r="9"/></clipPath>
+      <pattern id="grain" width="3" height="0.6" patternUnits="userSpaceOnUse"><path d="M0,0.3 Q0.75,0.15 1.5,0.3 T3,0.3" stroke="#00000014" stroke-width="0.05" fill="none"/></pattern>
+    </defs>
+    <circle r="9.45" fill="#3a2214" stroke="#d4a24c" stroke-width="0.12"/>
+    <circle r="9" fill="url(#wood)"/><circle r="9" fill="url(#grain)"/>
+    <g clip-path="url(#bc)">
+      <polygon points="0,0 0,-9 -9,0" fill="#ebe3d0"/><polygon points="0,0 0,9 9,0" fill="#ebe3d0"/>
+      <polygon points="0,0 0,-9 9,0" fill="#b8332e"/><polygon points="0,0 0,9 -9,0" fill="#b8332e"/>`;
+    for (let k = -9; k <= 9; k++) o += `<line x1="${k}" y1="-9.5" x2="${k}" y2="9.5" stroke="#2a1a10" stroke-opacity=".38" stroke-width="0.035"/><line y1="${k}" x1="-9.5" y2="${k}" x2="9.5" stroke="#2a1a10" stroke-opacity=".38" stroke-width="0.035"/>`;
+    o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke="#2a1a10" stroke-opacity=".25" stroke-width="0.04"/><line x1="9" y1="-9" x2="-9" y2="9" stroke="#2a1a10" stroke-opacity=".25" stroke-width="0.04"/>`;
+    o += `<polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke="#2a1a10" stroke-opacity=".55" stroke-width="0.07"/>`;
+    // gates
+    GATE_POS.forEach(([x, y], g) => {
+      o += `<rect x="${x - 1}" y="${y - 1}" width="2" height="2" fill="#5a1f1c" stroke="#e6b54a" stroke-width="0.08" rx="0.15"/>`;
+      o += `<circle cx="${x}" cy="${y}" r="0.7" fill="none" stroke="#e6b54a" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.2 0.15"/>`;
+    });
+    o += `</g><circle r="9" fill="none" stroke="#2a1a10" stroke-width="0.1"/>`;
+    // shade off-board squares? none needed; centre point
+    o += `<circle r="0.09" fill="#2a1a10"/>`;
+    return o;
+  }
+  return { base, cx, cy, GATE_POS };
+})();
+
+// ---- guide.js ----
+/* Built-in rules guide (paraphrased from the Key Pai Sho booklet) */
+const Guide = (() => {
+  const P = PaiSho;
+  const INFO = {
+    rose: ['Dark key flower', 'Moves up to 3 squares in any of the 8 directions. Harmonizes the same way.', 3],
+    chrys: ['Dark key flower', 'Moves up to 5 squares straight up, down, left or right.', 5],
+    rhodo: ['Dark key flower', 'Moves up to 5 squares diagonally.', 5],
+    lily: ['Light key flower', 'Moves up to 3 squares in any of the 8 directions.', 3],
+    jasmine: ['Light key flower', 'Moves up to 5 squares straight up, down, left or right.', 5],
+    jade: ['Light key flower', 'Moves up to 5 squares diagonally.', 5],
+    orchid: ['Special flower', 'Moves 1 square. If you move the Orchid as your turn’s move, you get one more move that turn (another tile, or the Orchid again).', 1],
+    lotus: ['Special flower', 'Moves 1 square, up to twice a turn. Harmonizes with any flower of either player at any distance in a straight line (flowers in between block it). Can be planted on the centre point if the four centre squares are empty — it must leave next turn.', 1],
+    firelily: ['Special flower', 'Moves 1 square, up to 6 times a turn. Never harmonizes (except with a Lotus), but blocks your opponent’s harmonies — never yours.', 1],
+    dahlia: ['Special flower', 'Moves any distance in a straight line and may jump over tiles, but must finish right beside another tile.', '∞'],
+    stone: ['Accent tile', 'When switched in, it can be put on any empty garden square. Lets all your key flowers land in its quarter of the board regardless of colour. Cannot move.', 0],
+    knotweed: ['Accent tile', 'Flowers next to it (yours too) cannot harmonize and cannot move by themselves. Moves 2.', 2],
+    wheel: ['Accent tile', 'Switched in for one of your accent tiles, not a flower. Once a turn it can spin every tile around it 1–3 places clockwise or counter-clockwise (all must be able to land). Moves 3.', 3],
+    boat: ['Accent tile', 'When it moves it can take every tile around it along, keeping their positions (all must be able to land). Moves 4.', 4],
+    badgermole: ['Accent tile', 'Can land on a tile and slide underneath it. The tile on top ignores all other accent tiles. Can carry the top tile when it moves. Moves 5.', 5],
+    dragon: ['Accent tile', 'Land on a tile to send it back to its owner’s hand. If any effect tile lands on the Dragon, the Dragon leaves the game for good. Moves 5.', 5],
+    skybison: ['Accent tile', 'Can land on a tile and slide underneath. A flower on top cannot have its harmonies blocked by flowers. After carrying a tile, that tile may move once more straight away. Moves 5.', 5],
+    koi: ['Accent tile', 'Once a turn, swap two tiles that sit on opposite sides of it in a straight or diagonal line (both must be allowed to land). Moves 5.', 5],
+  };
+
+  // ----- mini diagram renderer -----
+  function mini({ size = 7, cells = [], dots = [], lines = [], colors = null, gate = false, label = '' }) {
+    const s = size; let o = `<svg viewBox="-0.2 -0.2 ${s + 0.4} ${s + 0.4}">`;
+    for (let r = 0; r < s; r++) for (let c = 0; c < s; c++) {
+      const col = colors ? colors(r, c) : 'n';
+      const f = { n: '#9a6a3e', l: '#eae2cf', d: '#b8332e', g: '#5a1f1c', x: '#24170f' }[col];
+      o += `<rect x="${c}" y="${r}" width="1" height="1" fill="${f}" stroke="#2a1a10" stroke-width="0.03"/>`;
+    }
+    lines.forEach(([r1, c1, r2, c2, col]) => (o += `<line x1="${c1 + 0.5}" y1="${r1 + 0.5}" x2="${c2 + 0.5}" y2="${r2 + 0.5}" stroke="${col || '#f5d98a'}" stroke-width="0.14" stroke-linecap="round"/>`));
+    dots.forEach(([r, c, col]) => (o += `<circle cx="${c + 0.5}" cy="${r + 0.5}" r="0.16" fill="${col || '#f5d98a'}"/>`));
+    cells.forEach(([r, c, t, ow, sc]) => (o += `<g transform="translate(${c + 0.5},${r + 0.5}) scale(${(sc || 1) * 0.44})">${Glyphs.tile(t, ow || 0)}</g>`));
+    return o + '</svg>';
+  }
+  function moveDots(r0, c0, dirs, range, size) {
+    const out = [];
+    dirs.forEach(([a, b]) => { for (let k = 1; k <= range; k++) { const r = r0 + a * k, c = c0 + b * k; if (r >= 0 && c >= 0 && r < size && c < size) out.push([r, c]); } });
+    return out;
+  }
+  const O4 = [[-1,0],[1,0],[0,-1],[0,1]], D4 = [[-1,-1],[-1,1],[1,-1],[1,1]], A8 = O4.concat(D4);
+  function fullBoard(opts = {}) {
+    let o = `<svg viewBox="-9.6 -9.6 19.2 19.2">` + Board.base(true);
+    (opts.tiles || []).forEach(([r, c, t, ow]) => (o += `<g transform="translate(${c - 8.5},${r - 8.5}) scale(0.44)">${Glyphs.tile(t, ow)}</g>`));
+    (opts.lines || []).forEach(([a, b, c, d]) => (o += `<line x1="${b - 8.5}" y1="${a - 8.5}" x2="${d - 8.5}" y2="${c - 8.5}" stroke="#f5d98a" stroke-width="0.2" stroke-linecap="round"/>`));
+    (opts.dots || []).forEach(([r, c]) => (o += `<circle cx="${c - 8.5}" cy="${r - 8.5}" r="0.25" fill="#f5d98a"/>`));
+    return o + '</svg>';
+  }
+  const fig = (svgs) => `<div class="fig">${svgs.map(([s, cap]) => `<figure>${s}<figcaption>${cap}</figcaption></figure>`).join('')}</div>`;
+  const trow = (t) => `<div class="trow">${Glyphs.svg(t, 0)}<div><b>${P.tname(t)}</b> <span class="tiny muted">${INFO[t][0]}</span><br>${INFO[t][1]}</div><div class="mv">${INFO[t][2]}</div></div>`;
+
+  function html() {
+    const ring = [[6, 6, 'jasmine', 0], [6, 11, 'chrys', 0], [11, 11, 'jasmine', 0], [11, 6, 'chrys', 0]];
+    const sec = [
+      ['goal', 'Goal', `<p>Two players take turns growing a garden. Link your flowers with <b>harmonies</b> — invisible lines between two of your flowers — and be the first to close a chain of at least <b>four harmonies that circles the centre</b> of the board.</p>` +
+        fig([[fullBoard({ tiles: ring, lines: [[6, 6, 6, 11], [6, 11, 11, 11], [11, 11, 11, 6], [11, 6, 6, 6]] }), 'A winning ring of four harmonies around the centre']])],
+      ['board', 'The board', `<p>The board is a circle of squares. Tiles sit <b>inside squares</b>. There are three kinds of garden:</p><ul><li><b>Light gardens</b> (cream) — top-left and bottom-right quarters of the central diamond.</li><li><b>Dark gardens</b> (red) — top-right and bottom-left quarters.</li><li><b>Neutral garden</b> (wood) — everything outside the diamond. Squares cut in half by the diamond’s edge count as half neutral, so anyone may land there.</li></ul><p>The four <b>gates</b> sit at the edge at north, east, south and west. Each gate covers the 2×2 block of squares at the edge; no tile in the garden can land on or pass through those squares.</p>` + fig([[fullBoard({}), 'Gardens and the four gates']])],
+      ['turn', 'Your turn', `<p>On your turn you must do <b>one</b> of these:</p><ul><li><b>Plant</b> a flower from your hand into an empty gate. You may have at most <b>2 planted</b> flowers at once.</li><li><b>Move</b> one of your tiles already on the board.</li></ul><p>You may <b>also</b>, once per turn, before or after that: <b>place</b> an accent tile by swapping it with one of your flowers in the garden (the flower goes back to your hand), and use each accent tile’s ability once.</p><p>A flower leaving a gate takes its first step into any of the squares around the gate block:</p>` +
+        fig([[mini({ size: 6, colors: (r, c) => (r >= 4 && (c === 2 || c === 3) ? 'g' : 'n'), dots: [[3, 1], [3, 2], [3, 3], [3, 4], [4, 1], [5, 1], [4, 4], [5, 4]], cells: [[4.5, 2.5, 'rose', 0, 1.6]] }), 'Planted Rose: first-step squares']])],
+      ['keys', 'Key flowers', `<p>Each player starts with 3 of each of the 6 key flowers. A key flower moves <b>once</b> per turn, in <b>one</b> straight direction, up to its number of squares, and never over other tiles.</p><div class="tlist">${P.KEY_TYPES.map(trow).join('')}</div>` +
+        fig([[mini({ dots: moveDots(3, 3, A8, 3, 7), cells: [[3, 3, 'rose', 0]] }), 'Rose / Lily: 3, any direction'], [mini({ dots: moveDots(3, 3, O4, 5, 7), cells: [[3, 3, 'chrys', 0]] }), 'Chrysanthemum / Jasmine: 5, straight'], [mini({ dots: moveDots(3, 3, D4, 5, 7), cells: [[3, 3, 'rhodo', 0]] }), 'Rhododendron / Jade: 5, diagonal']]) +
+        `<p><b>Garden colour:</b> dark flowers (orange) can’t <i>finish</i> a move in a light garden and light flowers (white) can’t finish in a dark garden. Both may pass through, and both may land in neutral or half-neutral squares.</p>`],
+      ['harmony', 'Harmonies', `<p>A harmony is a line between two of your blooming flowers (not planted ones). It follows four rules:</p><ul><li>It forms when one key flower’s movement could reach the other flower’s square (garden colour is ignored here).</li><li>There must be <b>at least one square between</b> them.</li><li>Never between two flowers of the <b>same kind</b>.</li><li>It is <b>broken</b> if an opponent’s flower sits between them. Accent tiles in between don’t break it.</li></ul><p>Harmonies can’t stretch across the exact centre point or across gate squares.</p>` +
+        fig([[mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0]], lines: [[3, 1, 3, 5]] }), 'Chrysanthemum reaches the Lily → harmony'], [mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0], [3, 3, 'rose', 1]], lines: [[3, 1, 3, 2.6, '#7a5a3a'], [3, 3.4, 3, 5, '#7a5a3a']] }), 'Opponent’s Rose in between breaks it']])],
+      ['win', 'Winning', `<p>The first player to complete a closed chain of at least 4 harmonies that <b>encircles the centre</b> wins. The app checks at the end of every turn and draws the ring in gold. (Harmony Minima variation: change 4 to 3, 6 or 10.)</p>`],
+      ['effects', 'Effect tiles', `<p>Before the game each player may choose up to <b>6 effect tiles</b>, one of each kind, from the special flowers and accent tiles below. Beginners should play with none until the basics feel natural.</p><h3>Special flowers</h3><p>They are planted in gates like key flowers, can land in any garden colour, and each has its own movement.</p><div class="tlist">${Object.keys(P.SPECIAL).map(trow).join('')}</div><h3>Accent tiles</h3><p>Accent tiles are never planted. You <b>place</b> one by swapping it with one of your blooming flowers. They don’t harmonize or block harmonies, but they <b>do block flower movement</b>. They move once per turn in any of the 8 directions and may jump over tiles.</p><div class="tlist">${Object.keys(P.ACCENT).map(trow).join('')}</div>`],
+      ['fine', 'Fine print', `<ul><li>You can’t pass: you must plant, place or move something.</li><li>Steps leaving a gate count the first square outside the gate as step one.</li><li>A tile only "lands" on its final square, and harmonies form only after it stops.</li><li>Tiles in the garden never affect planted tiles, and a tile in the garden can never go back onto a gate.</li><li>Only one tile per gate.</li><li>Moving a flower by carrying it with an accent counts as moving the accent.</li><li>Knotweed affects your own flowers too, but accent tiles can still move those flowers.</li><li>An accent that moves another tile can’t drop it where it couldn’t normally land.</li><li>Badgermoles and Sky Bisons can’t land on a tile while carrying one, and flowers can land on them but can’t move over them.</li><li>A Dragon can’t land on a tile sitting on a Badgermole; landing on a tile with a Sky Bison underneath removes both.</li></ul>`],
+      ['vars', 'Variations', `<ul><li><b>Basic Key Pai Sho</b> — no effect tiles.</li><li><b>Harmony Minima</b> — change the ring size needed to win (3, 6 or 10).</li><li><b>Timed Turns</b> — a clock per turn. When it runs out, the app makes a random move for you.</li><li><b>Game of Chance</b> — key flowers are drawn at random when you plant.</li><li><b>Effect Tile Enigma</b> — your opponent’s effect tiles stay hidden until played.</li></ul>`],
+      ['app', 'Using the app', `<ul><li>Tap one of your tiles to see where it can go (gold dots), then tap a dot.</li><li>Tap a tile in the tray at the bottom to plant it (gates light up) or to place an accent (your flowers light up).</li><li>Tap an accent you own on the board to move it or use its ability.</li><li>When you’ve done your move and nothing optional is left, the turn ends by itself; otherwise press <b>End turn</b>.</li><li>The ↔ button shows or hides harmony lines. Undo works against the computer and in pass-and-play.</li></ul>
+        <div class="note"><b>House readings</b> where the booklet leaves room: a gate covers a 2×2 block with 8 exit squares; Lotus harmonies count for the other flower’s owner (Lotus–Lotus counts for both); Dahlia jumps in straight lines; moving an accent tile uses your turn’s move; abilities (Wheel, Koi) are free extras.</div>`],
+    ];
+    return `<nav class="toc">${sec.map(([id, t]) => `<a href="#g-${id}" data-act="toc" data-id="g-${id}">${t}</a>`).join('')}</nav>` +
+      `<div class="guide">${sec.map(([id, t, body]) => `<section id="g-${id}"><h3>${t}</h3>${body}</section>`).join('')}</div>`;
+  }
+  return { html, INFO, mini };
+})();
+
+// ---- ui.js ----
+/* App UI: screens, game controller, online play, stats */
+(() => {
+  const P = PaiSho, AI = PaiShoAI;
+  const app = document.getElementById('app');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const initials = (n) => (n || '?').trim().slice(0, 1).toUpperCase();
+  const hueOf = (s) => { let h = 0; for (const ch of s || '') h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  const av = (name, cls = '') => `<span class="avatar ${cls}" style="background:hsl(${hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
+  const buzz = (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+
+  let me = null;
+  let G = null;
+  const setup = { mode: 'ai', level: 'medium', first: 'me', fx: [[], []], fxTab: 0, minH: 4, timer: 0, chance: false, enigma: false, p2: { name: 'Player 2', pid: null } };
+  Object.assign(setup, Store.LS.get('setup', {}), { mode: 'ai', fxTab: 0, p2: { name: 'Player 2', pid: null } });
+
+  // ---------- small UI helpers ----------
+  function toast(msg, ms = 2200) {
+    const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+    setTimeout(() => t.remove(), ms);
+  }
+  let sheetResolve = null;
+  function sheet(html, opts = {}) {
+    closeSheet();
+    const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.id = 'sheet';
+    bg.innerHTML = `<div class="sheet" style="${opts.tall ? 'height:88dvh' : ''}"><div class="grab"></div>${html}</div>`;
+    bg.addEventListener('click', (e) => { if (e.target === bg && !opts.modal) closeSheet(); });
+    document.body.appendChild(bg);
+    return bg;
+  }
+  function closeSheet(v) { const s = document.getElementById('sheet'); if (s) s.remove(); if (sheetResolve) { const r = sheetResolve; sheetResolve = null; r(v); } }
+  function choose(title, options, sub = '') {
+    return new Promise((res) => {
+      sheet(`<h3>${esc(title)}</h3>${sub ? `<p class="muted">${sub}</p>` : ''}<div class="menu">${options.map((o, k) => `<button class="btn ${o.cls || ''}" data-act="choose" data-k="${k}">${o.label}</button>`).join('')}<button class="btn ghost" data-act="choose" data-k="-1">Cancel</button></div>`);
+      sheetResolve = (k) => res(k == null || k < 0 ? null : options[k].value);
+    });
+  }
+  function confirmBox(title, msg, okLabel = 'OK', danger = false) {
+    return choose(title, [{ label: okLabel, value: true, cls: danger ? 'danger' : 'primary' }], esc(msg));
+  }
+  function logoSvg(size = 120) {
+    return `<svg class="logo" style="width:${size}px;height:${size}px" viewBox="-9.6 -9.6 19.2 19.2">${Board.base()}<g transform="scale(2.4)">${Glyphs.tile('lotus', 0)}</g></svg>`;
+  }
+
+  // ---------- profiles ----------
+  const emptyStats = () => ({ games: 0, wins: 0, losses: 0, draws: 0, ai: { easy: [0, 0, 0], medium: [0, 0, 0], hard: [0, 0, 0] }, local: [0, 0, 0], online: [0, 0, 0], streak: 0, best: 0, rings: 0, recent: [] });
+  async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
+  function myPid() { if (me) return me.id; let g = Store.LS.get('guestId'); if (!g) { g = 'g-' + Auth.rid(6); Store.LS.set('guestId', g); } return g; }
+  const myName = () => (me ? me.name : Store.LS.get('guestName', 'Guest'));
+
+  async function recordResult(pid, mode, level, res, opp, turns, ring) {
+    if (!pid || pid.startsWith('g-')) return;
+    try {
+      const p = await Store.get('players', pid); if (!p) return;
+      const st = Object.assign(emptyStats(), p.stats || {});
+      const k = res === 'w' ? 0 : res === 'l' ? 1 : 2;
+      st.games++; st[['wins', 'losses', 'draws'][k]]++;
+      if (mode === 'ai') { st.ai[level] = st.ai[level] || [0, 0, 0]; st.ai[level][k]++; } else st[mode][k]++;
+      st.streak = res === 'w' ? st.streak + 1 : 0; st.best = Math.max(st.best, st.streak);
+      if (res === 'w' && ring) st.rings++;
+      st.recent = [{ t: Date.now(), mode, level, res, opp, turns }].concat(st.recent || []).slice(0, 20);
+      p.stats = st; await Store.set('players', pid, p);
+      if (me && me.id === pid) me = p;
+    } catch (e) { console.warn(e); }
+  }
+
+  // ---------- screens ----------
+  const screens = {};
+  function go(name, ...args) { closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+
+  screens.boot = async () => {
+    app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
+    await Store.init();
+    const sess = Store.LS.get('session');
+    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; return go('home'); } }
+    go('login');
+  };
+
+  screens.login = async () => {
+    const list = await players();
+    const where = { artifact: 'Profiles and stats are saved with this app and shared with everyone you invite.', server: 'Profiles and stats are saved on your PC server.', local: 'Profiles and stats are saved on this device only.' }[Store.kind];
+    app.innerHTML = `<div class="screen">
+      <div class="title">${logoSvg()}<h1>Pai Sho</h1><div class="sub">Key Pai Sho · The Garden Game</div></div>
+      <div class="field"><label>Who's playing?</label></div>
+      <div class="plist">${list.map((p) => `<button class="prof" data-act="pickProfile" data-id="${esc(p.id)}">${av(p.name)}<div><div class="nm">${esc(p.name)}</div><div class="tiny muted">${(p.stats && p.stats.games) || 0} games · ${(p.stats && p.stats.wins) || 0} wins ${p.cred ? '· 🔒 biometric' : ''}</div></div></button>`).join('') || '<div class="card muted">No players yet. Create one to track your stats.</div>'}</div>
+      <button class="btn primary" data-act="newProfile">＋ New player</button>
+      <button class="btn ghost" data-act="guestPlay">Play as guest (no stats)</button>
+      <div class="spacer"></div><div class="tiny muted" style="text-align:center">${where}</div></div>`;
+  };
+
+  function pinPad(title, sub, onDone, extra = '') {
+    let pin = '';
+    const draw = () => {
+      const dots = document.querySelector('.pin-dots');
+      if (dots) dots.innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, k) => `<i class="${k < pin.length ? 'f' : ''}"></i>`).join('');
+    };
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="login">‹</button><h2>${esc(title)}</h2><span style="width:42px"></span></div>
+      <div class="screen" style="justify-content:center"><div style="text-align:center">${sub}</div><div class="pin-dots"></div>
+      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-pin="${n}">${n}</button>`).join('')}<button data-pin="bio" style="font-size:22px">${extra ? '🔒' : ''}</button><button data-pin="0">0</button><button data-pin="del">⌫</button></div>
+      <button class="btn primary" data-pin="ok" style="max-width:300px;margin:8px auto 0;width:100%">Unlock</button></div>`;
+    draw();
+    app.querySelectorAll('[data-pin]').forEach((b) => b.addEventListener('click', async () => {
+      const v = b.dataset.pin;
+      if (v === 'del') pin = pin.slice(0, -1);
+      else if (v === 'bio') { if (extra) extra(); return; }
+      else if (v === 'ok') { if (pin.length >= 4) { const ok = await onDone(pin); if (!ok) { pin = ''; const d = document.querySelector('.pin-dots'); d.classList.add('shake'); setTimeout(() => d.classList.remove('shake'), 400); } } }
+      else if (pin.length < 6) { pin += v; buzz(6); }
+      draw();
+    }));
+  }
+
+  async function loginFlow(p, onOk, backTo = 'login') {
+    const bio = p.cred && await Auth.bioAvailable();
+    const tryBio = async () => {
+      try { if (await Auth.bioVerify(p.cred)) return onOk(p); } catch (e) { toast('Biometric unavailable here — use your PIN'); }
+    };
+    pinPad(p.name, `${av(p.name)}<div class="muted" style="margin-top:8px">Enter your PIN</div>`, async (pin) => {
+      const h = await Auth.hash(pin, p.salt);
+      if (h === p.pin) { onOk(p); return true; }
+      toast('Wrong PIN'); return false;
+    }, bio ? tryBio : '');
+    if (bio) setTimeout(tryBio, 300);
+    const back = app.querySelector('[data-act="go"]'); if (back) back.dataset.to = backTo;
+  }
+
+  screens.newProfile = async () => {
+    const bio = await Auth.bioAvailable();
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="login">‹</button><h2>New player</h2><span style="width:42px"></span></div>
+      <form class="screen" id="npf">
+        <div class="field"><label>Player name</label><input class="input" id="np-name" maxlength="18" autocomplete="nickname" required></div>
+        <div class="field"><label>PIN (4–6 digits)</label><input class="input" id="np-pin" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" type="password" required></div>
+        <div class="field"><label>Confirm PIN</label><input class="input" id="np-pin2" inputmode="numeric" maxlength="6" type="password" required></div>
+        <div class="toggle"><div><b>Use biometrics</b><div class="tiny muted">${bio ? 'Face / fingerprint unlock on this device' : 'Not available in this browser — PIN only'}</div></div><span class="sw ${bio ? 'on' : ''}" id="np-bio" data-act="sw" ${bio ? '' : 'style="opacity:.4"'}></span></div>
+        <div class="toggle"><div><b>Keep me signed in</b><div class="tiny muted">On this device</div></div><span class="sw on" id="np-keep" data-act="sw"></span></div>
+        <div class="tiny muted">Your PIN keeps casual players out of your stats. It isn't bank-grade security — don't reuse an important PIN.</div>
+        <button class="btn primary" type="submit">Create player</button></form>`;
+    document.getElementById('npf').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('np-name').value.trim();
+      const pin = document.getElementById('np-pin').value, pin2 = document.getElementById('np-pin2').value;
+      if (!name) return toast('Enter a name');
+      if (!/^\d{4,6}$/.test(pin)) return toast('PIN must be 4–6 digits');
+      if (pin !== pin2) return toast('PINs don’t match');
+      const list = await players();
+      if (list.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
+      const id = 'p-' + Auth.rid(8).replace(/[^A-Za-z0-9]/g, 'x');
+      const salt = Auth.rid(10);
+      const p = { id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null };
+      if (bio && document.getElementById('np-bio').classList.contains('on')) {
+        try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
+      }
+      try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
+      me = p;
+      if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
+      go('home');
+    });
+  };
+
+  screens.home = () => {
+    const nm = myName();
+    const st = (me && me.stats) || null;
+    app.innerHTML = `<div class="screen">
+      <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span><button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
+      <div class="title" style="padding-top:4px">${logoSvg(110)}<h1>Pai Sho</h1><div class="sub">${st ? `${st.wins}W · ${st.losses}L · ${st.draws}D` : 'Guest mode'}</div></div>
+      <div class="menu">
+        <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
+        <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
+        <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs the hosted version'}</small></span></button>
+        <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
+        <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
+      </div></div>`;
+  };
+  function icon(k) {
+    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"') };
+    return s[k];
+  }
+
+  screens.guide = (fromGame) => {
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="${fromGame ? 'backToGame' : 'go'}" data-to="home">‹</button><h2>How to play</h2><span style="width:42px"></span></div>${Guide.html()}`;
+  };
+
+  // ---------- setup ----------
+  screens.setup = () => {
+    const S = setup;
+    const fxSel = S.fx[S.mode === 'local' ? S.fxTab : 0];
+    const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${S[key] == v ? 'on' : ''}" data-act="seg" data-k="${key}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>${S.mode === 'ai' ? 'Play the computer' : 'Pass & play'}</h2><span style="width:42px"></span></div>
+    <div class="screen">
+      ${S.mode === 'ai' ? `<div class="field"><label>Difficulty</label>${seg('level', [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']])}</div>
+        <div class="field"><label>Who goes first</label>${seg('first', [['me', 'Me'], ['ai', 'Computer'], ['rand', 'Random']])}</div>`
+      : `<div class="field"><label>Player 2</label><div class="row"><button class="prof" data-act="pickP2" style="flex:1">${av(S.p2.name)}<div><div class="nm">${esc(S.p2.name)}</div><div class="tiny muted">${S.p2.pid ? 'Signed in — stats will count' : 'Guest — tap to sign in a player'}</div></div></button></div></div>
+        <div class="field"><label>First move</label>${seg('first', [['me', esc(myName())], ['ai', esc(S.p2.name)], ['rand', 'Random']])}</div>`}
+      <div class="card">
+        <div class="row"><b class="disp" style="color:var(--gold2)">Effect tiles</b><span class="spacer"></span><span class="muted">${fxSel.length}/6</span></div>
+        ${S.mode === 'local' ? `<div class="seg" style="margin-top:10px"><button class="${S.fxTab === 0 ? 'on' : ''}" data-act="fxTab" data-v="0">${esc(myName())}</button><button class="${S.fxTab === 1 ? 'on' : ''}" data-act="fxTab" data-v="1">${esc(S.p2.name)}</button></div>` : ''}
+        <div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">Beginner (none)</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 special flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random 6</button></div>
+        ${fxGrid(fxSel)}
+        ${S.mode === 'ai' ? `<div class="tiny muted" style="margin-top:8px">The computer uses: ${AI.AI_EFFECTS[S.level].map(P.tname).join(', ') || 'no effect tiles'}.</div>` : ''}
+      </div>
+      ${variationsCard()}
+      <button class="btn primary" data-act="beginGame">Start game</button>
+    </div>`;
+  };
+  function fxGrid(sel) {
+    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => `<button class="fx ${sel.includes(t) ? 'on' : ''}" data-act="fx" data-t="${t}">${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`).join('')}</div>`;
+  }
+  function variationsCard() {
+    const S = setup;
+    const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${S[key] == v ? 'on' : ''}" data-act="seg" data-k="${key}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    return `<div class="card"><b class="disp" style="color:var(--gold2)">Variations</b>
+      <div class="field" style="margin-top:10px"><label>Harmonies needed in the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>
+      <div class="field" style="margin-top:10px"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
+      <div class="toggle"><div><b>Game of chance</b><div class="tiny muted">Key flowers are drawn at random when planting</div></div><span class="sw ${S.chance ? 'on' : ''}" data-act="swSet" data-k="chance"></span></div>
+      <div class="toggle"><div><b>Effect tile enigma</b><div class="tiny muted">Hide your opponent’s effect tiles until played</div></div><span class="sw ${S.enigma ? 'on' : ''}" data-act="swSet" data-k="enigma"></span></div></div>`;
+  }
+
+  // ---------- lobby (online) ----------
+  let lobbyUnsub = null;
+  screens.lobby = () => {
+    if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
+    if (!Store.online()) {
+      app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Play online</h2><span style="width:42px"></span></div>
+      <div class="screen"><div class="card"><p>Online play needs a shared place to keep the game. It works automatically in the version hosted on claude.ai, or when you run <b>server.js</b> on your PC and open it from your phone on the same Wi-Fi.</p><p class="muted">Right now this copy is running on its own, so only computer and pass-and-play games are available.</p></div></div>`;
+      return;
+    }
+    const S = setup;
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Play online</h2><span style="width:42px"></span></div>
+    <div class="screen">
+      <div class="card"><div class="field"><label>Join with a code</label><div class="row"><input class="input" id="joincode" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;font-family:Cinzel"><button class="btn primary" data-act="joinCode">Join</button></div></div></div>
+      <button class="btn primary" data-act="createOnline">Create a new game</button>
+      <div class="field"><label>Your games</label><div id="mygames" class="menu"><div class="muted tiny">Loading…</div></div></div>
+      <div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>
+      <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
+      ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
+      <div class="tiny muted">Friends need access to this app to join: share it with them as editors.</div>
+    </div>`;
+    const pid = myPid();
+    const timer = setTimeout(() => { const el = document.getElementById('opengames'); if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="muted tiny">Can’t reach the game list yet.</div>'; }, 10000);
+    lobbyUnsub = Store.watchCol('games', (games) => {
+      clearTimeout(timer);
+      const now = Date.now();
+      const mine = games.filter((g) => g.status !== 'done' && ((g.host && g.host.pid === pid) || (g.guest && g.guest.pid === pid)) && now - (g.updated || 0) < 14 * 864e5);
+      const open = games.filter((g) => g.status === 'open' && g.host && g.host.pid !== pid && now - (g.updated || 0) < 2 * 864e5);
+      const mg = document.getElementById('mygames'), og = document.getElementById('opengames');
+      if (!mg) return;
+      mg.innerHTML = mine.map((g) => { const opp = g.host.pid === pid ? (g.guest ? g.guest.name : 'waiting…') : g.host.name; return `<button class="btn" data-act="resumeOnline" data-code="${esc(g.id)}"><span class="disp">${esc(g.id)}</span><span class="spacer"></span>vs ${esc(opp)} · ${g.status === 'open' ? 'waiting' : 'in play'}</button>`; }).join('') || '<div class="muted tiny">None yet.</div>';
+      og.innerHTML = open.map((g) => `<button class="btn" data-act="joinGame" data-code="${esc(g.id)}">${av(g.host.name)}<span>${esc(g.host.name)}</span><span class="spacer"></span><span class="disp">${esc(g.id)}</span></button>`).join('') || '<div class="muted tiny">No open games. Create one and share the code.</div>';
+    });
+  };
+
+  async function createOnline() {
+    const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
+    const S = setup;
+    const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
+      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
+      host: { pid: myPid(), name: myName(), fx: S.fx[0].slice() }, guest: null };
+    try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
+    waitOnline(code);
+  }
+  function waitOnline(code) {
+    if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="cancelOnline" data-code="${code}">‹</button><h2>Waiting</h2><span style="width:42px"></span></div>
+      <div class="screen" style="justify-content:center;text-align:center">${logoSvg(120)}<p class="muted">Share this code with your opponent</p><div class="code">${code}</div><p class="muted">They join from <b>Play online</b>. You’ll play as the Host; the Guest moves first.</p>
+      <button class="btn" data-act="copyCode" data-code="${code}">Copy code</button></div>`;
+    const un = Store.watch('games', code, (d) => {
+      if (d && d.status === 'playing' && d.state) { un(); startOnline(d); }
+    });
+    G = { waitingUnsub: un };
+  }
+  async function joinGame(code) {
+    code = (code || '').toUpperCase().trim();
+    const d = await Store.get('games', code).catch(() => null);
+    if (!d) return toast('No game with that code');
+    const pid = myPid();
+    if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
+    if (d.guest && d.guest.pid === pid) return startOnline(d);
+    if (d.status !== 'open') return toast('That game already has two players');
+    const guest = { pid, name: myName(), fx: setup.fx[0].slice() };
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance });
+    const nd = Object.assign({}, d, { guest, status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
+    delete nd.id;
+    try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
+    startOnline(Object.assign({ id: code }, nd));
+  }
+
+  // ---------- stats ----------
+  screens.stats = async () => {
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Stats</h2><span style="width:42px"></span></div><div class="screen" id="statbody"><div class="muted">Loading…</div></div>`;
+    const list = await players();
+    if (me) { const fresh = list.find((p) => p.id === me.id); if (fresh) me = fresh; }
+    const st = me ? Object.assign(emptyStats(), me.stats || {}) : null;
+    const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`;
+    const pct = (s) => (s.games ? Math.round((100 * s.wins) / s.games) + '%' : '—');
+    const body = document.getElementById('statbody'); if (!body) return;
+    body.innerHTML = (st ? `<div class="row">${av(me.name)}<h3 class="disp" style="color:var(--gold2)">${esc(me.name)}</h3></div>
+      <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
+      <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
+      <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
+      <tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr>
+      <tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
+      <div class="field"><label>Recent games</label><div class="log">${(st.recent || []).map((r) => `<div><span class="dot" style="background:${r.res === 'w' ? 'var(--ok)' : r.res === 'l' ? 'var(--red)' : 'var(--mute)'}"></span><b>${{ w: 'Won', l: 'Lost', d: 'Draw' }[r.res]}</b> vs ${esc(r.opp)} · ${r.turns} turns <span class="muted tiny">${new Date(r.t).toLocaleDateString()}</span></div>`).join('') || '<div class="muted">No games yet.</div>'}</div></div>`
+      : `<div class="card muted">You’re playing as a guest. Create a player to track your stats.</div>`) +
+      `<div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">W–L–D</th><th class="n">Win%</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, p)).sort((a, b) => b.s.wins - a.s.wins || a.s.losses - b.s.losses).map((p, k) => `<tr><td>${k + 1}</td><td>${esc(p.name)}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td><td class="n">${pct(p.s)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`;
+  };
+
+  // ======================================================================
+  // GAME CONTROLLER
+  // ======================================================================
+  function startLocal(mode) {
+    const S = setup;
+    Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma });
+    let meFirst = S.first === 'me' || (S.first === 'rand' && Math.random() < 0.5);
+    const human = { name: myName(), pid: me ? me.id : null, kind: 'human' };
+    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, kind: 'human' };
+    const seats = meFirst ? [human, other] : [other, human];
+    const fxMe = S.fx[0].slice(), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].slice();
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance });
+    G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
+    gameScreen();
+  }
+  function startOnline(d) {
+    if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
+    const pid = myPid();
+    const my = d.guest && d.guest.pid === pid ? 0 : 1;
+    const seats = [{ name: d.guest.name, pid: d.guest.pid, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, kind: my === 1 ? 'human' : 'remote' }];
+    G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
+    G.unwatch = Store.watch('games', G.code, (nd) => {
+      if (!G || G.mode !== 'online' || !nd || !nd.state) return;
+      if ((nd.ver || 0) > G.ver) {
+        G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
+        renderGame(); afterTurnChange();
+      }
+    });
+    gameScreen();
+  }
+  async function pushOnline() {
+    const s = P.clone(G.s); s.log = s.log.slice(-60);
+    G.ver++;
+    const nd = Object.assign({}, G.doc, { state: JSON.stringify(s), ver: G.ver, updated: Date.now(), status: s.winner !== null ? 'done' : 'playing' });
+    delete nd.id; G.doc = nd;
+    try { await Store.set('games', G.code, nd); } catch (e) { toast('Couldn’t send your move — check your connection'); }
+  }
+
+  const isHumanTurn = () => G && G.s.winner === null && G.seats[G.s.turn].kind === 'human';
+  const viewSeat = () => (G.my != null ? G.my : G.s.turn); // whose hand shows in the tray
+  let acts = [];
+  function computeActs() { acts = isHumanTurn() ? P.legalActions(G.s) : []; }
+
+  function gameScreen() {
+    app.innerHTML = `<div class="game">
+      <header class="g-top" id="seats"></header>
+      <div class="board-wrap"><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base()}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
+      <div class="status" id="status"></div>
+      <div class="info" id="info"></div>
+      <div class="tray" id="tray"></div>
+      <footer class="g-bar">
+        <button class="btn" data-act="undo" id="b-undo">↶ Undo</button>
+        <button class="btn" data-act="toggleH" id="b-h">↔ Lines</button>
+        <button class="btn" data-act="gameMenu">☰ Menu</button>
+        <button class="btn primary end" data-act="endTurn" id="b-end">End turn</button>
+      </footer></div>`;
+    tileEls.clear();
+    const svg = document.getElementById('board');
+    svg.addEventListener('click', onBoardClick);
+    renderGame();
+    afterTurnChange();
+  }
+
+  // ---------- rendering ----------
+  const tileEls = new Map();
+  const ns = 'http://www.w3.org/2000/svg';
+  function tilePositions(s) {
+    const out = [];
+    s.gates.forEach((t, g) => { if (t) out.push({ t, x: Board.GATE_POS[g][0], y: Board.GATE_POS[g][1], sc: 0.78, where: 'g' + g }); });
+    if (s.center) out.push({ t: s.center.tile, x: 0, y: 0, sc: 0.85, where: 'c' });
+    for (let i = 0; i < 324; i++) {
+      const c = s.board[i]; if (!c) continue;
+      const x = Board.cx(i), y = Board.cy(i);
+      if (c.under) { out.push({ t: c.under, x: x + 0.12, y: y + 0.12, sc: 0.4, where: 'sq' + i, under: true }); out.push({ t: c.top, x: x - 0.06, y: y - 0.06, sc: 0.42, where: 'sq' + i }); }
+      else out.push({ t: c.top, x, y, sc: 0.47, where: 'sq' + i });
+    }
+    return out;
+  }
+  function renderBoard() {
+    const s = G.s;
+    const lt = document.getElementById('l-tiles'); if (!lt) return;
+    const pos = tilePositions(s);
+    const seen = new Set();
+    const hideFx = G.opts.enigma;
+    pos.forEach((p) => {
+      seen.add(p.t.id);
+      let el = tileEls.get(p.t.id);
+      if (!el || el.dataset.type !== p.t.type) {
+        if (el) el.remove();
+        el = document.createElementNS(ns, 'g'); el.setAttribute('class', 'tile'); el.dataset.type = p.t.type;
+        el.innerHTML = Glyphs.tile(p.t.type, p.t.owner);
+        el.style.transform = `translate(${p.x}px,${p.y}px) scale(0.05)`;
+        lt.appendChild(el); tileEls.set(p.t.id, el);
+        el.getBoundingClientRect();
+      }
+      el.style.transform = `translate(${p.x}px,${p.y}px) scale(${p.sc})`;
+      if (!p.under) lt.appendChild(el); // keep tops above
+    });
+    for (const [id, el] of tileEls) if (!seen.has(id)) { el.style.transform += ' scale(0.1)'; el.style.opacity = '0'; setTimeout(() => el.remove(), 320); tileEls.delete(id); }
+    // highlights
+    const hl = document.getElementById('l-hl'); let h = '';
+    const lm = s.lastMove;
+    const sqRect = (i, col, op = 0.35) => `<rect x="${(i % 18) - 9}" y="${Math.floor(i / 18) - 9}" width="1" height="1" fill="${col}" opacity="${op}"/>`;
+    if (lm) { if (typeof lm.from === 'number') h += sqRect(lm.from, '#f5d98a', 0.25); if (typeof lm.to === 'number') h += sqRect(lm.to, '#f5d98a', 0.4); }
+    // centre gate tint
+    if (s.center) P.CENTER_SQ.forEach((i) => (h += sqRect(i, '#e6b54a', 0.35)));
+    hl.innerHTML = h;
+    // harmonies
+    const lh = document.getElementById('l-harm'); let hh = '';
+    if (G.showH || s.winner !== null) {
+      const H = P.harmonies(s);
+      H.forEach(({ a, b, owners }) => {
+        const col = owners.length > 1 ? '#ffffff' : owners[0] === 0 ? 'var(--p0)' : 'var(--p1)';
+        hh += `<line class="harm" x1="${Board.cx(a)}" y1="${Board.cy(a)}" x2="${Board.cx(b)}" y2="${Board.cy(b)}" stroke="${col}" ${owners.length > 1 ? 'stroke-dasharray="0.3 0.2"' : ''}/>`;
+      });
+      if (s.winRing) hh += `<polygon class="ring" points="${s.winRing.map((i) => Board.cx(i) + ',' + Board.cy(i)).join(' ')}"/>`;
+    }
+    lh.innerHTML = hh;
+    renderSel();
+  }
+  function srcOf(a) { return a.from.kind === 'sq' ? 'sq' + a.from.i : a.from.kind === 'gate' ? 'g' + a.from.g : 'c'; }
+  function renderSel() {
+    const ld = document.getElementById('l-dest'); if (!ld) return;
+    let o = '';
+    tileEls.forEach((el) => el.classList.remove('lift'));
+    const ringAt = (x, y, r = 0.48) => `<circle class="dest-cap" cx="${x}" cy="${y}" r="${r}"/>`;
+    const dotAt = (x, y) => `<circle class="dest" cx="${x}" cy="${y}" r="0.17"/>`;
+    const sel = G.sel;
+    if (sel && sel.kind === 'tile') {
+      const el = sel.tileId && tileEls.get(sel.tileId); if (el) el.classList.add('lift');
+      const seenTo = new Set();
+      sel.moves.forEach((m) => { if (seenTo.has(m.to)) return; seenTo.add(m.to); o += G.s.board[m.to] ? ringAt(Board.cx(m.to), Board.cy(m.to)) : dotAt(Board.cx(m.to), Board.cy(m.to)); });
+    } else if (sel && sel.kind === 'plant') {
+      sel.moves.forEach((m) => { if (m.gate === 'center') o += `<rect class="dest-cap" x="-1" y="-1" width="2" height="2" rx="0.2"/>`; else { const [x, y] = Board.GATE_POS[m.gate]; o += `<rect class="dest-cap" x="${x - 1}" y="${y - 1}" width="2" height="2" rx="0.2"/>` + dotAt(x, y); } });
+    } else if (sel && sel.kind === 'place') {
+      [...new Set(sel.moves.map((m) => m.target))].forEach((i) => (o += ringAt(Board.cx(i), Board.cy(i))));
+    } else if (sel && sel.kind === 'stone') {
+      sel.spots.forEach((i) => (o += dotAt(Board.cx(i), Board.cy(i))));
+    } else if (sel && sel.kind === 'koi') {
+      const pool = sel.first == null ? [...new Set(sel.moves.flatMap((m) => [m.a, m.b]))] : sel.moves.filter((m) => m.a === sel.first || m.b === sel.first).map((m) => (m.a === sel.first ? m.b : m.a));
+      pool.forEach((i) => (o += ringAt(Board.cx(i), Board.cy(i))));
+      if (sel.first != null) o += `<circle cx="${Board.cx(sel.first)}" cy="${Board.cy(sel.first)}" r="0.5" fill="none" stroke="#fff" stroke-width="0.1"/>`;
+    } else if (isHumanTurn() && !G.s.tp.mainDone) {
+      // faint hint rings on tiles that can move
+      const srcs = new Set(acts.filter((a) => a.t === 'move').map(srcOf));
+      srcs.forEach((k) => {
+        let x, y; if (k[0] === 's') { const i = +k.slice(2); x = Board.cx(i); y = Board.cy(i); } else if (k[0] === 'g') { [x, y] = Board.GATE_POS[+k[1]]; } else { x = 0; y = 0; }
+        o += `<circle cx="${x}" cy="${y}" r="${k[0] === 's' ? 0.47 : 0.82}" fill="none" stroke="#f5d98a" stroke-opacity=".45" stroke-width="0.05"/>`;
+      });
+    }
+    ld.innerHTML = o;
+  }
+  function seatStatus(k) {
+    const s = G.s, h = s.hands[k];
+    const keys = P.KEY_TYPES.reduce((n, t) => n + (h[t] || 0), 0);
+    const fx = P.EFFECT_TYPES.reduce((n, t) => n + (h[t] || 0), 0);
+    const hide = G.opts.enigma && G.seats[k].kind !== 'human' || (G.opts.enigma && G.mode === 'local' && s.turn !== k);
+    const who = G.seats[k].kind === 'ai' ? '' : k === 0 ? 'Guest · ' : 'Host · ';
+    return `${who}${keys} key · ${hide ? fx + ' hidden' : fx + ' effect'}`;
+  }
+  function renderSeats() {
+    const H = P.harmonies(G.s);
+    const el = document.getElementById('seats'); if (!el) return;
+    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"><svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile(k === 0 ? 'lotus' : 'lotus', k)}</svg>
+      <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span></div>
+      <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
+  }
+  function statusText() {
+    const s = G.s, tp = s.tp;
+    if (s.winner !== null) return s.winner === 'draw' ? '<b>Draw</b>' : `<b>${esc(G.seats[s.winner].name)}</b> wins by ${s.winReason}`;
+    const nm = esc(G.seats[s.turn].name);
+    if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>…`;
+    const pre = G.mode === 'local' ? `<b>${nm}</b>: ` : '<b>Your turn</b> — ';
+    if (G.sel && G.sel.kind === 'plant') return pre + 'tap a glowing gate to plant';
+    if (G.sel && G.sel.kind === 'place') return pre + 'tap one of your ringed tiles to swap it out';
+    if (G.sel && G.sel.kind === 'stone') return pre + 'tap any empty square for the Stone';
+    if (G.sel && G.sel.kind === 'koi') return pre + (G.sel.first == null ? 'tap the first tile to swap' : 'tap the tile on the other side');
+    if (G.sel && G.sel.kind === 'tile') return pre + 'tap a gold dot to move';
+    if (tp.mustLotus) return pre + 'your Lotus must leave the centre';
+    if (tp.extra) return pre + (tp.extra.kind === 'orchid' ? 'Orchid bonus: move one more tile (or End turn)' : 'Sky Bison bonus: the carried tile may move again');
+    if (tp.mainDone) return pre + 'place an accent or use an ability, or End turn';
+    if (!acts.some((a) => a.t === 'move' || a.t === 'plant')) return pre + 'no moves available — tap End turn to pass';
+    return pre + 'plant a flower or move a tile';
+  }
+  function renderStatus() {
+    const el = document.getElementById('status'); if (!el) return;
+    el.innerHTML = statusText() + (G.timerEnd && isHumanTurn() ? `<span class="timer" id="tmr">${Math.max(0, Math.ceil((G.timerEnd - Date.now()) / 1000))}s</span>` : '');
+  }
+  function renderInfo(type, owner) {
+    const el = document.getElementById('info'); if (!el) return;
+    if (!type) { el.innerHTML = `<span>Tap any tile for its rules. Gold lines are harmonies.</span>`; return; }
+    const inf = Guide.INFO[type];
+    el.innerHTML = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span><b>${P.tname(type)}</b> · ${inf[0]}. ${inf[1]}</span>`;
+  }
+  function renderTray() {
+    const el = document.getElementById('tray'); if (!el) return;
+    const k = viewSeat(), h = G.s.hands[k];
+    const plantable = new Set(acts.filter((a) => a.t === 'plant').map((a) => a.type));
+    const placeable = new Set(acts.filter((a) => a.t === 'place').map((a) => a.type));
+    const selT = G.sel && (G.sel.kind === 'plant' || G.sel.kind === 'place' || G.sel.kind === 'stone') ? G.sel.type : null;
+    let o = '';
+    if (G.opts.chance) {
+      const n = P.KEY_TYPES.reduce((x, t) => x + (h[t] || 0), 0);
+      const can = P.KEY_TYPES.some((t) => plantable.has(t));
+      o += `<button class="tt ${can ? '' : 'off'} ${G.sel && G.sel.chance ? 'sel' : ''}" data-act="trayTap" data-t="random">${Glyphs.svg('random', k)}<span class="n">${n}</span><span class="lb">Draw</span></button>`;
+    } else P.KEY_TYPES.forEach((t) => { if (!h[t]) return; o += `<button class="tt ${plantable.has(t) ? '' : 'off'} ${selT === t ? 'sel' : ''}" data-act="trayTap" data-t="${t}">${Glyphs.svg(t, k)}<span class="n">${h[t]}</span><span class="lb">${P.tname(t)}</span></button>`; });
+    const fx = P.EFFECT_TYPES.filter((t) => h[t]);
+    if (fx.length) o += '<span class="sep"></span>';
+    fx.forEach((t) => { const can = plantable.has(t) || placeable.has(t); o += `<button class="tt ${can ? '' : 'off'} ${selT === t ? 'sel' : ''}" data-act="trayTap" data-t="${t}">${Glyphs.svg(t, k)}${h[t] > 1 ? `<span class="n">${h[t]}</span>` : ''}<span class="lb">${P.tname(t)}</span></button>`; });
+    if (!o) o = '<span class="muted tiny">Hand empty</span>';
+    el.innerHTML = o;
+  }
+  function renderBar() {
+    const s = G.s;
+    const end = document.getElementById('b-end'), undo = document.getElementById('b-undo'), bh = document.getElementById('b-h');
+    if (!end) return;
+    const canEnd = isHumanTurn() && acts.some((a) => a.t === 'end');
+    end.disabled = !canEnd || s.winner !== null;
+    end.textContent = !s.tp.mainDone && canEnd ? 'Pass' : 'End turn';
+    end.classList.toggle('glow', canEnd && s.tp.mainDone);
+    if (s.winner !== null) { end.disabled = false; end.textContent = 'Result'; end.classList.remove('glow'); }
+    undo.disabled = !canUndo();
+    bh.style.opacity = G.showH ? 1 : 0.5;
+  }
+  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); if (!G.sel) renderInfo(null); }
+
+  // ---------- input ----------
+  function boardPoint(e) {
+    const svg = document.getElementById('board');
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return p;
+  }
+  function onBoardClick(e) {
+    if (!G) return;
+    const p = boardPoint(e);
+    const c = Math.floor(p.x + 9), r = Math.floor(p.y + 9);
+    if (r < 0 || c < 0 || r > 17 || c > 17) { G.sel = null; renderGame(); return; }
+    const i = r * 18 + c;
+    const tgt = { i, gate: P.gateOfSq[i], center: !!(G.s.center && Math.hypot(p.x, p.y) < 1) || (Math.hypot(p.x, p.y) < 1 && G.sel && G.sel.kind === 'plant' && G.sel.moves.some((m) => m.gate === 'center')) };
+    tap(tgt);
+  }
+  async function tap(tg) {
+    const s = G.s, sel = G.sel;
+    // info for whatever is under the finger
+    const cellTop = s.board[tg.i] && s.board[tg.i].top;
+    if (!isHumanTurn()) { if (cellTop) renderInfo(cellTop.type, cellTop.owner); else if (tg.gate >= 0 && s.gates[tg.gate]) renderInfo(s.gates[tg.gate].type, s.gates[tg.gate].owner); return; }
+    if (sel) {
+      if (sel.kind === 'tile') {
+        const ms = sel.moves.filter((m) => m.to === tg.i && !tg.center);
+        if (ms.length) return pickAndDo(ms);
+      } else if (sel.kind === 'plant') {
+        const m = sel.moves.find((m) => (tg.center ? m.gate === 'center' : m.gate === tg.gate));
+        if (m) return doAction(m);
+      } else if (sel.kind === 'place') {
+        const m = sel.moves.find((m) => m.target === tg.i);
+        if (m) {
+          if (m.type === 'stone') { G.sel = { kind: 'stone', type: 'stone', target: tg.i, spots: [tg.i].concat(P.stoneSpots(s)) }; return renderGame(); }
+          return doAction(m);
+        }
+      } else if (sel.kind === 'stone') {
+        if (sel.spots.includes(tg.i)) return doAction({ t: 'place', type: 'stone', target: sel.target, at: tg.i });
+      } else if (sel.kind === 'koi') {
+        if (sel.first == null) { if (sel.moves.some((m) => m.a === tg.i || m.b === tg.i)) { sel.first = tg.i; return renderGame(); } }
+        else { const m = sel.moves.find((m) => (m.a === sel.first && m.b === tg.i) || (m.b === sel.first && m.a === tg.i)); if (m) return doAction(m); }
+      }
+    }
+    // select a source
+    let key = null, tile = null;
+    if (tg.center && s.center) { key = 'c'; tile = s.center.tile; }
+    else if (tg.gate >= 0) { key = 'g' + tg.gate; tile = s.gates[tg.gate]; }
+    else { key = 'sq' + tg.i; tile = cellTop; }
+    if (tile) renderInfo(tile.type, tile.owner);
+    const moves = acts.filter((a) => a.t === 'move' && srcOf(a) === key);
+    const abil = acts.filter((a) => (a.t === 'wheel' || a.t === 'koi') && a.i === tg.i);
+    if (!moves.length && !abil.length) { G.sel = null; renderBoard(); renderStatus(); renderTray(); if (!tile) renderInfo(null); return; }
+    let movers = moves;
+    const tops = moves.filter((m) => m.mover !== 'under'), unders = moves.filter((m) => m.mover === 'under');
+    const opts = [];
+    if (tops.length) opts.push({ label: `Move ${P.tname((tile || {}).type || '')}`, value: 'top' });
+    if (unders.length) opts.push({ label: `Move ${P.tname(s.board[tg.i].under.type)} (underneath)`, value: 'under' });
+    if (abil.some((a) => a.t === 'wheel')) opts.push({ label: 'Spin the Wheel', value: 'wheel' });
+    if (abil.some((a) => a.t === 'koi')) opts.push({ label: 'Koi: swap two tiles', value: 'koi' });
+    let choice = opts.length === 1 ? opts[0].value : await choose('What would you like to do?', opts);
+    if (!choice) return;
+    if (choice === 'top') { G.sel = { kind: 'tile', moves: tops, tileId: tile && tile.id }; }
+    else if (choice === 'under') { G.sel = { kind: 'tile', moves: unders, tileId: s.board[tg.i].under.id }; }
+    else if (choice === 'wheel') {
+      const ws = abil.filter((a) => a.t === 'wheel');
+      const w = await choose('Spin the Wheel', ws.map((a) => ({ label: `${a.dir > 0 ? '↻ Clockwise' : '↺ Counter-clockwise'} ${a.n}`, value: a })));
+      if (w) return doAction(w); return;
+    } else if (choice === 'koi') { G.sel = { kind: 'koi', i: tg.i, moves: abil.filter((a) => a.t === 'koi'), first: null }; }
+    buzz(5);
+    renderBoard(); renderStatus(); renderTray();
+  }
+  async function pickAndDo(ms) {
+    if (ms.length === 1) return doAction(ms[0]);
+    const opts = ms.map((m) => ({ label: m.boat ? 'Move with all neighbouring tiles' : m.carry === true ? 'Carry the top tile along' : m.carry === false ? 'Leave the top tile behind' : 'Move alone', value: m }));
+    const m = await choose('How should it move?', opts);
+    if (m) doAction(m);
+  }
+  function trayTap(t) {
+    if (!G) return;
+    const h = G.s.hands[viewSeat()];
+    if (t !== 'random' && Guide.INFO[t]) renderInfo(t, viewSeat());
+    if (!isHumanTurn()) return;
+    if (t === 'random') {
+      const avail = P.KEY_TYPES.filter((k) => h[k] > 0 && acts.some((a) => a.t === 'plant' && a.type === k));
+      if (!avail.length) return toast('You can’t plant right now');
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      G.sel = { kind: 'plant', type: pick, chance: true, moves: acts.filter((a) => a.t === 'plant' && a.type === pick) };
+      renderInfo(pick, viewSeat()); toast('You drew a ' + P.tname(pick));
+    } else if (P.isFlower(t)) {
+      const ms = acts.filter((a) => a.t === 'plant' && a.type === t);
+      if (!ms.length) return toast(G.s.tp.mainDone ? 'You’ve already made your move this turn' : P.plantedCount(G.s, G.s.turn) >= 2 ? 'You already have 2 planted flowers' : 'No open gate');
+      G.sel = G.sel && G.sel.type === t ? null : { kind: 'plant', type: t, moves: ms };
+    } else {
+      const ms = acts.filter((a) => a.t === 'place' && a.type === t);
+      if (!ms.length) return toast(G.s.tp.placed ? 'Only one accent can be placed per turn' : t === 'wheel' ? 'The Wheel swaps with one of your accent tiles on the board' : 'Swap it with one of your flowers in the garden');
+      G.sel = G.sel && G.sel.type === t ? null : { kind: 'place', type: t, moves: ms };
+    }
+    renderBoard(); renderStatus(); renderTray();
+  }
+
+  // ---------- actions & turn flow ----------
+  function canUndo() {
+    if (!G || !G.history.length || G.s.winner !== null || G.busy) return false;
+    if (G.mode === 'online') return isHumanTurn() && G.history.length > 0;
+    return true;
+  }
+  function doAction(a) {
+    if (!G || G.busy) return;
+    try {
+      G.history.push(G.s);
+      G.s = P.apply(G.s, a);
+    } catch (e) { G.history.pop(); toast('That move isn’t allowed'); console.warn(e); return; }
+    G.sel = null; buzz(10);
+    if (a.t === 'end') return turnEnded();
+    renderGame();
+    // auto-end when nothing optional is left
+    if (G.s.tp.mainDone) {
+      const left = P.legalActions(G.s).filter((x) => x.t !== 'end');
+      if (!left.length) { G.busy = true; setTimeout(() => { G.busy = false; if (G && G.s.tp.mainDone && G.s.winner === null) doAction({ t: 'end' }); }, 450); }
+    }
+  }
+  function turnEnded() {
+    const prevSeat = 1 - G.s.turn;
+    if (G.mode === 'online' && prevSeat === G.my) { G.history = []; pushOnline(); }
+    renderGame();
+    afterTurnChange();
+  }
+  function stopGameTimers() { if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
+  function afterTurnChange() {
+    if (!G) return;
+    if (G.tick) { clearInterval(G.tick); G.tick = null; }
+    G.timerEnd = 0;
+    if (G.s.winner !== null) return gameOver();
+    const seat = G.seats[G.s.turn];
+    if (seat.kind === 'ai') return runAI();
+    if (seat.kind === 'human' && G.opts.timer) {
+      G.timerEnd = Date.now() + G.opts.timer * 1000;
+      G.tick = setInterval(() => {
+        if (!G || !isHumanTurn()) return;
+        const left = G.timerEnd - Date.now();
+        const t = document.getElementById('tmr'); if (t) t.textContent = Math.max(0, Math.ceil(left / 1000)) + 's'; else renderStatus();
+        if (left <= 0) { clearInterval(G.tick); G.tick = null; timeUp(); }
+      }, 250);
+    }
+    renderStatus();
+  }
+  function timeUp() {
+    toast('Time’s up!');
+    G.sel = null;
+    if (!G.s.tp.mainDone) {
+      const ms = P.legalActions(G.s).filter((a) => a.t === 'move' || a.t === 'plant');
+      if (ms.length) { G.history.push(G.s); G.s = P.apply(G.s, ms[Math.floor(Math.random() * ms.length)]); }
+    }
+    doAction({ t: 'end' });
+  }
+  async function runAI() {
+    G.busy = true; renderStatus(); renderBar();
+    const g = G;
+    await sleep(500);
+    const seq = AI.chooseTurn(g.s, g.seats[g.s.turn].level);
+    for (const a of seq) {
+      if (G !== g) return;
+      if (a.t === 'end') { g.s = P.apply(g.s, a); break; }
+      g.s = P.apply(g.s, a); renderGame(); await sleep(420);
+    }
+    if (G !== g) return;
+    g.busy = false;
+    renderGame(); afterTurnChange();
+  }
+  async function gameOver() {
+    renderGame();
+    const s = G.s;
+    if (!G.recorded) {
+      G.recorded = true;
+      const turns = s.turnNo - 1;
+      const ring = s.winReason === 'harmony ring';
+      for (const k of [0, 1]) {
+        const seat = G.seats[k];
+        if (seat.kind !== 'human' || !seat.pid) continue;
+        const res = s.winner === 'draw' ? 'd' : s.winner === k ? 'w' : 'l';
+        const mode = G.mode === 'ai' ? 'ai' : G.mode;
+        await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring);
+      }
+    }
+    showResult();
+  }
+  function showResult() {
+    const s = G.s;
+    let head;
+    if (s.winner === 'draw') head = 'Draw';
+    else if (G.mode === 'local') head = esc(G.seats[s.winner].name) + ' wins!';
+    else head = s.winner === G.my ? 'You win!' : esc(G.seats[s.winner].name) + ' wins';
+    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:28px">${head}</h3><p class="muted">${s.winner === 'draw' ? 'The game reached the turn limit.' : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.'}</p></div>
+      <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div>`);
+  }
+
+  // ---------- event delegation ----------
+  const actions = {
+    go: (d) => go(d.to),
+    choose: (d) => closeSheet(+d.k),
+    closeSheet: () => closeSheet(),
+    toc: (d, e) => { e.preventDefault(); const el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { me = pp; askKeep(pp); }); },
+    newProfile: () => go('newProfile'),
+    guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
+    sw: (d, e, el) => el.classList.toggle('on'),
+    swSet: (d, e, el) => { setup[d.k] = !setup[d.k]; el.classList.toggle('on', setup[d.k]); },
+    profileSheet: async () => {
+      if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
+      const bio = await Auth.bioAvailable();
+      sheet(`<h3>${esc(me.name)}</h3><div class="menu">
+        <button class="btn" data-act="go" data-to="stats">Stats</button>
+        ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
+        <button class="btn" data-act="changePin">Change PIN</button>
+        <button class="btn" data-act="signOut">Sign out</button>
+        <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
+    },
+    toLogin: () => go('login'),
+    signOut: () => { me = null; Store.LS.set('session', null); go('login'); },
+    bioToggle: async () => {
+      closeSheet();
+      if (me.cred) me.cred = null;
+      else { try { me.cred = await Auth.bioRegister(me); } catch (e) { return toast('Biometric setup didn’t work here — PIN still works'); } }
+      await Store.set('players', me.id, me); toast(me.cred ? 'Biometric unlock on' : 'Biometric unlock off');
+    },
+    changePin: () => {
+      closeSheet();
+      sheet(`<h3>Change PIN</h3><form id="cpf" class="menu"><input class="input" id="cp1" type="password" inputmode="numeric" maxlength="6" placeholder="New PIN (4–6 digits)"><input class="input" id="cp2" type="password" inputmode="numeric" maxlength="6" placeholder="Confirm"><button class="btn primary" type="submit">Save</button></form>`);
+      document.getElementById('cpf').addEventListener('submit', async (e) => {
+        e.preventDefault(); const a = document.getElementById('cp1').value, b = document.getElementById('cp2').value;
+        if (!/^\d{4,6}$/.test(a) || a !== b) return toast('PINs must match and be 4–6 digits');
+        me.salt = Auth.rid(10); me.pin = await Auth.hash(a, me.salt); await Store.set('players', me.id, me); closeSheet(); toast('PIN updated');
+      });
+    },
+    deleteMe: async () => { if (await confirmBox('Delete player?', 'This removes ' + me.name + ' and their stats for good.', 'Delete', true)) { await Store.del('players', me.id); me = null; Store.LS.set('session', null); go('login'); } },
+    startSetup: (d) => { setup.mode = d.mode; setup.fxTab = 0; go('setup'); },
+    seg: (d) => { setup[d.k] = isNaN(+d.v) ? d.v : +d.v; rerenderSetup(); },
+    fxTab: (d) => { setup.fxTab = +d.v; rerenderSetup(); },
+    fx: (d) => {
+      const k = setup.mode === 'local' && document.querySelector('[data-act="fxTab"]') ? setup.fxTab : 0;
+      const arr = setup.fx[k]; const i = arr.indexOf(d.t);
+      if (i >= 0) arr.splice(i, 1); else if (arr.length < 6) arr.push(d.t); else return toast('Up to 6 effect tiles');
+      rerenderSetup();
+    },
+    fxPreset: (d) => {
+      const k = setup.mode === 'local' && document.querySelector('[data-act="fxTab"]') ? setup.fxTab : 0;
+      setup.fx[k] = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL) : P.EFFECT_TYPES.slice().sort(() => Math.random() - 0.5).slice(0, 6);
+      rerenderSetup();
+    },
+    pickP2: async () => {
+      const list = (await players()).filter((p) => !me || p.id !== me.id);
+      const v = await choose('Player 2', [{ label: 'Guest (type a name)', value: '__guest' }].concat(list.map((p) => ({ label: av(p.name) + ' ' + esc(p.name), value: p.id }))));
+      if (!v) return;
+      if (v === '__guest') {
+        sheet(`<h3>Player 2 name</h3><form id="p2f" class="menu"><input class="input" id="p2n" maxlength="18" value="${esc(setup.p2.pid ? 'Player 2' : setup.p2.name)}"><button class="btn primary" type="submit">OK</button></form>`);
+        document.getElementById('p2f').addEventListener('submit', (e) => { e.preventDefault(); setup.p2 = { name: document.getElementById('p2n').value.trim() || 'Player 2', pid: null }; closeSheet(); go('setup'); });
+      } else {
+        const p = await Store.get('players', v);
+        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id }; go('setup'); }, 'setup');
+      }
+    },
+    beginGame: () => startLocal(setup.mode),
+    joinCode: () => joinGame(document.getElementById('joincode').value),
+    joinGame: (d) => joinGame(d.code),
+    resumeOnline: async (d) => { const g = await Store.get('games', d.code); if (!g) return; if (g.status === 'open') waitOnline(d.code); else startOnline(g); },
+    createOnline: () => createOnline(),
+    cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
+    copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
+    trayTap: (d) => trayTap(d.t),
+    undo: () => {
+      if (!canUndo()) return;
+      G.s = G.history.pop();
+      if (G.mode === 'ai') while (G.history.length && G.seats[G.s.turn].kind === 'ai') G.s = G.history.pop();
+      if (G.mode === 'ai' && G.seats[G.s.turn].kind === 'ai') { /* nothing earlier to return to */ }
+      G.sel = null; renderGame(); afterTurnChange();
+    },
+    toggleH: () => { G.showH = !G.showH; renderBoard(); renderBar(); },
+    endTurn: () => { if (G.s.winner !== null) return showResult(); if (G.busy) return; doAction({ t: 'end' }); },
+    gameMenu: () => {
+      sheet(`<h3>Menu</h3><div class="menu">
+        <button class="btn" data-act="guideInGame">How to play</button>
+        <button class="btn" data-act="showLog">Move log</button>
+        ${G.s.winner === null ? '<button class="btn danger" data-act="resign">Resign</button>' : ''}
+        <button class="btn" data-act="leaveGame">Leave game</button></div>`);
+    },
+    guideInGame: () => { sheet(`<div style="margin:-8px -16px">${Guide.html()}</div>`, { tall: true }); },
+    showLog: () => { sheet(`<h3>Move log</h3><div class="log">${G.s.log.slice().reverse().map((l) => `<div><span class="dot" style="background:var(--p${l.p})"></span><b>${esc(G.seats[l.p].name)}</b> ${esc(l.text)} <span class="tiny muted">turn ${l.turn}</span></div>`).join('') || '<div class="muted">No moves yet</div>'}</div>`); },
+    resign: async () => {
+      closeSheet();
+      if (!(await confirmBox('Resign?', 'Your opponent will be awarded the game.', 'Resign', true))) return;
+      const loser = G.mode === 'local' ? G.s.turn : G.my;
+      G.s = P.clone(G.s); G.s.winner = 1 - loser; G.s.winReason = 'resignation';
+      if (G.mode === 'online') await pushOnline();
+      afterTurnChange();
+    },
+    leaveGame: () => { if (G && G.unwatch) G.unwatch(); stopGameTimers(); G = null; go('home'); },
+    rematch: () => { closeSheet(); if (G.unwatch) G.unwatch(); startLocal(G.mode); },
+    backToGame: () => gameScreen(),
+  };
+  function rerenderSetup() { const y = window.scrollY; if (document.getElementById('opengames')) { screens.lobby(); } else screens.setup(); window.scrollTo(0, y); }
+  async function askKeep(p) {
+    const keep = await choose('Stay signed in on this device?', [{ label: 'Yes, keep me signed in', value: 'y', cls: 'primary' }, { label: 'No, ask for my PIN next time', value: 'n' }]);
+    if (keep === 'y') Store.LS.set('session', p.id);
+    go('home');
+  }
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]'); if (!el) return;
+    const f = actions[el.dataset.act]; if (f) f(el.dataset, e, el);
+  });
+  window.addEventListener('beforeunload', () => {});
+  window.__paisho = { get G() { return G; }, doAction, P };
+  go('boot');
+})();
+</script>
+</body>
+</html>
