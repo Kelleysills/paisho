@@ -252,3 +252,6 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 @keyframes ripple{from{transform:scale(.3)}to{transform:scale(2.6);opacity:0}}
 .blind-count{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:6;color:#fff;text-shadow:0 2px 8px #000;font-family:Cinzel,serif;font-weight:700}
 .blind-count b{font-size:72px;line-height:1}
+
+#board.blackout{filter:none}
+#board.blackout .tile circle:nth-of-type(1){stroke:#cfcfcf}

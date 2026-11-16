@@ -356,7 +356,7 @@
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}</div>${body}
@@ -468,6 +468,7 @@
       const target = 1 - seat;
       if (G.seats[target].kind === 'ai') { s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] }; }
       doBend({ t: 'melon' });
+      if (me) { me.melonUses = (me.melonUses || 0) + 1; saveMe(); if (me.melonUses === 100) setTimeout(checkAch, 1500); }
       toast('🍈 MELON LORD! ' + G.seats[target].name + ' is blinded for their next move');
     }
   }
@@ -593,7 +594,7 @@
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending },
-      host: { pid: myPid(), name: myName(), avatar: myAvatar(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
@@ -738,10 +739,34 @@
   let acts = [];
   function computeActs() { acts = isHumanTurn() ? P.legalActions(G.s) : []; }
 
+  // board theme for this game, and whether this viewer gets the Blackout effect
+  function gameBoardInfo() {
+    const elemental = !!G.s.bend;
+    let hostBoard = myBoard(), iAmHost = true;
+    if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
+    if (hostBoard !== 'blackout') return { theme: G.mode === 'online' ? myBoard() : hostBoard, blackout: false };
+    if (!elemental) return { theme: 'blackout', blackout: false };
+    return { theme: iAmHost && G.mode === 'online' ? 'classic' : G.mode === 'online' ? 'classic' : 'classic', blackout: G.mode === 'online' ? !iAmHost : 'local' };
+  }
+  function blackoutActive() {
+    if (!G || !G.boardInfo || !G.boardInfo.blackout) return false;
+    if (G.boardInfo.blackout === 'local') { const seat = G.seats[G.s.turn]; return G.mode === 'local' && !(me && seat.pid === me.id); }
+    return true;
+  }
+  function scheduleBlackoutPulse() {
+    clearTimeout(G.boPulseT);
+    if (!blackoutActive()) return;
+    G.boPulseT = setTimeout(() => {
+      if (!G || !blackoutActive()) return;
+      G.boReveal = true; renderBoard(); ripple(0, 0, true); setTimeout(() => ripple(0, 0, false), 250);
+      setTimeout(() => { if (!G) return; G.boReveal = false; renderBoard(); scheduleBlackoutPulse(); }, 1600);
+    }, 5000 + Math.random() * 5000);
+  }
   function gameScreen() {
+    G.boardInfo = gameBoardInfo();
     app.innerHTML = `<div class="game">
       <header class="g-top" id="seats"></header>
-      <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn chat-btn" id="chat-btn" data-act="chatOpen" aria-label="Chat">💬</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(myBoard())}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
+      <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn chat-btn" id="chat-btn" data-act="chatOpen" aria-label="Chat">💬</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(G.boardInfo.theme)}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
       <div class="status" id="status"></div>
       <div class="info" id="info"></div>
       <div class="tray" id="tray"></div>
@@ -802,7 +827,9 @@
   function renderBoard() {
     const s = G.s;
     const bs = blindState(), blind = bs === 'blind';
-    const svgEl = document.getElementById('board'); if (svgEl) svgEl.classList.toggle('blind', blind);
+    const bo = blackoutActive() && !G.boReveal && !blind;
+    if (blackoutActive() && !G.boPulseT) scheduleBlackoutPulse();
+    const svgEl = document.getElementById('board'); if (svgEl) { svgEl.classList.toggle('blind', blind || bo); svgEl.classList.toggle('blackout', bo); }
     if (blind && !G.blindOn) { G.blindOn = true; clearTimeout(G.pulseT); seismicPulse(); }
     if (!blind && G.blindOn) { G.blindOn = false; clearTimeout(G.pulseT); }
     const lt = document.getElementById('l-tiles'); if (!lt) return;
@@ -832,7 +859,7 @@
     // centre gate tint
     if (s.center) P.CENTER_SQ.forEach((i) => (h += sqRect(i, '#e6b54a', 0.35)));
     if (s.rubble) Object.keys(s.rubble).forEach((k) => { const i = +k; h += `<g transform="translate(${Board.cx(i)},${Board.cy(i)})"><rect x="-0.5" y="-0.5" width="1" height="1" fill="#5b4a36"/><path d="M-0.35,0.3 L-0.2,-0.1 L0,0.05 L0.15,-0.3 L0.38,0.3 Z" fill="#8a7458" stroke="#2a1a10" stroke-width="0.04"/><text y="0.42" font-size="0.22" text-anchor="middle" fill="#fff">${s.rubble[k]}</text></g>`; });
-    hl.innerHTML = blind ? '<circle r="9.5" fill="#000"/>' : h;
+    hl.innerHTML = blind || bo ? '<circle r="9.5" fill="#000"/>' : h;
     // harmonies
     const lh = document.getElementById('l-harm'); let hh = '';
     if (G.showH || s.winner !== null) {
@@ -843,7 +870,7 @@
       });
       if (s.winRing) hh += `<polygon class="ring" points="${s.winRing.map((i) => Board.cx(i) + ',' + Board.cy(i)).join(' ')}"/>`;
     }
-    lh.innerHTML = blind ? '' : hh;
+    lh.innerHTML = blind || bo ? '' : hh;
     renderSel();
   }
   function srcOf(a) { return a.from.kind === 'sq' ? 'sq' + a.from.i : a.from.kind === 'gate' ? 'g' + a.from.g : 'c'; }
@@ -1248,7 +1275,7 @@
     renderGame();
     afterTurnChange();
   }
-  function stopGameTimers() { if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
+  function stopGameTimers() { if (G) { clearTimeout(G.boPulseT); G.boPulseT = null; } if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
   function afterTurnChange() {
     if (!G) return;
     if (G.tick) { clearInterval(G.tick); G.tick = null; }

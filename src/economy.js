@@ -53,6 +53,7 @@ const Eco = (() => {
     fire:    { name: 'Fire Nation',   price: 400, nation: 'fire',  wood: ['#5a2a1a', '#2c120b'], light: '#f2dcbc', dark: '#b51f18', rim: '#f2b52f', gate: '#4e0b08', gateEdge: '#ffc44d', bg: '#170806' },
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
+    blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
   // earnings
@@ -84,7 +85,7 @@ const Eco = (() => {
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];
-    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : []))];
+    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], (p.melonUses || 0) >= 100 ? ['blackout'] : []))];
     if (typeof p.rating !== 'number') p.rating = START_RATING;
     p.ranked = p.ranked || { w: 0, l: 0, d: 0 };
     p.board = p.board || 'classic';
@@ -150,6 +151,7 @@ const Eco = (() => {
     { id: 'avatar', name: 'The Avatar', desc: 'Become the Avatar', gp: 1000, ok: (p, c) => !!(c && c.isAvatar) },
     { id: 'friend', name: 'Better Together', desc: 'Add a friend', gp: 100, ok: (p, c) => !!(c && c.friends >= 1) },
     { id: 'emotes10', name: 'Expressive', desc: 'Send 10 emotes', gp: 100, ok: (p) => (p.emotesSent || 0) >= 10 },
+    { id: 'melon100', name: 'Seismic Sense', desc: 'Call the Melon Lord 100 times (unlocks the Blackout board)', gp: 1000, ok: (p) => (p.melonUses || 0) >= 100 },
     { id: 'rich', name: 'Treasure Keeper', desc: 'Hold 5,000 gp at once', gp: 500, ok: (p) => (p.gp || 0) >= 5000 },
   ];
   // reward events (player's local date): Avatar Day beats weekends
