@@ -1910,6 +1910,9 @@
     if (keep === 'y') Store.LS.set('session', p.id);
     go('home');
   }
+  // Mark every tappable non-button as a button so Chrome's "Tap to Search" treats it as a control, not words
+  const markTappables = (root) => root.querySelectorAll && root.querySelectorAll('[data-act]:not(button):not(a):not([role])').forEach((el) => { el.setAttribute('role', 'button'); el.setAttribute('tabindex', '-1'); });
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { markTappables(n); if (n.matches && n.matches('[data-act]:not(button):not(a):not([role])')) { n.setAttribute('role', 'button'); n.setAttribute('tabindex', '-1'); } } }))).observe(document.body, { childList: true, subtree: true });
   document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
   document.addEventListener('selectstart', (e) => { if (!e.target.closest || !e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
   document.addEventListener('input', (e) => { if (e.target && e.target.id === 'musicVol') Music.setVolume(e.target.value / 100); });

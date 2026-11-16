@@ -303,3 +303,6 @@ g.tut-glow{filter:drop-shadow(0 0 .35px #fff) drop-shadow(0 0 .25px #f2cf6e)}
 /* no text selection / long-press "search" popups anywhere except text fields */
 html,body,#app,#app *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+body *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body input,body textarea,body [contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+[role="button"]{outline:none;cursor:pointer}
