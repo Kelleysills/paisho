@@ -339,7 +339,7 @@
       try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
       me = p; rememberProfile(id);
       if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
-      go('home');
+      startTutorial();
     });
   };
 
@@ -795,6 +795,53 @@
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
+  // ---------- first-time tutorial: a nearly finished game you win in two moves ----------
+  const TUT = { tiles: [[62, "lily", 1, 104], [114, "jasmine", 0, 100], [119, "chrys", 0, 101], [159, "rhodo", 1, 106], [200, "chrys", 0, 103], [209, "jasmine", 0, 102], [261, "rose", 1, 105]], from: 200, to: 204 };
+  function startTutorial() {
+    const s = P.newGame({});
+    TUT.tiles.forEach(([i, type, owner, id]) => { s.board[i] = { top: { id, owner, type }, under: null }; s.hands[owner][type]--; });
+    s.nextId = 200;
+    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
+    G = { mode: 'ai', tutorial: { step: 'intro', n: 0 }, s, seats: [human, { name: 'Pai Sho Coach', kind: 'ai', level: 'easy' }], my: 0, history: [], sel: null, showH: true, opts: { timer: 0 }, recorded: true };
+    gameScreen();
+  }
+  function tutAIMove(s) {
+    const ms = P.legalActions(s).filter((a) => a.t === 'move' && a.from.kind === 'sq' && P.rc(a.from.i)[0] <= 4 && P.rc(a.to)[0] <= 4);
+    return ms.length ? [ms[0]] : AI.chooseTurn(s, 'easy');
+  }
+  const TUT_STEPS = {
+    intro: ['Welcome to Pai Sho! 🌸', 'You’re the <b style="color:var(--p0)">gold</b> player. Grow your garden by linking your flowers with <b>harmonies</b>. Close a <b>ring of harmonies around the centre</b> to win.', 'Next'],
+    harm: ['Harmonies', 'See the gold lines? Each is a harmony: two of <b>your</b> flowers of <b>different kinds</b> that could move to each other in a straight line, with at least one empty square between. You have 2. You need 4 that circle the centre.', 'Next'],
+    plant: ['Plant a flower', 'New flowers enter through the four <b>gates</b> at the edge. Tap any flower in your tray below, then tap a glowing gate.', null],
+    wait: ['Your opponent’s turn', 'Players take turns. Watch what they do…', null],
+    win: ['Close the ring!', 'Your <b>Chrysanthemum</b> on the left moves up to 5 squares in a straight line. Tap it, then tap the gold dot it can reach. That makes 2 new harmonies and closes the ring.', null],
+  };
+  function tutUpdate() {
+    const T = G.tutorial; if (!T || !document.querySelector('.game')) return;
+    if (T.step === 'plant' && G.s.turn === 1) T.step = 'wait';
+    if (T.step === 'wait' && G.s.turn === 0) T.step = 'win';
+    let box = document.getElementById('coach');
+    if (!box) { box = document.createElement('div'); box.id = 'coach'; box.className = 'coach'; document.querySelector('.game').appendChild(box); }
+    const [h, body, btn] = TUT_STEPS[T.step] || ['', '', null];
+    const key = T.step + (G.sel ? 's' : '');
+    if (box.dataset.k === key) return; box.dataset.k = key;
+    const selText = T.step === 'win' && G.sel ? 'Now tap the <b>gold dot</b> to finish the ring!' : body;
+    box.innerHTML = `<div class="coach-h">🧭 ${h}<button class="coach-skip" data-act="tutSkip">Skip</button></div><div>${selText}</div>${btn ? `<button class="btn primary small" data-act="tutNext">${btn}</button>` : ''}`;
+    document.querySelectorAll('.tut-glow').forEach((x) => x.classList.remove('tut-glow'));
+    if (T.step === 'win' && !G.sel) { const el = tileEls.get(TUT.tiles.find((t) => t[0] === TUT.from)[3]); if (el) el.classList.add('tut-glow'); }
+    if (T.step === 'plant') { const tr = document.getElementById('tray'); if (tr) tr.classList.add('tut-glow'); }
+  }
+  function tutFinishFlag() { Store.LS.set('tutDone', true); if (me && !me.tutDone) { me.tutDone = true; Store.set('players', me.id, { tutDone: true }).catch(() => {}); } }
+  function tutDone() {
+    tutFinishFlag();
+    const box = document.getElementById('coach'); if (box) box.remove();
+    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:26px">You win! 🎉</h3>
+      <p>That gold loop is a <b>harmony ring</b>, and that’s how every game is won.</p>
+      <div class="card" style="text-align:left"><b>Quick recap</b><ul style="margin:6px 0 0;padding-left:18px"><li>Plant flowers through the gates (2 at a time, max).</li><li>Move one tile a turn. Each flower has its own movement.</li><li>Harmonies link different flowers that can reach each other.</li><li>Opponent flowers in between break a harmony.</li><li>Ring of 4+ harmonies around the centre wins.</li></ul></div>
+      <p class="tiny muted">The full rules, tile powers and diagrams are in <b>How to play</b> on the home screen.</p>
+      <div class="menu"><button class="btn primary" data-act="tutHome">Go to my garden</button><button class="btn" data-act="tutVsAI">Play the computer (Easy)</button></div></div>`);
+  }
+
   function startOnline(d) {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
     const pid = myPid();
@@ -831,7 +878,10 @@
   const isHumanTurn = () => G && G.s.winner === null && G.seats[G.s.turn].kind === 'human';
   const viewSeat = () => (G.my != null ? G.my : G.s.turn); // whose hand shows in the tray
   let acts = [];
-  function computeActs() { acts = isHumanTurn() ? P.legalActions(G.s) : []; }
+  function computeActs() {
+    acts = isHumanTurn() ? P.legalActions(G.s) : [];
+    if (G.tutorial) acts = acts.filter((a) => (G.tutorial.step === 'plant' ? a.t === 'plant' : G.tutorial.step === 'win' ? (a.t === 'move' && a.from.kind === 'sq' && a.from.i === TUT.from && a.to === TUT.to) : false));
+  }
 
   // board theme for this game, and whether this viewer gets the Blackout effect
   function gameBoardInfo() {
@@ -1072,7 +1122,7 @@
     el.innerHTML = statusText() + (G.timerEnd && isHumanTurn() ? `<span class="timer" id="tmr">${Math.max(0, Math.ceil((G.timerEnd - Date.now()) / 1000))}s</span>` : '');
   }
 
-  const hintsOn = () => setup.hints !== false;
+  const hintsOn = () => setup.hints !== false && !(G && G.tutorial);
   const harmCount = (s, p, H) => (H || P.harmonies(s)).filter((h) => h.owners.includes(p)).length;
   // for each destination: harmony gain for mover, opponent harmonies broken, ring completion
   function destValues(moves) {
@@ -1223,7 +1273,7 @@
     b.textContent = pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon;
     b.classList.toggle('spent', !!s.bend.used[bendSeat()] && !P.subAvailable(s, bendSeat()).length);
   }
-  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); }
+  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); if (G.tutorial) tutUpdate(); }
 
   // ---------- input ----------
   function boardPoint(e) {
@@ -1495,7 +1545,7 @@
     G.busy = true; renderStatus(); renderBar();
     const g = G;
     await sleep(500);
-    let seq = AI.chooseTurn(g.s, g.seats[g.s.turn].level);
+    let seq = g.tutorial ? tutAIMove(g.s) : AI.chooseTurn(g.s, g.seats[g.s.turn].level);
     if (g.s.melon && g.s.melon.blind === g.s.turn) {
       showBubble(g.s.turn, 'wow');
       const mains = P.legalActions(g.s, { noPlace: true, noAbility: true }).filter((x) => x.t === 'move' || x.t === 'plant');
@@ -1519,6 +1569,7 @@
   }
   async function gameOver() {
     renderGame();
+    if (G.tutorial) return tutDone();
     const s = G.s;
     if (!G.recorded) {
       G.recorded = true;
@@ -1578,6 +1629,11 @@
       if (!g || g === 'redirect') return;
       googleContinue(g);
     },
+    tutNext: () => { const T = G && G.tutorial; if (!T) return; T.step = T.step === 'intro' ? 'harm' : 'plant'; renderGame(); },
+    tutSkip: () => { tutFinishFlag(); Music.stop(); G = null; closeSheet(); go('home'); },
+    tutHome: () => { closeSheet(); Music.stop(); G = null; go('home'); },
+    tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
+    startTutorial: () => startTutorial(),
     statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
       sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
@@ -1710,7 +1766,7 @@
         <div class="card"><b>Main bending</b> <span class="tiny muted">· once per game</span>
           ${used ? '<p class="muted">Already used this game.</p>' : `<p class="tiny">${costTxt}</p><div class="menu">${els.map((el) => `<button class="btn" data-act="bendGo" data-el="${el}" ${!free && !cost ? 'disabled' : ''}>${Eco.BEND[el].icon} ${Eco.BEND[el].verb}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.BEND[el].desc}</small></button>`).join('')}</div>`}</div>
         <div class="card" style="margin-top:10px"><b>Sub-bending</b> <span class="tiny muted">· ${pw.avatar ? 'any two per game' : 'once per game'}</span>
-          ${subs.length ? `<div class="menu" style="margin-top:8px">${subs.map((k) => `<button class="btn" data-act="subGo" data-k="${k}">${Eco.SUBS[k].icon} ${Eco.SUBS[k].name}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.SUBS[k].desc}</small></button>`).join('')}</div>` : usedSubs.length ? '<p class="muted">Used this game.</p>' : `<p class="muted tiny">Unlocks at ${Eco.SUB_XP.toLocaleString()} XP${me ? ` — you have ${xp.toLocaleString()}` : ''}. ${pw.avatar ? 'The Avatar can use any two.' : Eco.SUBS[Eco.SUB_OF[pw.nation]].name + ': ' + Eco.SUBS[Eco.SUB_OF[pw.nation]].desc}</p>`}</div>
+          ${subs.length ? `<div class="menu" style="margin-top:8px">${subs.map((k) => `<button class="btn" data-act="subGo" data-k="${k}">${Eco.SUBS[k].icon} ${Eco.SUBS[k].name}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.SUBS[k].desc}</small></button>`).join('')}</div>` : usedSubs.length ? '<p class="muted">Used this game.</p>' : `<p class="muted tiny">Unlocks at Level ${Eco.SUB_LEVEL}${me ? ` — you’re Level ${Eco.level(xp)}` : ''}. ${pw.avatar ? 'The Avatar can use any two.' : Eco.SUBS[Eco.SUB_OF[pw.nation]].name + ': ' + Eco.SUBS[Eco.SUB_OF[pw.nation]].desc}</p>`}</div>
         <div class="card" style="margin-top:10px"><b>Show off</b> <span class="tiny muted">· free, cosmetic, as often as you like</span><p class="tiny muted">Cover their board in your element while they think. +5 XP each in online games (up to 300 a match).</p>
           <div class="row wrap">${els.map((el) => `<button class="btn small" data-act="spamGo" data-el="${el}">${Eco.BEND[el].icon} ${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</button>`).join('')}</div></div>`);
     },

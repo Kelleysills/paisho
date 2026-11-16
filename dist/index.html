@@ -298,6 +298,15 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .name-hint{min-height:14px;margin-top:4px;opacity:.8}.name-hint.ok{color:#9fd18b}.name-hint.bad{color:#ff8a80}
 .doodle{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6}
 .board-wrap{touch-action:none}
+
+.coach{position:fixed;left:10px;right:10px;bottom:calc(150px + env(safe-area-inset-bottom));z-index:40;background:rgba(28,18,12,.97);border:1px solid #f2cf6e;border-radius:16px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.6);font-size:14px;line-height:1.4;max-width:520px;margin:0 auto;animation:coachIn .3s ease}
+.coach .btn{margin-top:10px;width:100%}
+.coach-h{font-weight:900;color:#f2cf6e;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.coach-skip{margin-left:auto;background:none;border:0;color:#bba;font-size:12px;text-decoration:underline}
+@keyframes coachIn{from{opacity:0;transform:translateY(10px)}}
+.tut-glow{animation:tutGlow 1.1s ease-in-out infinite}
+g.tut-glow{filter:drop-shadow(0 0 .35px #fff) drop-shadow(0 0 .25px #f2cf6e)}
+@keyframes tutGlow{50%{opacity:.55}}
 </style>
 </head>
 <body>
@@ -1350,7 +1359,7 @@ const Eco = (() => {
     return { pid: eligible[0].p.id, tie: null };
   }
   // ---- XP, sub-bending, achievements ----
-  const SUB_XP = 1000;
+  const SUB_LEVEL = 20, SUB_XP = (SUB_LEVEL - 1) * 500; // level(xp) = 1 + floor(xp/500) → Level 20 = 9,500 XP
   const SUBS = {
     metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Swap any two tiles on the board.' },
     lightning: { name: 'Lightning', el: 'fire', icon: '⚡', desc: 'Your opponent skips their next turn.' },
@@ -1385,7 +1394,7 @@ const Eco = (() => {
     { id: 'bender', name: 'Bender', desc: 'Use bending in a match', gp: 150, ok: (p) => (p.bends || 0) >= 1 },
     { id: 'fury25', name: 'Elemental Fury', desc: 'Bend 25 times', gp: 300, ok: (p) => (p.bends || 0) >= 25 },
     { id: 'fury100', name: 'Force of Nature', desc: 'Bend 100 times', gp: 750, ok: (p) => (p.bends || 0) >= 100 },
-    { id: 'subbender', name: 'Beyond the Basics', desc: `Reach ${SUB_XP} XP to unlock sub-bending`, gp: 500, ok: (p) => (p.xp || 0) >= SUB_XP },
+    { id: 'subbender', name: 'Beyond the Basics', desc: `Reach Level ${SUB_LEVEL} to unlock sub-bending`, gp: 500, ok: (p) => (p.xp || 0) >= SUB_XP },
     { id: 'avatar', name: 'The Avatar', desc: 'Become the Avatar', gp: 1000, ok: (p, c) => !!(c && c.isAvatar) },
     { id: 'friend', name: 'Better Together', desc: 'Add a friend', gp: 100, ok: (p, c) => !!(c && c.friends >= 1) },
     { id: 'emotes10', name: 'Expressive', desc: 'Send 10 emotes', gp: 100, ok: (p) => (p.emotesSent || 0) >= 10 },
@@ -1398,7 +1407,7 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { boost, SUB_XP, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { boost, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();
 
 // ---- avatars.js ----
@@ -2237,13 +2246,13 @@ const Guide = (() => {
       ['effects', 'Effect tiles', `<p>Before the game each player may choose up to <b>6 effect tiles</b>, one of each kind, from the special flowers and accent tiles below. Beginners should play with none until the basics feel natural.</p><h3>Special flowers</h3><p>They are planted in gates like key flowers, can land in any garden colour, and each has its own movement.</p><div class="tlist">${Object.keys(P.SPECIAL).map(trow).join('')}</div><h3>Accent tiles</h3><p>Accent tiles are never planted. You <b>place</b> one by swapping it with one of your blooming flowers. They don’t harmonize or block harmonies, but they <b>do block flower movement</b>. They move once per turn in any of the 8 directions and may jump over tiles.</p><div class="tlist">${Object.keys(P.ACCENT).map(trow).join('')}</div>`],
       ['fine', 'Fine print', `<ul><li>You can’t pass: you must plant, place or move something.</li><li>Steps leaving a gate count the first square outside the gate as step one.</li><li>A tile only "lands" on its final square, and harmonies form only after it stops.</li><li>Tiles in the garden never affect planted tiles, and a tile in the garden can never go back onto a gate.</li><li>Only one tile per gate.</li><li>Moving a flower by carrying it with an accent counts as moving the accent.</li><li>Knotweed affects your own flowers too, but accent tiles can still move those flowers.</li><li>An accent that moves another tile can’t drop it where it couldn’t normally land.</li><li>Badgermoles and Sky Bisons can’t land on a tile while carrying one, and flowers can land on them but can’t move over them.</li><li>A Dragon can’t land on a tile sitting on a Badgermole; landing on a tile with a Sky Bison underneath removes both.</li></ul>`],
       ['ranks', 'Gold, ranks & the Avatar', `<ul><li><b>Gold pieces (gp):</b> every new player starts with 1,000. Computer games pay a little (more on Hard), online games pay much more, and even a loss earns some. Completing a ring adds a bonus. Pass-and-play doesn’t pay.</li><li><b>Store:</b> spend gp on effect tiles (new players start with Stone and Boat), profile pictures, emotes and board themes.</li><li><b>Nations:</b> pick Air, Water, Earth or Fire. Your nation unlocks its own emotes and its board theme for free.</li><li><b>Ranked rating:</b> online games only. Beat stronger players to climb faster.</li><li><b>The Avatar:</b> the top-rated player (after 3 ranked games) holds the title, and only one player can hold it at a time. If someone passes your rating, the title moves to them. A tie at the top automatically starts an Avatar Trial match. The Avatar can use every nation’s emotes.</li><li><b>Emotes:</b> tap 😊 on the board during a game.</li><li><b>📣 Yip yip!:</b> in an online game, if your opponent is slow, tap Yip yip! to nudge them (once a minute). They get a notification if they have turn alerts on.</li></ul>`],
-      ['bending', 'Elemental mode (bending)', `<p>Turn on <b>Elemental mode</b> in a game’s variations. Each player bends their nation’s element. Bending can happen at <b>any time, even on your opponent’s turn</b>, and it never uses up your move.</p><ul><li><b>Main bending, once per game:</b> 🔥 Fire burns an opponent’s tile out of the game · 🌊 Water washes it back to their hand · 🪨 Earth smashes it and leaves rubble on that square for 4 turns · 🌪️ Air sweeps it up to 3 squares.</li><li><b>The cost:</b> you give up one of your own effect or accent tiles, unless you have a harmony on the board or you’re the Avatar.</li><li><b>Sub-bending</b> unlocks at ${Eco.SUB_XP.toLocaleString()} XP. It’s free and once per game: ⚙️ Metal (Earth) swaps any two tiles · ⚡ Lightning (Fire) makes your opponent skip a turn · 🩸 Blood (Water) lets you make their next move for them · 🪽 Flight (Air) shows their whole hand and their likely next move. The Avatar can use any two of the four.</li><li><b>Show off:</b> free, cosmetic flames, waves, quakes and gusts across your opponent’s board while they think. In online games, each one adds 5 bonus XP, up to 300 XP a match.</li><li><b>💬 Chat &amp; the Melon Lord 🍈:</b> chat with your opponent from the 💬 button. In Elemental games, typing <i>Melon Lord</i> (shout it however you like) blinds your opponent once per match. They get 3 seconds to memorise the board, then see only faint outlines and ripples. If they grab one of your tiles, they lose the turn. A legal blind move earns them +50 gp and +50 XP.</li><li><b>Blackout board:</b> call the Melon Lord 100 times to unlock it. In Elemental games you host, you see a normal board while your opponent plays in the dark, with a pulse every 5–10 seconds that briefly reveals everything. Their move tips and dots still work. In normal games it’s a seismic-style board that both players see.</li><li><b>XP:</b> online wins give 100, losses 30, draws 50. Computer games give 40, 10 and 20.</li><li><b>Events:</b> every <b>April 28 is Avatar Day</b> with 100× XP and 5× gold. <b>Weekends</b> give 2× XP and 1.5× gold.</li><li><b>Achievements</b> pay gold, such as +1,000 gp for your first win. See the Achievements screen.</li></ul>`],
+      ['bending', 'Elemental mode (bending)', `<p>Turn on <b>Elemental mode</b> in a game’s variations. Each player bends their nation’s element. Bending can happen at <b>any time, even on your opponent’s turn</b>, and it never uses up your move.</p><ul><li><b>Main bending, once per game:</b> 🔥 Fire burns an opponent’s tile out of the game · 🌊 Water washes it back to their hand · 🪨 Earth smashes it and leaves rubble on that square for 4 turns · 🌪️ Air sweeps it up to 3 squares.</li><li><b>The cost:</b> you give up one of your own effect or accent tiles, unless you have a harmony on the board or you’re the Avatar.</li><li><b>Sub-bending</b> unlocks at <b>Level ${Eco.SUB_LEVEL}</b> (${Eco.SUB_XP.toLocaleString()} XP). It’s free and once per game: ⚙️ Metal (Earth) swaps any two tiles · ⚡ Lightning (Fire) makes your opponent skip a turn · 🩸 Blood (Water) lets you make their next move for them · 🪽 Flight (Air) shows their whole hand and their likely next move. The Avatar can use any two of the four.</li><li><b>Show off:</b> free, cosmetic flames, waves, quakes and gusts across your opponent’s board while they think. In online games, each one adds 5 bonus XP, up to 300 XP a match.</li><li><b>💬 Chat &amp; the Melon Lord 🍈:</b> chat with your opponent from the 💬 button. In Elemental games, typing <i>Melon Lord</i> (shout it however you like) blinds your opponent once per match. They get 3 seconds to memorise the board, then see only faint outlines and ripples. If they grab one of your tiles, they lose the turn. A legal blind move earns them +50 gp and +50 XP.</li><li><b>Blackout board:</b> call the Melon Lord 100 times to unlock it. In Elemental games you host, you see a normal board while your opponent plays in the dark, with a pulse every 5–10 seconds that briefly reveals everything. Their move tips and dots still work. In normal games it’s a seismic-style board that both players see.</li><li><b>XP:</b> online wins give 100, losses 30, draws 50. Computer games give 40, 10 and 20.</li><li><b>Events:</b> every <b>April 28 is Avatar Day</b> with 100× XP and 5× gold. <b>Weekends</b> give 2× XP and 1.5× gold.</li><li><b>Achievements</b> pay gold, such as +1,000 gp for your first win. See the Achievements screen.</li></ul>`],
       ['vars', 'Variations', `<ul><li><b>Basic Key Pai Sho</b> — no effect tiles.</li><li><b>Harmony Minima</b> — change the ring size needed to win (3, 6 or 10).</li><li><b>Timed Turns</b> — a clock per turn. When it runs out, the app makes a random move for you.</li><li><b>Game of Chance</b> — key flowers are drawn at random when you plant.</li><li><b>Effect Tile Enigma</b> — your opponent’s effect tiles stay hidden until played.</li></ul>`],
       ['about', 'About & credits', `<p><b>Unofficial fan project.</b> This app is free and is not affiliated with, endorsed by or sponsored by Nickelodeon, Paramount Global or Viacom International. <i>Avatar: The Last Airbender</i>, Pai Sho as shown in the series, and all related names and characters belong to their owners.</p><p><b>Rules:</b> Key Pai Sho was created by The Garden Gate Games. The rules here are paraphrased from their booklet. Please support the creators and their official sets.</p><p><b>Art &amp; music:</b> all tile, board and profile art and the background music were made from scratch for this app. No artwork, audio or footage from the show is used.</p><p>No ads, no paid items. Gold is earned only by playing.</p>`],
       ['app', 'Using the app', `<ul><li>Tap one of your tiles to see where it can go (gold dots), then tap a dot.</li><li>Tap a tile in the tray at the bottom to plant it (gates light up) or to place an accent (your flowers light up).</li><li>Tap an accent you own on the board to move it or use its ability.</li><li>When you’ve done your move and nothing optional is left, the turn ends by itself; otherwise press <b>End turn</b>.</li><li>The ↔ button shows or hides harmony lines. Undo works against the computer and in pass-and-play.</li><li><b>✍️ S Pen doodles:</b> on a phone with a stylus (like a Galaxy S Ultra), drag the pen across the board to draw or write a note. A pen tap still plays normally. A second after you lift the pen, your doodle is sent to your opponent. It stays on screen for 5 seconds, then fades.</li></ul>
         <div class="note"><b>House readings</b> where the booklet leaves room: a gate covers a 2×2 block with 8 exit squares; a Lotus’s harmonies count for both players (it’s neutral); Dahlia jumps in straight lines; moving an accent tile uses your turn’s move; abilities (Wheel, Koi) are free extras.</div>`],
     ];
-    return `<nav class="toc">${sec.map(([id, t]) => `<a href="#g-${id}" data-act="toc" data-id="g-${id}">${t}</a>`).join('')}</nav>` +
+    return `<button class="btn primary" data-act="startTutorial" style="margin-bottom:10px">▶ Play the 2-minute tutorial</button><nav class="toc">${sec.map(([id, t]) => `<a href="#g-${id}" data-act="toc" data-id="g-${id}">${t}</a>`).join('')}</nav>` +
       `<div class="guide">${sec.map(([id, t, body]) => `<section id="g-${id}"><h3>${t}</h3>${body}</section>`).join('')}</div>`;
   }
   // ---- harmony rules per tile ----
@@ -2619,7 +2628,7 @@ const Guide = (() => {
       try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
       me = p; rememberProfile(id);
       if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
-      go('home');
+      startTutorial();
     });
   };
 
@@ -3075,6 +3084,53 @@ const Guide = (() => {
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
+  // ---------- first-time tutorial: a nearly finished game you win in two moves ----------
+  const TUT = { tiles: [[62, "lily", 1, 104], [114, "jasmine", 0, 100], [119, "chrys", 0, 101], [159, "rhodo", 1, 106], [200, "chrys", 0, 103], [209, "jasmine", 0, 102], [261, "rose", 1, 105]], from: 200, to: 204 };
+  function startTutorial() {
+    const s = P.newGame({});
+    TUT.tiles.forEach(([i, type, owner, id]) => { s.board[i] = { top: { id, owner, type }, under: null }; s.hands[owner][type]--; });
+    s.nextId = 200;
+    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
+    G = { mode: 'ai', tutorial: { step: 'intro', n: 0 }, s, seats: [human, { name: 'Pai Sho Coach', kind: 'ai', level: 'easy' }], my: 0, history: [], sel: null, showH: true, opts: { timer: 0 }, recorded: true };
+    gameScreen();
+  }
+  function tutAIMove(s) {
+    const ms = P.legalActions(s).filter((a) => a.t === 'move' && a.from.kind === 'sq' && P.rc(a.from.i)[0] <= 4 && P.rc(a.to)[0] <= 4);
+    return ms.length ? [ms[0]] : AI.chooseTurn(s, 'easy');
+  }
+  const TUT_STEPS = {
+    intro: ['Welcome to Pai Sho! 🌸', 'You’re the <b style="color:var(--p0)">gold</b> player. Grow your garden by linking your flowers with <b>harmonies</b>. Close a <b>ring of harmonies around the centre</b> to win.', 'Next'],
+    harm: ['Harmonies', 'See the gold lines? Each is a harmony: two of <b>your</b> flowers of <b>different kinds</b> that could move to each other in a straight line, with at least one empty square between. You have 2. You need 4 that circle the centre.', 'Next'],
+    plant: ['Plant a flower', 'New flowers enter through the four <b>gates</b> at the edge. Tap any flower in your tray below, then tap a glowing gate.', null],
+    wait: ['Your opponent’s turn', 'Players take turns. Watch what they do…', null],
+    win: ['Close the ring!', 'Your <b>Chrysanthemum</b> on the left moves up to 5 squares in a straight line. Tap it, then tap the gold dot it can reach. That makes 2 new harmonies and closes the ring.', null],
+  };
+  function tutUpdate() {
+    const T = G.tutorial; if (!T || !document.querySelector('.game')) return;
+    if (T.step === 'plant' && G.s.turn === 1) T.step = 'wait';
+    if (T.step === 'wait' && G.s.turn === 0) T.step = 'win';
+    let box = document.getElementById('coach');
+    if (!box) { box = document.createElement('div'); box.id = 'coach'; box.className = 'coach'; document.querySelector('.game').appendChild(box); }
+    const [h, body, btn] = TUT_STEPS[T.step] || ['', '', null];
+    const key = T.step + (G.sel ? 's' : '');
+    if (box.dataset.k === key) return; box.dataset.k = key;
+    const selText = T.step === 'win' && G.sel ? 'Now tap the <b>gold dot</b> to finish the ring!' : body;
+    box.innerHTML = `<div class="coach-h">🧭 ${h}<button class="coach-skip" data-act="tutSkip">Skip</button></div><div>${selText}</div>${btn ? `<button class="btn primary small" data-act="tutNext">${btn}</button>` : ''}`;
+    document.querySelectorAll('.tut-glow').forEach((x) => x.classList.remove('tut-glow'));
+    if (T.step === 'win' && !G.sel) { const el = tileEls.get(TUT.tiles.find((t) => t[0] === TUT.from)[3]); if (el) el.classList.add('tut-glow'); }
+    if (T.step === 'plant') { const tr = document.getElementById('tray'); if (tr) tr.classList.add('tut-glow'); }
+  }
+  function tutFinishFlag() { Store.LS.set('tutDone', true); if (me && !me.tutDone) { me.tutDone = true; Store.set('players', me.id, { tutDone: true }).catch(() => {}); } }
+  function tutDone() {
+    tutFinishFlag();
+    const box = document.getElementById('coach'); if (box) box.remove();
+    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:26px">You win! 🎉</h3>
+      <p>That gold loop is a <b>harmony ring</b>, and that’s how every game is won.</p>
+      <div class="card" style="text-align:left"><b>Quick recap</b><ul style="margin:6px 0 0;padding-left:18px"><li>Plant flowers through the gates (2 at a time, max).</li><li>Move one tile a turn. Each flower has its own movement.</li><li>Harmonies link different flowers that can reach each other.</li><li>Opponent flowers in between break a harmony.</li><li>Ring of 4+ harmonies around the centre wins.</li></ul></div>
+      <p class="tiny muted">The full rules, tile powers and diagrams are in <b>How to play</b> on the home screen.</p>
+      <div class="menu"><button class="btn primary" data-act="tutHome">Go to my garden</button><button class="btn" data-act="tutVsAI">Play the computer (Easy)</button></div></div>`);
+  }
+
   function startOnline(d) {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
     const pid = myPid();
@@ -3111,7 +3167,10 @@ const Guide = (() => {
   const isHumanTurn = () => G && G.s.winner === null && G.seats[G.s.turn].kind === 'human';
   const viewSeat = () => (G.my != null ? G.my : G.s.turn); // whose hand shows in the tray
   let acts = [];
-  function computeActs() { acts = isHumanTurn() ? P.legalActions(G.s) : []; }
+  function computeActs() {
+    acts = isHumanTurn() ? P.legalActions(G.s) : [];
+    if (G.tutorial) acts = acts.filter((a) => (G.tutorial.step === 'plant' ? a.t === 'plant' : G.tutorial.step === 'win' ? (a.t === 'move' && a.from.kind === 'sq' && a.from.i === TUT.from && a.to === TUT.to) : false));
+  }
 
   // board theme for this game, and whether this viewer gets the Blackout effect
   function gameBoardInfo() {
@@ -3352,7 +3411,7 @@ const Guide = (() => {
     el.innerHTML = statusText() + (G.timerEnd && isHumanTurn() ? `<span class="timer" id="tmr">${Math.max(0, Math.ceil((G.timerEnd - Date.now()) / 1000))}s</span>` : '');
   }
 
-  const hintsOn = () => setup.hints !== false;
+  const hintsOn = () => setup.hints !== false && !(G && G.tutorial);
   const harmCount = (s, p, H) => (H || P.harmonies(s)).filter((h) => h.owners.includes(p)).length;
   // for each destination: harmony gain for mover, opponent harmonies broken, ring completion
   function destValues(moves) {
@@ -3503,7 +3562,7 @@ const Guide = (() => {
     b.textContent = pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon;
     b.classList.toggle('spent', !!s.bend.used[bendSeat()] && !P.subAvailable(s, bendSeat()).length);
   }
-  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); }
+  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); if (G.tutorial) tutUpdate(); }
 
   // ---------- input ----------
   function boardPoint(e) {
@@ -3775,7 +3834,7 @@ const Guide = (() => {
     G.busy = true; renderStatus(); renderBar();
     const g = G;
     await sleep(500);
-    let seq = AI.chooseTurn(g.s, g.seats[g.s.turn].level);
+    let seq = g.tutorial ? tutAIMove(g.s) : AI.chooseTurn(g.s, g.seats[g.s.turn].level);
     if (g.s.melon && g.s.melon.blind === g.s.turn) {
       showBubble(g.s.turn, 'wow');
       const mains = P.legalActions(g.s, { noPlace: true, noAbility: true }).filter((x) => x.t === 'move' || x.t === 'plant');
@@ -3799,6 +3858,7 @@ const Guide = (() => {
   }
   async function gameOver() {
     renderGame();
+    if (G.tutorial) return tutDone();
     const s = G.s;
     if (!G.recorded) {
       G.recorded = true;
@@ -3858,6 +3918,11 @@ const Guide = (() => {
       if (!g || g === 'redirect') return;
       googleContinue(g);
     },
+    tutNext: () => { const T = G && G.tutorial; if (!T) return; T.step = T.step === 'intro' ? 'harm' : 'plant'; renderGame(); },
+    tutSkip: () => { tutFinishFlag(); Music.stop(); G = null; closeSheet(); go('home'); },
+    tutHome: () => { closeSheet(); Music.stop(); G = null; go('home'); },
+    tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
+    startTutorial: () => startTutorial(),
     statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
       sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
@@ -3990,7 +4055,7 @@ const Guide = (() => {
         <div class="card"><b>Main bending</b> <span class="tiny muted">· once per game</span>
           ${used ? '<p class="muted">Already used this game.</p>' : `<p class="tiny">${costTxt}</p><div class="menu">${els.map((el) => `<button class="btn" data-act="bendGo" data-el="${el}" ${!free && !cost ? 'disabled' : ''}>${Eco.BEND[el].icon} ${Eco.BEND[el].verb}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.BEND[el].desc}</small></button>`).join('')}</div>`}</div>
         <div class="card" style="margin-top:10px"><b>Sub-bending</b> <span class="tiny muted">· ${pw.avatar ? 'any two per game' : 'once per game'}</span>
-          ${subs.length ? `<div class="menu" style="margin-top:8px">${subs.map((k) => `<button class="btn" data-act="subGo" data-k="${k}">${Eco.SUBS[k].icon} ${Eco.SUBS[k].name}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.SUBS[k].desc}</small></button>`).join('')}</div>` : usedSubs.length ? '<p class="muted">Used this game.</p>' : `<p class="muted tiny">Unlocks at ${Eco.SUB_XP.toLocaleString()} XP${me ? ` — you have ${xp.toLocaleString()}` : ''}. ${pw.avatar ? 'The Avatar can use any two.' : Eco.SUBS[Eco.SUB_OF[pw.nation]].name + ': ' + Eco.SUBS[Eco.SUB_OF[pw.nation]].desc}</p>`}</div>
+          ${subs.length ? `<div class="menu" style="margin-top:8px">${subs.map((k) => `<button class="btn" data-act="subGo" data-k="${k}">${Eco.SUBS[k].icon} ${Eco.SUBS[k].name}<small style="font-weight:400;margin-left:6px" class="muted">${Eco.SUBS[k].desc}</small></button>`).join('')}</div>` : usedSubs.length ? '<p class="muted">Used this game.</p>' : `<p class="muted tiny">Unlocks at Level ${Eco.SUB_LEVEL}${me ? ` — you’re Level ${Eco.level(xp)}` : ''}. ${pw.avatar ? 'The Avatar can use any two.' : Eco.SUBS[Eco.SUB_OF[pw.nation]].name + ': ' + Eco.SUBS[Eco.SUB_OF[pw.nation]].desc}</p>`}</div>
         <div class="card" style="margin-top:10px"><b>Show off</b> <span class="tiny muted">· free, cosmetic, as often as you like</span><p class="tiny muted">Cover their board in your element while they think. +5 XP each in online games (up to 300 a match).</p>
           <div class="row wrap">${els.map((el) => `<button class="btn small" data-act="spamGo" data-el="${el}">${Eco.BEND[el].icon} ${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</button>`).join('')}</div></div>`);
     },

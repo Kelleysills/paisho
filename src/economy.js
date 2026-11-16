@@ -112,7 +112,7 @@ const Eco = (() => {
     return { pid: eligible[0].p.id, tie: null };
   }
   // ---- XP, sub-bending, achievements ----
-  const SUB_XP = 1000;
+  const SUB_LEVEL = 20, SUB_XP = (SUB_LEVEL - 1) * 500; // level(xp) = 1 + floor(xp/500) → Level 20 = 9,500 XP
   const SUBS = {
     metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Swap any two tiles on the board.' },
     lightning: { name: 'Lightning', el: 'fire', icon: '⚡', desc: 'Your opponent skips their next turn.' },
@@ -147,7 +147,7 @@ const Eco = (() => {
     { id: 'bender', name: 'Bender', desc: 'Use bending in a match', gp: 150, ok: (p) => (p.bends || 0) >= 1 },
     { id: 'fury25', name: 'Elemental Fury', desc: 'Bend 25 times', gp: 300, ok: (p) => (p.bends || 0) >= 25 },
     { id: 'fury100', name: 'Force of Nature', desc: 'Bend 100 times', gp: 750, ok: (p) => (p.bends || 0) >= 100 },
-    { id: 'subbender', name: 'Beyond the Basics', desc: `Reach ${SUB_XP} XP to unlock sub-bending`, gp: 500, ok: (p) => (p.xp || 0) >= SUB_XP },
+    { id: 'subbender', name: 'Beyond the Basics', desc: `Reach Level ${SUB_LEVEL} to unlock sub-bending`, gp: 500, ok: (p) => (p.xp || 0) >= SUB_XP },
     { id: 'avatar', name: 'The Avatar', desc: 'Become the Avatar', gp: 1000, ok: (p, c) => !!(c && c.isAvatar) },
     { id: 'friend', name: 'Better Together', desc: 'Add a friend', gp: 100, ok: (p, c) => !!(c && c.friends >= 1) },
     { id: 'emotes10', name: 'Expressive', desc: 'Send 10 emotes', gp: 100, ok: (p) => (p.emotesSent || 0) >= 10 },
@@ -160,5 +160,5 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { boost, SUB_XP, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { boost, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();
