@@ -225,6 +225,11 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .bubble .e{font-size:26px}
 @keyframes pop{from{transform:scale(.6);opacity:0}}
 .board-thumb{width:100px;height:100px}
+
+.fx{padding-bottom:10px}
+.fx-ds{font-size:10.5px;line-height:1.25;color:var(--dim);text-align:center;padding:0 4px;min-height:40px}
+.fx-i{position:absolute;top:2px;left:6px;font-size:15px;color:var(--gold2);padding:2px 4px}
+.fx.locked .fx-ds{opacity:.75}
 </style>
 </head>
 <body>
@@ -2367,9 +2372,24 @@ const Guide = (() => {
       <button class="btn primary" data-act="beginGame">Start game</button>
     </div>`;
   };
+  const SHORT = {
+    orchid: 'Moving it gives you a bonus move the same turn.',
+    lotus: 'Harmonizes with any flower at any distance. Can open the centre.',
+    firelily: 'Moves up to 6 steps. Blocks only their harmonies.',
+    dahlia: 'Jumps any distance; must land next to a tile.',
+    stone: 'Your key flowers can land in its quarter, any colour.',
+    knotweed: 'Flowers next to it can’t move or harmonize.',
+    wheel: 'Spins all tiles around it 1–3 places.',
+    boat: 'Carries all neighbouring tiles when it moves.',
+    badgermole: 'Slides under a tile; that tile ignores other accents.',
+    dragon: 'Lands on a tile to send it back to its owner.',
+    skybison: 'Carries a flower; its harmonies can’t be blocked.',
+    koi: 'Swaps two tiles on opposite sides of it.',
+  };
+  const shortDesc = (t) => SHORT[t] || Guide.INFO[t][1].split('. ')[0] + '.';
   function fxGrid(sel, act = 'fx', prof) {
     if (prof === undefined) prof = me;
-    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => { const own = Eco.ownsTile(prof, t); return `<button class="fx ${sel.includes(t) && own ? 'on' : ''} ${own ? '' : 'locked'}" data-act="${own ? act : 'lockedTile'}" data-t="${t}" ${own ? '' : `data-mine="${prof === me ? 1 : 0}"`}>${own ? '' : `<span class="price">🔒 ${Eco.TILE_PRICE[t]}</span>`}${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`; }).join('')}</div>`;
+    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => { const own = Eco.ownsTile(prof, t); return `<button class="fx ${sel.includes(t) && own ? 'on' : ''} ${own ? '' : 'locked'}" data-act="${own ? act : 'lockedTile'}" data-t="${t}" ${own ? '' : `data-mine="${prof === me ? 1 : 0}"`}>${own ? '' : `<span class="price">🔒 ${Eco.TILE_PRICE[t]}</span>`}${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'} · moves ${Guide.INFO[t][2]}</span><span class="fx-ds">${esc(shortDesc(t))}</span><span class="fx-i" data-act="tileDetails" data-t="${t}" data-o="0" role="button" aria-label="Full rules for ${P.tname(t)}">ⓘ</span></button>`; }).join('')}</div>`;
   }
   function variationsCard() {
     const S = setup;

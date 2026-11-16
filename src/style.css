@@ -208,3 +208,8 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .bubble .e{font-size:26px}
 @keyframes pop{from{transform:scale(.6);opacity:0}}
 .board-thumb{width:100px;height:100px}
+
+.fx{padding-bottom:10px}
+.fx-ds{font-size:10.5px;line-height:1.25;color:var(--dim);text-align:center;padding:0 4px;min-height:40px}
+.fx-i{position:absolute;top:2px;left:6px;font-size:15px;color:var(--gold2);padding:2px 4px}
+.fx.locked .fx-ds{opacity:.75}
