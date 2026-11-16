@@ -3250,7 +3250,7 @@ const Guide = (() => {
     const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
-      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending, rules: S.rules || 'key' },
+      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending, rules: 'key' },
       host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
@@ -3377,9 +3377,9 @@ const Guide = (() => {
     const S = setup, d = invPick;
     const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${String(S[k]) === String(v) ? 'on' : ''}" data-act="invOpt" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
     const tog = (k, t, sub) => `<div class="toggle"><div><b>${t}</b><div class="tiny muted">${sub}</div></div><span class="sw ${S[k] ? 'on' : ''}" data-act="invOpt" data-k="${k}"></span></div>`;
-    const skud = (S.rules || 'key') === 'skud';
+    const skud = false;
     sheet(`<h3>🎮 Invite ${esc(d.name)}</h3><p class="muted tiny" style="margin-top:0">Pick the game mode. They’ll play with these rules.</p>
-      <div class="field"><label>Rules</label>${seg('rules', [['key', 'Key Pai Sho'], ['skud', 'Skud Pai Sho']])}<div class="tiny muted" style="margin-top:4px">${skud ? 'Skud: tiles on the line crossings, flowers harmonize in a circle (R3→R4→R5→W3→W4→W5), clashing tiles can capture, harmony bonuses.' : 'Key: the classic rules from the booklet, with effect tiles and loadouts.'}</div></div>
+      <div class="field"><label>Rules</label><div class="seg"><button class="on">Key Pai Sho</button><button disabled style="opacity:.45">Skud Pai Sho · soon</button></div><div class="tiny muted" style="margin-top:4px">Key: the classic rules from the booklet, with effect tiles and loadouts. Skud Pai Sho is being built next.</div></div>
       ${skud ? '' : `<div class="field"><label>Harmonies needed for the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>`}
       <div class="field"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
       ${tog('bending', 'Elemental mode', 'Bending, sub-bending, show-offs and the Melon Lord')}
