@@ -18,17 +18,18 @@ const Social = (() => {
     if (!map[pid]) { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; map[pid] = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => A[b % A.length]).join(''); LS('friendcodes', map); }
     return map[pid];
   }
-  const hello = () => ({ t: 'hi', code: me.code, name: me.name });
+  const hello = () => ({ t: 'hi', code: me.code, name: me.name, avatar: me.avatar });
+  const cleanAv = (a) => (typeof a === 'string' && /^[a-z]{2,16}$/.test(a) ? a : null);
   function handle(c, m) {
     if (!m || typeof m !== 'object' || typeof m.code !== 'string' || !/^[A-Z0-9]{6}$/.test(m.code)) return;
-    const name = String(m.name || 'Player').slice(0, 18);
+    const name = String(m.name || 'Player').slice(0, 18); const avatar = cleanAv(m.avatar);
     links.set(m.code, c);
     const list = friends(); const f = list.find((x) => x.code === m.code);
     if (m.t === 'hi' || m.t === 'add') {
-      if (f) { online.add(m.code); if (f.name !== name) { f.name = name; saveFriends(list); } emit('change'); if (m.t === 'add') c.send({ t: 'accepted', code: me.code, name: me.name }); }
-      else if (m.t === 'add') { const r = requests().filter((x) => x.code !== m.code); r.push({ code: m.code, name, t: Date.now() }); saveReq(r); emit('request', { code: m.code, name }); }
+      if (f) { online.add(m.code); if (f.name !== name || f.avatar !== avatar) { f.name = name; f.avatar = avatar; saveFriends(list); } emit('change'); if (m.t === 'add') c.send({ t: 'accepted', code: me.code, name: me.name, avatar: me.avatar }); }
+      else if (m.t === 'add') { const r = requests().filter((x) => x.code !== m.code); r.push({ code: m.code, name, avatar, t: Date.now() }); saveReq(r); emit('request', { code: m.code, name }); }
     } else if (m.t === 'accepted') {
-      if (f) { online.add(m.code); f.pending = false; f.name = name; saveFriends(list); emit('accepted', { code: m.code, name }); }
+      if (f) { online.add(m.code); f.pending = false; f.name = name; f.avatar = avatar; saveFriends(list); emit('accepted', { code: m.code, name }); }
     } else if (m.t === 'invite' && f && typeof m.game === 'string' && /^[A-Z]{4}$/.test(m.game)) {
       emit('invite', { code: m.code, name: f.name, game: m.game });
     } else if (m.t === 'bye') { online.delete(m.code); emit('change'); }
@@ -44,7 +45,7 @@ const Social = (() => {
     const pid = profile.pid;
     if (me && me.pid === pid && peer && !peer.destroyed) return true;
     stop();
-    me = { pid, name: profile.name, code: codeFor(pid) };
+    me = { pid, name: profile.name, avatar: profile.avatar || null, code: codeFor(pid) };
     peer = new window.Peer(PREFIX + me.code, { debug: 0 });
     peer.on('connection', wire);
     peer.on('open', () => { emit('status', 'online'); ping(); });
@@ -66,7 +67,7 @@ const Social = (() => {
     wire(c);
     if (first) c.on('open', () => c.send(first));
   }
-  function ping() { friends().forEach((f) => connect(f.code, f.pending ? { t: 'add', code: me.code, name: me.name } : null)); }
+  function ping() { friends().forEach((f) => connect(f.code, f.pending ? { t: 'add', code: me.code, name: me.name, avatar: me.avatar } : null)); }
   function add(code) {
     code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
@@ -74,15 +75,15 @@ const Social = (() => {
     if (code === me.code) return 'That’s your own code';
     const list = friends(); if (list.some((f) => f.code === code)) return 'Already on your list';
     list.push({ code, name: 'Player ' + code, pending: true, added: Date.now() }); saveFriends(list);
-    connect(code, { t: 'add', code: me.code, name: me.name });
+    connect(code, { t: 'add', code: me.code, name: me.name, avatar: me.avatar });
     return null;
   }
   function accept(code) {
     const r = requests(); const q = r.find((x) => x.code === code); if (!q) return;
     saveReq(r.filter((x) => x.code !== code));
-    const list = friends(); if (!list.some((f) => f.code === code)) list.push({ code, name: q.name, added: Date.now() });
+    const list = friends(); if (!list.some((f) => f.code === code)) list.push({ code, name: q.name, avatar: q.avatar, added: Date.now() });
     saveFriends(list); online.add(code);
-    connect(code, { t: 'accepted', code: me.code, name: me.name });
+    connect(code, { t: 'accepted', code: me.code, name: me.name, avatar: me.avatar });
   }
   const decline = (code) => saveReq(requests().filter((x) => x.code !== code));
   const remove = (code) => { saveFriends(friends().filter((f) => f.code !== code)); const c = links.get(code); if (c) try { c.close(); } catch (e) {} };

@@ -119,9 +119,11 @@ h1,h2,h3,.disp{font-family:'Cinzel',serif;letter-spacing:.04em;margin:0}
 .ring{stroke:#fff6d0;stroke-width:.32;fill:#e6b54a40;stroke-linejoin:round;animation:pulse 1.4s infinite;pointer-events:none;filter:drop-shadow(0 0 .3px #e6b54a)}
 /* sheet */
 .sheet-bg{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:fade .15s}
-.sheet{width:100%;max-width:560px;max-height:88dvh;overflow:auto;background:var(--bg2);border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:16px 16px calc(18px + var(--safe-b));animation:up .2s}
+.sheet{position:relative;width:100%;max-width:560px;max-height:88dvh;overflow:auto;background:var(--bg2);border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:16px 16px calc(18px + var(--safe-b));animation:up .2s}
 .sheet h3{font-size:20px;color:var(--gold2);margin-bottom:8px}
-.sheet .grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:-4px auto 12px}
+.sheet .grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto}
+.sheet-head{position:sticky;top:-16px;z-index:6;display:flex;align-items:center;justify-content:center;height:40px;margin:-16px -16px 6px;background:var(--bg2);border-radius:20px 20px 0 0}
+.sheet-x{position:absolute;right:10px;top:4px;width:36px;height:36px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:16px;color:var(--ink)}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 @keyframes fade{from{opacity:0}}
 .toast{position:fixed;left:50%;top:calc(14px + var(--safe-t));transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);padding:10px 16px;border-radius:12px;z-index:80;font-weight:700;font-size:14px;animation:up .2s;max-width:90vw;text-align:center}
@@ -167,6 +169,29 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 
 .btn.primary small{color:#5a3a12}
 .g-bar{padding-bottom:calc(10px + var(--safe-b))}
+/* avatars & profile cards */
+.avatar.av-img{background:none!important;padding:0;overflow:hidden}
+.avatar.av-img svg{width:100%;height:100%}
+.av-pick{display:flex;flex-direction:column;gap:8px}
+.av-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.av-el{width:52px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.av-opt{border-radius:50%;padding:3px;border:2px solid transparent}
+.av-opt.on{border-color:var(--gold2);box-shadow:0 0 12px #e6b54a66}
+.pcard{position:relative;border-radius:18px;padding:16px;color:var(--ink);overflow:hidden;
+  background:radial-gradient(circle at 85% 15%,rgba(255,255,255,.22) 0 18%,transparent 19%),
+  repeating-radial-gradient(circle at 90% 110%,rgba(255,255,255,.08) 0 6px,transparent 6px 18px),
+  linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 8px 24px #0008, inset 0 0 0 1px rgba(255,255,255,.18)}
+.pc-top{display:flex;align-items:center;gap:14px}
+.pc-top svg{box-shadow:0 0 0 3px rgba(255,255,255,.35),0 6px 14px #0006}
+.pc-name{font-family:'Cinzel',serif;font-size:24px;font-weight:700;line-height:1.1;text-shadow:0 1px 2px #0006}
+.pc-sub{font-size:13px;opacity:.9;margin-top:2px;font-weight:700}
+.pc-code{font-family:'Cinzel',serif;letter-spacing:.12em}
+.pc-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:14px;background:rgba(0,0,0,.22);border-radius:12px;padding:8px 4px}
+.pc-stats div{text-align:center;display:flex;flex-direction:column}
+.pc-stats b{font-family:'Cinzel',serif;font-size:18px}
+.pc-stats span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
+.seat .disc.av-img svg{width:26px;height:26px}
+.sheet .toc{top:24px;background:var(--bg2)}
 </style>
 </head>
 <body>
@@ -986,6 +1011,65 @@ const Glyphs = (() => {
   return { G, tile, svg, DISC };
 })();
 
+// ---- avatars.js ----
+/* Original element-themed avatars and profile cards (no show artwork) */
+const Avatars = (() => {
+  const EL = {
+    air:    { name: 'Air',    c: ['#f7cf63', '#d9772a'], ink: '#fff8e6' },
+    water:  { name: 'Water',  c: ['#5fb2ea', '#1b4a8a'], ink: '#eef7ff' },
+    earth:  { name: 'Earth',  c: ['#8cc152', '#2c5a1c'], ink: '#f2f8e8' },
+    fire:   { name: 'Fire',   c: ['#f0633f', '#7a140f'], ink: '#fff0e6' },
+    spirit: { name: 'Spirit', c: ['#b893e3', '#38215f'], ink: '#f6efff' },
+    lotus:  { name: 'Lotus',  c: ['#f3e7c9', '#b88a4a'], ink: '#3a2414' },
+  };
+  const S = (ink, w = 0.11) => `fill="none" stroke="${ink}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`;
+  const F = (ink) => `fill="${ink}"`;
+  const LIST = [
+    { id: 'gust', el: 'air', label: 'Gust', g: (i) => `<path d="M-0.6,-0.25 H0.25 A0.22,0.22 0 1 0 0.05,-0.55" ${S(i)}/><path d="M-0.65,0.05 H0.45 A0.25,0.25 0 1 1 0.25,0.35" ${S(i)}/><path d="M-0.5,0.35 H-0.05" ${S(i)}/>` },
+    { id: 'cloud', el: 'air', label: 'Cloud', g: (i) => `<path d="M-0.6,0.3 C-0.8,0.3 -0.8,-0.05 -0.55,-0.05 C-0.55,-0.4 -0.1,-0.45 0,-0.2 C0.15,-0.45 0.6,-0.35 0.5,0 C0.8,0 0.8,0.3 0.55,0.3 Z" ${F(i)}/>` },
+    { id: 'kite', el: 'air', label: 'Kite', g: (i) => `<path d="M0,-0.65 L0.4,-0.1 L0,0.35 L-0.4,-0.1 Z M0,-0.65 V0.35 M-0.4,-0.1 H0.4" ${S(i, 0.08)}/><path d="M0,0.35 C-0.15,0.5 0.15,0.55 0,0.7" ${S(i, 0.07)}/>` },
+    { id: 'wave', el: 'water', label: 'Wave', g: (i) => `<path d="M-0.7,0.1 C-0.45,-0.15 -0.25,-0.15 -0.05,0.1 C0.15,0.35 0.4,0.35 0.7,0.1" ${S(i)}/><path d="M-0.7,0.42 C-0.45,0.17 -0.25,0.17 -0.05,0.42 C0.15,0.67 0.4,0.67 0.7,0.42" ${S(i)}/><path d="M-0.35,-0.25 C-0.35,-0.6 0.15,-0.7 0.25,-0.4 C0.05,-0.5 -0.15,-0.4 -0.1,-0.2" ${S(i, 0.09)}/>` },
+    { id: 'moon', el: 'water', label: 'Moon', g: (i) => `<path d="M0.15,-0.62 A0.62,0.62 0 1 0 0.55,0.38 A0.5,0.5 0 1 1 0.15,-0.62 Z" ${F(i)}/><circle cx="0.5" cy="-0.4" r="0.06" ${F(i)}/><circle cx="0.62" cy="-0.1" r="0.04" ${F(i)}/>` },
+    { id: 'drop', el: 'water', label: 'Droplet', g: (i) => `<path d="M0,-0.68 C0.35,-0.2 0.48,0.05 0.48,0.22 A0.48,0.48 0 0 1 -0.48,0.22 C-0.48,0.05 -0.35,-0.2 0,-0.68 Z" ${S(i, 0.1)}/><path d="M-0.2,0.2 A0.22,0.22 0 0 0 0.05,0.42" ${S(i, 0.08)}/>` },
+    { id: 'peak', el: 'earth', label: 'Peak', g: (i) => `<path d="M-0.75,0.5 L-0.2,-0.4 L0.08,0.05 L0.3,-0.2 L0.75,0.5 Z" ${F(i)}/><path d="M-0.36,-0.14 L-0.2,-0.4 L-0.05,-0.15" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="0.07"/>` },
+    { id: 'crystal', el: 'earth', label: 'Crystal', g: (i) => `<path d="M0,-0.7 L0.22,-0.35 L0.22,0.45 L0,0.65 L-0.22,0.45 L-0.22,-0.35 Z" ${F(i)}/><path d="M-0.32,0.5 L-0.55,0.25 L-0.5,-0.15 L-0.3,0.05 Z M0.32,0.5 L0.55,0.25 L0.5,-0.15 L0.3,0.05 Z" ${F(i)}/>` },
+    { id: 'boulder', el: 'earth', label: 'Boulder', g: (i) => `<path d="M-0.6,0.4 L-0.55,-0.15 L-0.2,-0.5 L0.35,-0.45 L0.62,-0.05 L0.55,0.42 Z" ${S(i, 0.1)}/><path d="M-0.2,-0.5 L-0.05,0 L0.62,-0.05 M-0.05,0 L-0.25,0.4" ${S(i, 0.07)}/>` },
+    { id: 'flame', el: 'fire', label: 'Flame', g: (i) => `<path d="M0,0.68 C-0.45,0.62 -0.55,0.2 -0.35,-0.1 C-0.3,0.1 -0.15,0.15 -0.1,0.05 C-0.2,-0.25 0,-0.5 0.15,-0.7 C0.15,-0.4 0.55,-0.2 0.45,0.25 C0.42,0.5 0.25,0.66 0,0.68 Z" ${F(i)}/><path d="M0,0.55 C-0.18,0.5 -0.2,0.3 -0.08,0.15 C0,0.25 0.12,0.2 0.1,0.05 C0.25,0.2 0.25,0.48 0,0.55 Z" fill="rgba(0,0,0,.22)"/>` },
+    { id: 'sun', el: 'fire', label: 'Sun', g: (i) => `<circle r="0.3" ${F(i)}/>` + Array.from({ length: 8 }, (_, k) => `<path d="M0,-0.45 L0,-0.68" ${S(i, 0.1)} transform="rotate(${k * 45})"/>`).join('') },
+    { id: 'ember', el: 'fire', label: 'Ember', g: (i) => `<path d="M-0.45,0.5 C-0.1,0.3 -0.6,-0.1 -0.2,-0.5 C-0.2,-0.2 0.1,-0.1 0,0.15 C0.3,0 0.2,-0.35 0.45,-0.45 C0.55,0 0.35,0.35 0.45,0.5 Z" ${F(i)}/>` },
+    { id: 'lantern', el: 'spirit', label: 'Lantern', g: (i) => `<path d="M-0.08,-0.68 H0.08 M0,-0.68 V-0.52" ${S(i, 0.08)}/><path d="M-0.25,-0.52 H0.25 C0.5,-0.3 0.5,0.3 0.25,0.5 H-0.25 C-0.5,0.3 -0.5,-0.3 -0.25,-0.52 Z" ${F(i)}/><path d="M0,-0.5 V0.48 M-0.18,-0.48 C-0.3,-0.15 -0.3,0.15 -0.18,0.46 M0.18,-0.48 C0.3,-0.15 0.3,0.15 0.18,0.46" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="0.05"/><path d="M0,0.5 V0.7" ${S(i, 0.07)}/>` },
+    { id: 'spiral', el: 'spirit', label: 'Spiral', g: (i) => `<path d="M0,0 C0.12,0 0.12,-0.18 0,-0.18 C-0.24,-0.18 -0.24,0.18 0,0.2 C0.35,0.22 0.38,-0.36 0,-0.38 C-0.5,-0.4 -0.55,0.42 0,0.45 C0.62,0.48 0.66,-0.6 0.05,-0.62" ${S(i, 0.09)}/>` },
+    { id: 'tea', el: 'lotus', label: 'Teacup', g: (i) => `<path d="M-0.5,-0.05 H0.4 C0.4,0.35 0.2,0.5 -0.05,0.5 C-0.3,0.5 -0.5,0.35 -0.5,-0.05 Z" ${F(i)}/><path d="M0.4,0.05 C0.65,0.05 0.65,0.3 0.35,0.32" ${S(i, 0.08)}/><path d="M-0.65,0.6 H0.55" ${S(i, 0.08)}/><path d="M-0.2,-0.2 C-0.3,-0.35 -0.1,-0.45 -0.2,-0.6 M0.1,-0.2 C0,-0.35 0.2,-0.45 0.1,-0.6" ${S(i, 0.06)}/>` },
+    { id: 'whitelotus', el: 'lotus', label: 'White Lotus', g: (i) => Array.from({ length: 8 }, (_, k) => `<ellipse cx="0" cy="-0.42" rx="0.15" ry="0.26" ${F(i)} transform="rotate(${k * 45 + 22.5})"/>`).join('') + `<circle r="0.18" ${F(i)}/><circle r="0.08" fill="rgba(0,0,0,.25)"/>` },
+  ];
+  const byId = Object.fromEntries(LIST.map((a) => [a.id, a]));
+  let n = 0;
+  function svg(id, size = 44, extra = '') {
+    const a = byId[id]; if (!a) return '';
+    const e = EL[a.el], gid = 'avg' + ++n;
+    return `<svg viewBox="-1 -1 2 2" width="${size}" height="${size}" ${extra} style="flex:none;border-radius:50%;display:block"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${e.c[0]}"/><stop offset="1" stop-color="${e.c[1]}"/></linearGradient></defs><circle r="1" fill="url(#${gid})"/><circle r="0.9" fill="none" stroke="${e.ink}" stroke-opacity=".35" stroke-width="0.04"/><g transform="scale(0.9)">${a.g(e.ink)}</g></svg>`;
+  }
+  const random = () => LIST[Math.floor(Math.random() * LIST.length)].id;
+  const elementOf = (id) => (byId[id] ? EL[byId[id].el] : null);
+  const label = (id) => (byId[id] ? byId[id].label : '');
+  function picker(selected) {
+    const groups = Object.keys(EL);
+    return `<div class="av-pick">${groups.map((g) => `<div class="av-row"><span class="av-el" style="color:${EL[g].c[0]}">${EL[g].name}</span>${LIST.filter((a) => a.el === g).map((a) => `<button type="button" class="av-opt ${a.id === selected ? 'on' : ''}" data-av="${a.id}" aria-label="${a.label}">${svg(a.id, 46)}</button>`).join('')}</div>`).join('')}</div>`;
+  }
+  // profile card (stats optional)
+  function card(p, esc, opts = {}) {
+    const id = byId[p.avatar] ? p.avatar : 'whitelotus';
+    const e = EL[byId[id].el];
+    const st = p.stats || {};
+    const pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
+    return `<div class="pcard" style="--c1:${e.c[0]};--c2:${e.c[1]};--ink:${e.ink}">
+      <div class="pc-top">${svg(id, opts.big ? 84 : 64)}<div class="pc-id"><div class="pc-name">${esc(p.name)}</div><div class="pc-sub">${e.name} · ${byId[id].label}${opts.code ? ` · <span class="pc-code">${esc(opts.code)}</span>` : ''}</div></div></div>
+      ${opts.noStats ? '' : `<div class="pc-stats"><div><b>${st.wins || 0}</b><span>Wins</span></div><div><b>${st.losses || 0}</b><span>Losses</span></div><div><b>${pct}</b><span>Win %</span></div><div><b>${st.rings || 0}</b><span>Rings</span></div><div><b>${st.best || 0}</b><span>Best streak</span></div></div>`}
+    </div>`;
+  }
+  return { LIST, EL, svg, random, picker, card, elementOf, label, has: (id) => !!byId[id] };
+})();
+
 // ---- p2p.js ----
 /* Direct phone-to-phone games (PeerJS / WebRTC) for the GitHub Pages version.
    The host's game code is its peer address; the full game doc is mirrored on both phones. */
@@ -1088,17 +1172,18 @@ const Social = (() => {
     if (!map[pid]) { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; map[pid] = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => A[b % A.length]).join(''); LS('friendcodes', map); }
     return map[pid];
   }
-  const hello = () => ({ t: 'hi', code: me.code, name: me.name });
+  const hello = () => ({ t: 'hi', code: me.code, name: me.name, avatar: me.avatar });
+  const cleanAv = (a) => (typeof a === 'string' && /^[a-z]{2,16}$/.test(a) ? a : null);
   function handle(c, m) {
     if (!m || typeof m !== 'object' || typeof m.code !== 'string' || !/^[A-Z0-9]{6}$/.test(m.code)) return;
-    const name = String(m.name || 'Player').slice(0, 18);
+    const name = String(m.name || 'Player').slice(0, 18); const avatar = cleanAv(m.avatar);
     links.set(m.code, c);
     const list = friends(); const f = list.find((x) => x.code === m.code);
     if (m.t === 'hi' || m.t === 'add') {
-      if (f) { online.add(m.code); if (f.name !== name) { f.name = name; saveFriends(list); } emit('change'); if (m.t === 'add') c.send({ t: 'accepted', code: me.code, name: me.name }); }
-      else if (m.t === 'add') { const r = requests().filter((x) => x.code !== m.code); r.push({ code: m.code, name, t: Date.now() }); saveReq(r); emit('request', { code: m.code, name }); }
+      if (f) { online.add(m.code); if (f.name !== name || f.avatar !== avatar) { f.name = name; f.avatar = avatar; saveFriends(list); } emit('change'); if (m.t === 'add') c.send({ t: 'accepted', code: me.code, name: me.name, avatar: me.avatar }); }
+      else if (m.t === 'add') { const r = requests().filter((x) => x.code !== m.code); r.push({ code: m.code, name, avatar, t: Date.now() }); saveReq(r); emit('request', { code: m.code, name }); }
     } else if (m.t === 'accepted') {
-      if (f) { online.add(m.code); f.pending = false; f.name = name; saveFriends(list); emit('accepted', { code: m.code, name }); }
+      if (f) { online.add(m.code); f.pending = false; f.name = name; f.avatar = avatar; saveFriends(list); emit('accepted', { code: m.code, name }); }
     } else if (m.t === 'invite' && f && typeof m.game === 'string' && /^[A-Z]{4}$/.test(m.game)) {
       emit('invite', { code: m.code, name: f.name, game: m.game });
     } else if (m.t === 'bye') { online.delete(m.code); emit('change'); }
@@ -1114,7 +1199,7 @@ const Social = (() => {
     const pid = profile.pid;
     if (me && me.pid === pid && peer && !peer.destroyed) return true;
     stop();
-    me = { pid, name: profile.name, code: codeFor(pid) };
+    me = { pid, name: profile.name, avatar: profile.avatar || null, code: codeFor(pid) };
     peer = new window.Peer(PREFIX + me.code, { debug: 0 });
     peer.on('connection', wire);
     peer.on('open', () => { emit('status', 'online'); ping(); });
@@ -1136,7 +1221,7 @@ const Social = (() => {
     wire(c);
     if (first) c.on('open', () => c.send(first));
   }
-  function ping() { friends().forEach((f) => connect(f.code, f.pending ? { t: 'add', code: me.code, name: me.name } : null)); }
+  function ping() { friends().forEach((f) => connect(f.code, f.pending ? { t: 'add', code: me.code, name: me.name, avatar: me.avatar } : null)); }
   function add(code) {
     code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
@@ -1144,15 +1229,15 @@ const Social = (() => {
     if (code === me.code) return 'That’s your own code';
     const list = friends(); if (list.some((f) => f.code === code)) return 'Already on your list';
     list.push({ code, name: 'Player ' + code, pending: true, added: Date.now() }); saveFriends(list);
-    connect(code, { t: 'add', code: me.code, name: me.name });
+    connect(code, { t: 'add', code: me.code, name: me.name, avatar: me.avatar });
     return null;
   }
   function accept(code) {
     const r = requests(); const q = r.find((x) => x.code === code); if (!q) return;
     saveReq(r.filter((x) => x.code !== code));
-    const list = friends(); if (!list.some((f) => f.code === code)) list.push({ code, name: q.name, added: Date.now() });
+    const list = friends(); if (!list.some((f) => f.code === code)) list.push({ code, name: q.name, avatar: q.avatar, added: Date.now() });
     saveFriends(list); online.add(code);
-    connect(code, { t: 'accepted', code: me.code, name: me.name });
+    connect(code, { t: 'accepted', code: me.code, name: me.name, avatar: me.avatar });
   }
   const decline = (code) => saveReq(requests().filter((x) => x.code !== code));
   const remove = (code) => { saveFriends(friends().filter((f) => f.code !== code)); const c = links.get(code); if (c) try { c.close(); } catch (e) {} };
@@ -1398,12 +1483,17 @@ const Guide = (() => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const initials = (n) => (n || '?').trim().slice(0, 1).toUpperCase();
   const hueOf = (s) => { let h = 0; for (const ch of s || '') h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
-  const av = (name, cls = '') => `<span class="avatar ${cls}" style="background:hsl(${hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
+  const hues = {}, avs = {}; // display name -> avatar colour / avatar id
+  const noteHue = (p) => { if (p && p.name) { if (p.hue != null) hues[p.name] = p.hue; if (p.avatar && Avatars.has(p.avatar)) avs[p.name] = p.avatar; } return p; };
+  const av = (name, cls = '') => avs[name] ? `<span class="avatar av-img ${cls}">${Avatars.svg(avs[name], '100%')}</span>` : `<span class="avatar ${cls}" style="background:hsl(${hues[name] != null ? hues[name] : hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
+  const myAvatar = () => (me && me.avatar) || Store.LS.get('guestAvatar', null);
+  function bindPicker(root, onPick) { root.addEventListener('click', (e) => { const b = e.target.closest('[data-av]'); if (!b) return; root.querySelectorAll('.av-opt').forEach((x) => x.classList.toggle('on', x === b)); onPick(b.dataset.av); }); }
+  const HUES = [8, 28, 45, 95, 150, 190, 215, 265, 300, 335];
   const buzz = (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
   let me = null;
   let G = null;
-  const setup = { mode: 'ai', level: 'medium', first: 'me', fx: [[], []], fxTab: 0, minH: 4, timer: 0, chance: false, enigma: false, p2: { name: 'Player 2', pid: null } };
+  const setup = { mode: 'ai', level: 'medium', first: 'me', fx: [[], []], fxTab: 0, minH: 4, timer: 0, chance: false, enigma: false, hints: true, p2: { name: 'Player 2', pid: null } };
   Object.assign(setup, Store.LS.get('setup', {}), { mode: 'ai', fxTab: 0, p2: { name: 'Player 2', pid: null } });
 
   // ---------- small UI helpers ----------
@@ -1415,7 +1505,7 @@ const Guide = (() => {
   function sheet(html, opts = {}) {
     closeSheet();
     const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.id = 'sheet';
-    bg.innerHTML = `<div class="sheet" style="${opts.tall ? 'height:88dvh' : ''}"><div class="grab"></div>${html}</div>`;
+    bg.innerHTML = `<div class="sheet" style="${opts.tall ? 'height:88dvh' : ''}"><div class="sheet-head"><div class="grab"></div><button class="sheet-x" data-act="closeSheet" aria-label="Close">✕</button></div>${html}</div>`;
     bg.addEventListener('click', (e) => { if (e.target === bg && !opts.modal) closeSheet(); });
     document.body.appendChild(bg);
     return bg;
@@ -1424,7 +1514,7 @@ const Guide = (() => {
   function choose(title, options, sub = '') {
     return new Promise((res) => {
       sheet(`<h3>${esc(title)}</h3>${sub ? `<p class="muted">${sub}</p>` : ''}<div class="menu">${options.map((o, k) => `<button class="btn ${o.cls || ''}" data-act="choose" data-k="${k}">${o.label}</button>`).join('')}<button class="btn ghost" data-act="choose" data-k="-1">Cancel</button></div>`);
-      sheetResolve = (k) => res(k == null || k < 0 ? null : options[k].value);
+      sheetResolve = (k) => res(k == null || k < 0 || !options[k] ? null : options[k].value);
     });
   }
   function confirmBox(title, msg, okLabel = 'OK', danger = false) {
@@ -1436,7 +1526,7 @@ const Guide = (() => {
 
   // ---------- profiles ----------
   const emptyStats = () => ({ games: 0, wins: 0, losses: 0, draws: 0, ai: { easy: [0, 0, 0], medium: [0, 0, 0], hard: [0, 0, 0] }, local: [0, 0, 0], online: [0, 0, 0], streak: 0, best: 0, rings: 0, recent: [] });
-  async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
+  async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).map(noteHue).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
   function myPid() { if (me) return me.id; let g = Store.LS.get('guestId'); if (!g) { g = 'g-' + Auth.rid(6); Store.LS.set('guestId', g); } return g; }
   const myName = () => (me ? me.name : Store.LS.get('guestName', 'Guest'));
 
@@ -1520,12 +1610,15 @@ const Guide = (() => {
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="login">‹</button><h2>New player</h2><span style="width:42px"></span></div>
       <form class="screen" id="npf">
         <div class="field"><label>Player name</label><input class="input" id="np-name" maxlength="18" autocomplete="nickname" required></div>
+        <div class="field"><label>Avatar</label><div id="np-av"></div></div>
         <div class="field"><label>PIN (4–6 digits)</label><input class="input" id="np-pin" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" type="password" required></div>
         <div class="field"><label>Confirm PIN</label><input class="input" id="np-pin2" inputmode="numeric" maxlength="6" type="password" required></div>
         <div class="toggle"><div><b>Use biometrics</b><div class="tiny muted">${bio ? 'Face / fingerprint unlock on this device' : 'Not available in this browser — PIN only'}</div></div><span class="sw ${bio ? 'on' : ''}" id="np-bio" data-act="sw" ${bio ? '' : 'style="opacity:.4"'}></span></div>
         <div class="toggle"><div><b>Keep me signed in</b><div class="tiny muted">On this device</div></div><span class="sw on" id="np-keep" data-act="sw"></span></div>
         <div class="tiny muted">Your PIN keeps casual players out of your stats. It isn't bank-grade security — don't reuse an important PIN.</div>
         <button class="btn primary" type="submit">Create player</button></form>`;
+    let pickedAv = Avatars.random();
+    const npav = document.getElementById('np-av'); npav.innerHTML = Avatars.picker(pickedAv); bindPicker(npav, (id) => (pickedAv = id));
     document.getElementById('npf').addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('np-name').value.trim();
@@ -1537,7 +1630,7 @@ const Guide = (() => {
       if (list.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
       const id = 'p-' + Auth.rid(8).replace(/[^A-Za-z0-9]/g, 'x');
       const salt = Auth.rid(10);
-      const p = { id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null };
+      const p = { id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null, avatar: pickedAv };
       if (bio && document.getElementById('np-bio').classList.contains('on')) {
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
@@ -1549,12 +1642,14 @@ const Guide = (() => {
   };
 
   screens.home = () => {
+    noteHue(me);
     startSocial();
     const nm = myName();
     const st = (me && me.stats) || null;
     app.innerHTML = `<div class="screen">
       <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span><button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
-      <div class="title" style="padding-top:4px">${logoSvg(110)}<h1>Pai Sho</h1><div class="sub">${st ? `${st.wins}W · ${st.losses}L · ${st.draws}D` : 'Guest mode'}</div></div>
+      <div class="title" style="padding:0">${logoSvg(84)}<h1 style="font-size:28px">Pai Sho</h1></div>
+      ${me ? `<button style="text-align:left;padding:0" data-act="profileSheet">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc)}</button>` : `<div class="sub muted" style="text-align:center;letter-spacing:.2em;text-transform:uppercase;font-size:13px">Guest mode</div>`}
       <div class="menu">
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
@@ -1604,6 +1699,7 @@ const Guide = (() => {
     return `<div class="card"><b class="disp" style="color:var(--gold2)">Variations</b>
       <div class="field" style="margin-top:10px"><label>Harmonies needed in the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>
       <div class="field" style="margin-top:10px"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
+      <div class="toggle"><div><b>Hints &amp; tips</b><div class="tiny muted">Show which moves make harmonies, warnings and tips</div></div><span class="sw ${S.hints !== false ? 'on' : ''}" data-act="swSet" data-k="hints"></span></div>
       <div class="toggle"><div><b>Game of chance</b><div class="tiny muted">Key flowers are drawn at random when planting</div></div><span class="sw ${S.chance ? 'on' : ''}" data-act="swSet" data-k="chance"></span></div>
       <div class="toggle"><div><b>Effect tile enigma</b><div class="tiny muted">Hide your opponent’s effect tiles until played</div></div><span class="sw ${S.enigma ? 'on' : ''}" data-act="swSet" data-k="enigma"></span></div></div>`;
   }
@@ -1647,7 +1743,7 @@ const Guide = (() => {
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
-      host: { pid: myPid(), name: myName(), fx: S.fx[0].slice() }, guest: null };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null };
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
     waitOnline(code);
@@ -1676,7 +1772,7 @@ const Guide = (() => {
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
-    const guest = { pid, name: myName(), fx: setup.fx[0].slice() };
+    const guest = { pid, name: myName(), avatar: myAvatar(), fx: setup.fx[0].slice() };
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance });
     const nd = Object.assign({}, d, { guest, status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
@@ -1692,14 +1788,16 @@ const Guide = (() => {
   }
   function startSocial() {
     if (typeof Social === 'undefined' || Store.kind === 'artifact') return;
-    const go2 = () => Social.start({ pid: myPid(), name: myName() });
+    const go2 = () => Social.start({ pid: myPid(), name: myName(), avatar: myAvatar() });
     if (Social.ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Social.ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
   }
   screens.friends = () => {
     if (!Social.active) startSocial();
     const fr = Social.friends(), rq = Social.requests();
+    fr.concat(rq).forEach(noteHue);
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
     <div class="screen" id="friends-screen">
+      ${Avatars.card({ name: myName(), avatar: myAvatar() || 'whitelotus', stats: me && me.stats }, esc, { noStats: !me })}
       <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Social.code || '……')}</div>
         <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Social.code || '')}">Copy code</button></div>
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
@@ -1718,7 +1816,7 @@ const Guide = (() => {
     const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`;
     const pct = (s) => (s.games ? Math.round((100 * s.wins) / s.games) + '%' : '—');
     const body = document.getElementById('statbody'); if (!body) return;
-    body.innerHTML = (st ? `<div class="row">${av(me.name)}<h3 class="disp" style="color:var(--gold2)">${esc(me.name)}</h3></div>
+    body.innerHTML = (st ? `${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, noStats: true })}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -1734,10 +1832,10 @@ const Guide = (() => {
   // ======================================================================
   function startLocal(mode) {
     const S = setup;
-    Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma });
+    Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma, hints: S.hints });
     let meFirst = S.first === 'me' || (S.first === 'rand' && Math.random() < 0.5);
-    const human = { name: myName(), pid: me ? me.id : null, kind: 'human' };
-    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, kind: 'human' };
+    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
+    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, kind: 'human' };
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].slice(), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].slice();
     const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance });
@@ -1748,7 +1846,7 @@ const Guide = (() => {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
     const pid = myPid();
     const my = d.guest && d.guest.pid === pid ? 0 : 1;
-    const seats = [{ name: d.guest.name, pid: d.guest.pid, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, kind: my === 1 ? 'human' : 'remote' }];
+    const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
     G.unwatch = Store.watch('games', G.code, (nd) => {
@@ -1861,7 +1959,16 @@ const Guide = (() => {
     if (sel && sel.kind === 'tile') {
       const el = sel.tileId && tileEls.get(sel.tileId); if (el) el.classList.add('lift');
       const seenTo = new Set();
-      sel.moves.forEach((m) => { if (seenTo.has(m.to)) return; seenTo.add(m.to); o += G.s.board[m.to] ? ringAt(Board.cx(m.to), Board.cy(m.to)) : dotAt(Board.cx(m.to), Board.cy(m.to)); });
+      const hv = hintsOn() ? destValues(sel.moves) : null;
+      sel.moves.forEach((m) => {
+        if (seenTo.has(m.to)) return; seenTo.add(m.to);
+        const x = Board.cx(m.to), y = Board.cy(m.to), v = hv && hv.get(m.to);
+        if (v && v.ring) o += `<circle cx="${x}" cy="${y}" r="0.46" fill="#fff6d0" opacity=".9"/><text x="${x}" y="${y + 0.2}" text-anchor="middle" font-size="0.6" fill="#7a4a10" font-weight="900">★</text>`;
+        else if (v && v.gain > 0) o += `<circle cx="${x}" cy="${y}" r="0.3" fill="#7cc48a" stroke="#1e3b22" stroke-width="0.04"/><text x="${x}" y="${y + 0.12}" text-anchor="middle" font-size="0.34" fill="#0f2412" font-weight="900">+${v.gain}</text>`;
+        else if (v && v.gain < 0) o += `<circle cx="${x}" cy="${y}" r="0.17" fill="#e08a6a" opacity=".9"/>`;
+        else o += G.s.board[m.to] ? ringAt(x, y) : dotAt(x, y);
+        if (v && v.breaks > 0) o += `<circle cx="${x}" cy="${y}" r="0.44" fill="none" stroke="#6fc6e8" stroke-width="0.07" stroke-dasharray="0.12 0.08"/>`;
+      });
     } else if (sel && sel.kind === 'plant') {
       sel.moves.forEach((m) => { if (m.gate === 'center') o += `<rect class="dest-cap" x="-1" y="-1" width="2" height="2" rx="0.2"/>`; else { const [x, y] = Board.GATE_POS[m.gate]; o += `<rect class="dest-cap" x="${x - 1}" y="${y - 1}" width="2" height="2" rx="0.2"/>` + dotAt(x, y); } });
     } else if (sel && sel.kind === 'place') {
@@ -1893,7 +2000,7 @@ const Guide = (() => {
   function renderSeats() {
     const H = P.harmonies(G.s);
     const el = document.getElementById('seats'); if (!el) return;
-    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"><svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile(k === 0 ? 'lotus' : 'lotus', k)}</svg>
+    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}">${G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
       <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span></div>
       <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
   }
@@ -1918,9 +2025,64 @@ const Guide = (() => {
     const el = document.getElementById('status'); if (!el) return;
     el.innerHTML = statusText() + (G.timerEnd && isHumanTurn() ? `<span class="timer" id="tmr">${Math.max(0, Math.ceil((G.timerEnd - Date.now()) / 1000))}s</span>` : '');
   }
+
+  const hintsOn = () => setup.hints !== false;
+  const harmCount = (s, p, H) => (H || P.harmonies(s)).filter((h) => h.owners.includes(p)).length;
+  // for each destination: harmony gain for mover, opponent harmonies broken, ring completion
+  function destValues(moves) {
+    const s = G.s, p = s.turn, H0 = P.harmonies(s), base = harmCount(s, p, H0), oppBase = harmCount(s, 1 - p, H0);
+    const out = new Map();
+    for (const m of moves) {
+      if (out.has(m.to)) continue;
+      try {
+        const s2 = P.apply(s, m), H = P.harmonies(s2);
+        out.set(m.to, { gain: harmCount(s2, p, H) - base, breaks: oppBase - harmCount(s2, 1 - p, H), ring: !!P.findRing(s2, p, H) });
+      } catch (e) {}
+    }
+    return out;
+  }
+  // turn-start analysis: can I win now? can the opponent win next turn?
+  function analyse() {
+    if (!G || !isHumanTurn() || !hintsOn()) { if (G) G.ana = null; return; }
+    const g = G, s = g.s, p = s.turn;
+    setTimeout(() => {
+      if (G !== g || g.s !== s) return;
+      const mains = P.legalActions(s, { noPlace: true, noAbility: true }).filter((a) => a.t === 'move' || a.t === 'plant');
+      let win = false;
+      for (const a of mains) { try { if (P.findRing(P.apply(s, a), p)) { win = true; break; } } catch (e) {} }
+      let danger = false;
+      if (!win) {
+        const t = P.clone(s); t.turn = 1 - p; t.tp = { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false };
+        for (const a of P.legalActions(t, { noPlace: true, noAbility: true })) { if (a.t !== 'move') continue; try { if (P.findRing(P.apply(t, a), 1 - p)) { danger = true; break; } } catch (e) {} }
+      }
+      g.ana = { win, danger };
+      if (G === g && !g.sel) renderInfo(null);
+    }, 30);
+  }
+  const TIPS = [
+    'Harmonies need at least one empty square between the two flowers.',
+    'Two flowers of the same kind never harmonize — mix your Roses, Lilies and the rest.',
+    'An opponent’s flower landing between two of yours breaks that harmony.',
+    'A ring has to go all the way around the centre point — spread your flowers into all four quarters.',
+    'Harmonies that cross the middle lines are worth the most: they’re what closes a ring.',
+    'Dark (orange) flowers can’t stop on cream squares; light (white) flowers can’t stop on red ones. Neutral wood is fine for both.',
+    'You can only have 2 flowers planted in gates at once — move one into the garden to plant again.',
+    'Chrysanthemum and Jasmine harmonize in straight lines up to 5 squares; Rhododendron and Jade on diagonals up to 5; Rose and Lily any direction up to 3.',
+    'Accent tiles don’t block harmonies, but they do block flowers from moving past them.',
+    'Planted flowers in gates don’t harmonize yet — get them blooming in the garden.',
+  ];
   function renderInfo(type, owner) {
     const el = document.getElementById('info'); if (!el) return;
-    if (!type) { el.innerHTML = `<span>Tap any tile for its rules. Gold lines are harmonies.</span>`; return; }
+    if (!type) {
+      if (G && hintsOn() && isHumanTurn()) {
+        const a = G.ana, opp = esc(G.seats[1 - G.s.turn].name);
+        if (G.sel && G.sel.kind === 'tile') { el.innerHTML = `<span>💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring</span>`; return; }
+        if (a && a.win) { el.innerHTML = `<span>⭐ <b>You can close a ring this turn!</b> Tap your flowers and look for the ★.</span>`; return; }
+        if (a && a.danger) { el.innerHTML = `<span>⚠️ <b>${opp} is one move from a ring.</b> Land a flower between two of theirs (look for blue-ringed dots) to break it.</span>`; return; }
+        el.innerHTML = `<span>💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span>`; return;
+      }
+      el.innerHTML = `<span>Tap any tile for its rules. Gold lines are harmonies.</span>`; return;
+    }
     const inf = Guide.INFO[type];
     el.innerHTML = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span><b>${P.tname(type)}</b> · ${inf[0]}. ${inf[1]}</span>`;
   }
@@ -2089,6 +2251,7 @@ const Guide = (() => {
     if (G.s.winner !== null) return gameOver();
     const seat = G.seats[G.s.turn];
     if (seat.kind === 'ai') return runAI();
+    analyse();
     if (seat.kind === 'human' && G.opts.timer) {
       G.timerEnd = Date.now() + G.opts.timer * 1000;
       G.tick = setInterval(() => {
@@ -2160,11 +2323,12 @@ const Guide = (() => {
     newProfile: () => go('newProfile'),
     guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
     sw: (d, e, el) => el.classList.toggle('on'),
-    swSet: (d, e, el) => { setup[d.k] = !setup[d.k]; el.classList.toggle('on', setup[d.k]); },
+    swSet: (d, e, el) => { setup[d.k] = setup[d.k] === undefined && d.k === 'hints' ? false : !setup[d.k]; el.classList.toggle('on', !!setup[d.k]); Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { [d.k]: setup[d.k] })); },
     profileSheet: async () => {
-      if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
+      if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn" data-act="editProfile">Change display name</button><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
       const bio = await Auth.bioAvailable();
-      sheet(`<h3>${esc(me.name)}</h3><div class="menu">
+      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: typeof Social !== 'undefined' && Social.code ? Social.code : '' })}</div><div class="menu">
+        <button class="btn primary" data-act="editProfile">Edit profile</button>
         <button class="btn" data-act="go" data-to="stats">Stats</button>
         ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
         <button class="btn" data-act="changePin">Change PIN</button>
@@ -2172,6 +2336,32 @@ const Guide = (() => {
         <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
     },
     toLogin: () => go('login'),
+    editProfile: () => {
+      const cur = myName();
+      let hue = me && me.hue != null ? me.hue : hueOf(cur);
+      let pickedAv = myAvatar() || 'whitelotus';
+      sheet(`<h3>${me ? 'Edit profile' : 'Display name'}</h3><form id="epf" class="menu">
+        <div class="field"><label>Display name</label><input class="input" id="ep-name" maxlength="18" value="${esc(cur)}"></div>
+        <div class="field"><label>Avatar</label><div id="ep-av">${Avatars.picker(pickedAv)}</div></div>
+        <div class="tiny muted">${me ? 'Your stats, record, PIN and friend code stay the same. Friends see your new name and avatar next time you connect.' : 'Guests don’t keep stats.'}</div>
+        <button class="btn primary" type="submit">Save</button></form>`);
+      bindPicker(document.getElementById('ep-av'), (id) => (pickedAv = id));
+      document.getElementById('epf').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('ep-name').value.trim().replace(/\s+/g, ' ');
+        if (!name) return toast('Enter a name');
+        if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); if (typeof Social !== 'undefined') Social.stop(); return go('home'); }
+        if (name.toLowerCase() !== me.name.toLowerCase()) {
+          const list = await players();
+          if (list.some((p) => p.id !== me.id && p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
+        }
+        const prev = me.name;
+        me.name = name; me.hue = hue; me.avatar = pickedAv; delete hues[prev]; delete avs[prev]; noteHue(me);
+        try { await Store.set('players', me.id, me); } catch (err) { me.name = prev; return toast('Couldn’t save — try again'); }
+        if (typeof Social !== 'undefined') Social.stop();
+        closeSheet(); toast('Profile saved'); go('home');
+      });
+    },
     signOut: () => { if (typeof Social !== 'undefined') Social.stop(); me = null; Store.LS.set('session', null); go('login'); },
     bioToggle: async () => {
       closeSheet();
@@ -2212,7 +2402,7 @@ const Guide = (() => {
         document.getElementById('p2f').addEventListener('submit', (e) => { e.preventDefault(); setup.p2 = { name: document.getElementById('p2n').value.trim() || 'Player 2', pid: null }; closeSheet(); go('setup'); });
       } else {
         const p = await Store.get('players', v);
-        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id }; go('setup'); }, 'setup');
+        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id, avatar: pp.avatar }; go('setup'); }, 'setup');
       }
     },
     beginGame: () => startLocal(setup.mode),
@@ -2235,10 +2425,12 @@ const Guide = (() => {
       if (G.mode === 'ai' && G.seats[G.s.turn].kind === 'ai') { /* nothing earlier to return to */ }
       G.sel = null; renderGame(); afterTurnChange();
     },
+    toggleHints: () => { setup.hints = !hintsOn(); Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { hints: setup.hints })); closeSheet(); toast('Hints ' + (setup.hints ? 'on' : 'off')); if (setup.hints) analyse(); renderGame(); },
     toggleH: () => { G.showH = !G.showH; renderBoard(); renderBar(); },
     endTurn: () => { if (G.s.winner !== null) return showResult(); if (G.busy) return; doAction({ t: 'end' }); },
     gameMenu: () => {
       sheet(`<h3>Menu</h3><div class="menu">
+        <button class="btn" data-act="toggleHints">Hints: ${hintsOn() ? 'On' : 'Off'}</button>
         <button class="btn" data-act="guideInGame">How to play</button>
         <button class="btn" data-act="showLog">Move log</button>
         ${G.s.winner === null ? '<button class="btn danger" data-act="resign">Resign</button>' : ''}
