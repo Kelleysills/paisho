@@ -72,7 +72,7 @@
 
   // ---------- screens ----------
   const screens = {};
-  function go(name, ...args) { if (name === 'loadouts') loTab = null; closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+  function go(name, ...args) { if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
 
   screens.boot = async () => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
@@ -459,6 +459,7 @@
         <button class="btn primary end" data-act="endTurn" id="b-end">End turn</button>
       </footer></div>`;
     tileEls.clear();
+    Music.start();
     const svg = document.getElementById('board');
     svg.addEventListener('click', onBoardClick);
     renderGame();
@@ -1078,11 +1079,14 @@
       if (G.mode === 'ai' && G.seats[G.s.turn].kind === 'ai') { /* nothing earlier to return to */ }
       G.sel = null; renderGame(); afterTurnChange();
     },
+    musicToggle: (d, e, el) => { const on = !Music.enabled(); Music.setEnabled(on); el.classList.toggle('on', on); },
     toggleHints: () => { setup.hints = !hintsOn(); Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { hints: setup.hints })); closeSheet(); toast('Hints ' + (setup.hints ? 'on' : 'off')); if (setup.hints) analyse(); renderGame(); },
     toggleH: () => { G.showH = !G.showH; renderBoard(); renderBar(); },
     endTurn: () => { if (G.s.winner !== null) return showResult(); if (G.busy) return; doAction({ t: 'end' }); },
     gameMenu: () => {
       sheet(`<h3>Menu</h3><div class="menu">
+        <div class="card" style="padding:10px 14px"><div class="toggle" style="padding:4px 0"><div><b>🎵 Background music</b><div class="tiny muted">Original guzheng &amp; flute, made live</div></div><span class="sw ${Music.enabled() ? 'on' : ''}" data-act="musicToggle"></span></div>
+          <input type="range" min="0" max="100" value="${Math.round(Music.volume * 100)}" id="musicVol" style="width:100%;accent-color:#e6b54a" aria-label="Music volume"></div>
         <button class="btn" data-act="toggleHints">Hints: ${hintsOn() ? 'On' : 'Off'}</button>
         <button class="btn" data-act="guideInGame">How to play</button>
         <button class="btn" data-act="showLog">Move log</button>
@@ -1099,7 +1103,7 @@
       if (G.mode === 'online') await pushOnline();
       afterTurnChange();
     },
-    leaveGame: () => { if (G && G.unwatch) G.unwatch(); stopGameTimers(); G = null; go('home'); },
+    leaveGame: () => { Music.stop(); if (G && G.unwatch) G.unwatch(); stopGameTimers(); G = null; go('home'); },
     rematch: () => { closeSheet(); if (G.unwatch) G.unwatch(); startLocal(G.mode); },
     backToGame: () => gameScreen(),
   };
@@ -1109,6 +1113,8 @@
     if (keep === 'y') Store.LS.set('session', p.id);
     go('home');
   }
+  document.addEventListener('input', (e) => { if (e.target && e.target.id === 'musicVol') Music.setVolume(e.target.value / 100); });
+  document.addEventListener('pointerdown', () => { if (G && document.getElementById('board') && Music.enabled() && !Music.playing) Music.start(); }, { passive: true });
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el) return;
     const f = actions[el.dataset.act]; if (f) f(el.dataset, e, el);
