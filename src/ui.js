@@ -1910,6 +1910,8 @@
     if (keep === 'y') Store.LS.set('session', p.id);
     go('home');
   }
+  document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
+  document.addEventListener('selectstart', (e) => { if (!e.target.closest || !e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
   document.addEventListener('input', (e) => { if (e.target && e.target.id === 'musicVol') Music.setVolume(e.target.value / 100); });
   document.addEventListener('pointerdown', () => { if (G && document.getElementById('board') && Music.enabled() && !Music.playing) Music.start(); }, { passive: true });
   document.addEventListener('click', (e) => {

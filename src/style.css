@@ -300,3 +300,6 @@ g.tut-glow{filter:drop-shadow(0 0 .35px #fff) drop-shadow(0 0 .25px #f2cf6e)}
 .ach-th .ac{font-weight:900;color:#ffd77a;font-size:13px}
 .ach-th .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:3px}.ach-th .bar i{display:block;height:100%;background:linear-gradient(90deg,#f2cf6e,#ffb347)}
 .ach-track .tlist{padding:0 8px 8px;max-height:420px;overflow:auto}
+/* no text selection / long-press "search" popups anywhere except text fields */
+html,body,#app,#app *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
