@@ -1,6 +1,7 @@
 /* App UI: screens, game controller, online play, stats */
 (() => {
   const P = PaiSho, AI = PaiShoAI;
+  const Soc = () => (Store.kind === 'firebase' ? FireSocial : Social);
   const app = document.getElementById('app');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,18 +78,22 @@
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
     await Store.init();
     const sess = Store.LS.get('session');
-    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; return go('home'); } }
+    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; rememberProfile(p.id); return go('home'); } }
     go('login');
   };
 
+  const knownIds = () => Store.LS.get('knownProfiles', []);
+  function rememberProfile(id) { const k = knownIds().filter((x) => x !== id); k.unshift(id); Store.LS.set('knownProfiles', k.slice(0, 12)); }
   screens.login = async () => {
-    const list = await players();
-    const where = { artifact: 'Profiles and stats are saved with this app and shared with everyone you invite.', server: 'Profiles and stats are saved on your PC server.', local: 'Profiles and stats are saved on this device only.' }[Store.kind];
+    let list = await players();
+    if (Store.kind === 'firebase') list = list.filter((p) => knownIds().includes(p.id));
+    const where = { firebase: 'Profiles, stats, friends and games are saved online — sign in from any phone with your name and PIN.', artifact: 'Profiles and stats are saved with this app and shared with everyone you invite.', server: 'Profiles and stats are saved on your PC server.', local: 'Profiles and stats are saved on this device only.' }[Store.kind];
     app.innerHTML = `<div class="screen">
       <div class="title">${logoSvg()}<h1>Pai Sho</h1><div class="sub">Key Pai Sho · The Garden Game</div></div>
       <div class="field"><label>Who's playing?</label></div>
       <div class="plist">${list.map((p) => `<button class="prof" data-act="pickProfile" data-id="${esc(p.id)}">${av(p.name)}<div><div class="nm">${esc(p.name)}</div><div class="tiny muted">${(p.stats && p.stats.games) || 0} games · ${(p.stats && p.stats.wins) || 0} wins ${p.cred ? '· 🔒 biometric' : ''}</div></div></button>`).join('') || '<div class="card muted">No players yet. Create one to track your stats.</div>'}</div>
       <button class="btn primary" data-act="newProfile">＋ New player</button>
+      ${Store.kind === 'firebase' ? '<button class="btn" data-act="findProfile">Sign in to an existing player</button>' : ''}
       <button class="btn ghost" data-act="guestPlay">Play as guest (no stats)</button>
       <div class="spacer"></div><div class="tiny muted" style="text-align:center">${where}</div></div>`;
   };
@@ -158,7 +163,7 @@
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
       try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
-      me = p;
+      me = p; rememberProfile(id);
       if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
       go('home');
     });
@@ -177,7 +182,7 @@
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
-        ${typeof Social !== 'undefined' && Social.ready() && Store.kind !== 'artifact' ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
+        ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
@@ -245,7 +250,7 @@
       ${Store.p2p() ? '<div id="opengames" style="display:none"></div>' : '<div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>'}
       <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
       ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
-      <div class="tiny muted">${Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
+      <div class="tiny muted">${Store.kind === 'firebase' ? 'Games are saved online: close the app any time and pick up where you left off. Turn on turn alerts in your profile to get a notification when it’s your move.' : Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
     </div>`;
     const pid = myPid();
     const timer = setTimeout(() => { const el = document.getElementById('opengames'); if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="muted tiny">Can’t reach the game list yet.</div>'; }, 10000);
@@ -266,7 +271,8 @@
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
-      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null, pids: [myPid()] };
+    if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
     waitOnline(code);
@@ -297,7 +303,7 @@
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), fx: setup.fx[0].slice() };
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance });
-    const nd = Object.assign({}, d, { guest, status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
+    const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
     startOnline(Object.assign({ id: code }, nd));
@@ -306,27 +312,33 @@
 
   // ---------- friends ----------
   function friendsLine() {
-    const f = Social.friends(), on = f.filter((x) => Social.isOnline(x.code)).length, rq = Social.requests().length;
+    if (Store.kind === 'firebase' && !me) return 'Sign in to add friends';
+    const f = Soc().friends(), on = f.filter((x) => Soc().isOnline(x.code)).length, rq = Soc().requests().length;
     return rq ? `${rq} friend request${rq > 1 ? 's' : ''}` : f.length ? `${on} of ${f.length} online` : 'Add friends with a code';
   }
   function startSocial() {
-    if (typeof Social === 'undefined' || Store.kind === 'artifact') return;
-    const go2 = () => Social.start({ pid: myPid(), name: myName(), avatar: myAvatar() });
-    if (Social.ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Social.ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
+    if (Store.kind === 'artifact') return;
+    if (Store.kind === 'firebase') { if (me) { if (!FireSocial.active) FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); TurnAlerts.start(me.id); } return; }
+    const go2 = () => Soc().start({ pid: myPid(), name: myName(), avatar: myAvatar() });
+    if (Soc().ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Soc().ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
   }
   screens.friends = () => {
-    if (!Social.active) startSocial();
-    const fr = Social.friends(), rq = Social.requests();
+    if (Store.kind === 'firebase' && !me) {
+      app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to get a friend code and add friends.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`;
+      return;
+    }
+    if (!Soc().active) startSocial();
+    const fr = Soc().friends(), rq = Soc().requests();
     fr.concat(rq).forEach(noteHue);
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
     <div class="screen" id="friends-screen">
       ${Avatars.card({ name: myName(), avatar: myAvatar() || 'whitelotus', stats: me && me.stats }, esc, { noStats: !me })}
-      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Social.code || '……')}</div>
-        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Social.code || '')}">Copy code</button></div>
+      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Soc().code || '……')}</div>
+        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Soc().code || '')}">Copy code</button></div>
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
       <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
       ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
-      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Social.isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
     </div>`;
   };
 
@@ -842,7 +854,7 @@
     choose: (d) => closeSheet(+d.k),
     closeSheet: () => closeSheet(),
     toc: (d, e) => { e.preventDefault(); const el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { if (typeof Social !== 'undefined') Social.stop(); me = pp; askKeep(pp); }); },
+    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = pp; rememberProfile(pp.id); askKeep(pp); }); },
     newProfile: () => go('newProfile'),
     guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
     sw: (d, e, el) => el.classList.toggle('on'),
@@ -850,8 +862,9 @@
     profileSheet: async () => {
       if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn" data-act="editProfile">Change display name</button><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
       const bio = await Auth.bioAvailable();
-      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: typeof Social !== 'undefined' && Social.code ? Social.code : '' })}</div><div class="menu">
+      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
         <button class="btn primary" data-act="editProfile">Edit profile</button>
+        ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on (send a test)' : '🔔 Turn on turn alerts'}</button>` : ''}
         <button class="btn" data-act="go" data-to="stats">Stats</button>
         ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
         <button class="btn" data-act="changePin">Change PIN</button>
@@ -859,6 +872,23 @@
         <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
     },
     toLogin: () => go('login'),
+    findProfile: () => {
+      sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
+      document.getElementById('fpf').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const n = document.getElementById('fp-name').value.trim().toLowerCase(); if (!n) return;
+        const p = (await players()).find((x) => x.name.toLowerCase() === n);
+        if (!p) return toast('No player with that name');
+        closeSheet();
+        loginFlow(p, (pp) => { me = pp; rememberProfile(pp.id); askKeep(pp); });
+      });
+    },
+    alertsToggle: async () => {
+      closeSheet();
+      const r = await TurnAlerts.enable();
+      toast(r === 'granted' ? 'Turn alerts on' : r === 'unsupported' ? 'This browser can’t show notifications — install the app to your home screen first' : 'Notifications are blocked — allow them in your browser settings');
+      if (r === 'granted') TurnAlerts.notify('Pai Sho', 'Turn alerts are on. You’ll get one when it’s your move.', 'test');
+    },
     editProfile: () => {
       const cur = myName();
       let hue = me && me.hue != null ? me.hue : hueOf(cur);
@@ -873,7 +903,7 @@
         e.preventDefault();
         const name = document.getElementById('ep-name').value.trim().replace(/\s+/g, ' ');
         if (!name) return toast('Enter a name');
-        if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); if (typeof Social !== 'undefined') Social.stop(); return go('home'); }
+        if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); Soc().stop(); return go('home'); }
         if (name.toLowerCase() !== me.name.toLowerCase()) {
           const list = await players();
           if (list.some((p) => p.id !== me.id && p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
@@ -881,11 +911,11 @@
         const prev = me.name;
         me.name = name; me.hue = hue; me.avatar = pickedAv; delete hues[prev]; delete avs[prev]; noteHue(me);
         try { await Store.set('players', me.id, me); } catch (err) { me.name = prev; return toast('Couldn’t save — try again'); }
-        if (typeof Social !== 'undefined') Social.stop();
+        Soc().stop(); FireSocial.stop();
         closeSheet(); toast('Profile saved'); go('home');
       });
     },
-    signOut: () => { if (typeof Social !== 'undefined') Social.stop(); me = null; Store.LS.set('session', null); go('login'); },
+    signOut: () => { Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = null; Store.LS.set('session', null); go('login'); },
     bioToggle: async () => {
       closeSheet();
       if (me.cred) me.cred = null;
@@ -936,11 +966,11 @@
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
-    addFriend: () => { const err = Social.add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
-    acceptFriend: (d) => { Social.accept(d.code); screens.friends(); },
-    declineFriend: (d) => { Social.decline(d.code); screens.friends(); },
-    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { Social.remove(d.code); screens.friends(); } },
-    inviteFriend: async (d) => { const code = await createOnline(); if (code) { Social.invite(d.code, code); toast('Invite sent'); } },
+    addFriend: async () => { const err = await Soc().add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
+    acceptFriend: async (d) => { await Soc().accept(d.code); screens.friends(); },
+    declineFriend: async (d) => { await Soc().decline(d.code); screens.friends(); },
+    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { await Soc().remove(d.code); screens.friends(); } },
+    inviteFriend: async (d) => { const code = await createOnline(); if (code) { await Soc().invite(d.code, code); toast('Invite sent'); } },
     undo: () => {
       if (!canUndo()) return;
       G.s = G.history.pop();
@@ -985,7 +1015,7 @@
   });
   window.addEventListener('beforeunload', () => {});
   if (typeof P2P !== 'undefined') P2P.onStatus((st) => { if (G && G.mode === 'online') { if (st === 'disconnected') toast('Opponent disconnected — waiting for them to come back'); if (st === 'connected') toast('Opponent connected'); } if (st === 'code-taken') toast('That code is busy — create a new game'); });
-  if (typeof Social !== 'undefined') Social.on(async (ev, d) => {
+  const socialHandler = async (ev, d) => {
     if (ev === 'change' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
     if (ev === 'request') toast(d.name + ' wants to be friends — see Friends', 3500);
     if (ev === 'accepted') toast(d.name + ' accepted your friend request');
@@ -995,6 +1025,13 @@
       const ok = await choose(d.name + ' invited you to play', [{ label: 'Join game ' + d.game, value: true, cls: 'primary' }]);
       if (ok) joinGame(d.game);
     }
+    if (ev === 'presence' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
+  };
+  Social.on(socialHandler); FireSocial.on(socialHandler);
+  TurnAlerts.on((ev, d) => {
+    if (ev !== 'turn') return;
+    if (G && G.mode === 'online' && G.code === d.code) return;
+    toast('Your turn vs ' + d.opp + ' (game ' + d.code + ') — open it from Play online', 4000);
   });
   window.__paisho = { get G() { return G; }, doAction, P };
   go('boot');

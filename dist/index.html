@@ -10,6 +10,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Nunito+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>:root{
@@ -1246,6 +1249,175 @@ const Social = (() => {
   return { ready, start, stop, add, accept, decline, remove, invite, friends, requests, on, isOnline: (c) => online.has(c), get code() { return me && me.code; }, get active() { return !!me; } };
 })();
 
+// ---- firebase.js ----
+/* Firebase backend (GitHub Pages version): online games, profiles, stats, friends, turn alerts */
+const FB = (() => {
+  const CONFIG = {
+    apiKey: 'AIzaSyCt4dFBAXTWafJ8ZDum8C-xj4QRw5r1Ngs',
+    authDomain: 'paisho-4773a.firebaseapp.com',
+    projectId: 'paisho-4773a',
+    storageBucket: 'paisho-4773a.firebasestorage.app',
+    messagingSenderId: '839606764596',
+    appId: '1:839606764596:web:6ae32ecaf5f57507113661',
+  };
+  let fs = null, uid = null;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function init() {
+    for (let i = 0; i < 40 && !(window.firebase && firebase.firestore && firebase.auth); i++) await wait(150);
+    if (!(window.firebase && firebase.firestore && firebase.auth)) return false;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(CONFIG);
+      const cred = await Promise.race([firebase.auth().signInAnonymously(), wait(8000).then(() => null)]);
+      if (!cred) return false;
+      uid = cred.user.uid;
+      fs = firebase.firestore();
+      try { fs.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e) {}
+      return true;
+    } catch (e) { console.warn('Firebase unavailable', e); return false; }
+  }
+  const col = (c) => fs.collection(c);
+  const now = () => Date.now();
+  return { init, col, get fs() { return fs; }, get uid() { return uid; }, now };
+})();
+
+/* Friends over Firestore: friend codes, requests, presence, invites */
+const FireSocial = (() => {
+  let me = null, unsubs = [], beat = null, friendDocs = [], reqDocs = [];
+  const listeners = new Set();
+  const emit = (ev, d) => listeners.forEach((f) => { try { f(ev, d); } catch (e) {} });
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => A[b % A.length]).join('');
+  const ONLINE_MS = 150000;
+  function ready() { return Store.kind === 'firebase'; }
+  async function start(profile) {
+    if (!ready() || !profile || !profile.pid || profile.pid.startsWith('g-')) return false;
+    if (me && me.pid === profile.pid) { me.name = profile.name; me.avatar = profile.avatar; return true; }
+    stop();
+    const ref = FB.col('players').doc(profile.pid);
+    const snap = await ref.get(); const d = snap.exists ? snap.data() : {};
+    let fcode = d.fcode;
+    if (!fcode) { fcode = newCode(); await ref.set({ fcode }, { merge: true }); }
+    me = { pid: profile.pid, name: profile.name, avatar: profile.avatar, fcode, friends: d.friends || [] };
+    const heartbeat = () => ref.set({ seen: FB.now() }, { merge: true }).catch(() => {});
+    heartbeat(); beat = setInterval(heartbeat, 60000);
+    unsubs.push(ref.onSnapshot((s) => { const x = s.data() || {}; me.friends = x.friends || []; watchFriends(); }));
+    unsubs.push(FB.col('requests').where('to', '==', me.pid).onSnapshot((qs) => {
+      const prev = new Set(reqDocs.map((r) => r.id));
+      reqDocs = qs.docs.map((x) => Object.assign({ id: x.id }, x.data()));
+      reqDocs.forEach((r) => { if (!prev.has(r.id) && Date.now() - (r.t || 0) < 120000) emit('request', { code: r.fromCode, name: r.fromName }); });
+      emit('change');
+    }, () => {}));
+    unsubs.push(FB.col('invites').where('to', '==', me.pid).onSnapshot((qs) => {
+      qs.docChanges().forEach((ch) => {
+        if (ch.type !== 'added') return;
+        const v = ch.doc.data();
+        ch.doc.ref.delete().catch(() => {});
+        if (Date.now() - (v.t || 0) < 10 * 60000) emit('invite', { code: v.fromCode, name: v.fromName, game: v.game });
+      });
+    }, () => {}));
+    return true;
+  }
+  let friendUnsub = null, lastFriendKey = '';
+  function watchFriends() {
+    const ids = (me.friends || []).slice(0, 30), key = ids.join(',');
+    if (key === lastFriendKey) return; lastFriendKey = key;
+    if (friendUnsub) { friendUnsub(); friendUnsub = null; }
+    if (!ids.length) { friendDocs = []; emit('change'); return; }
+    friendUnsub = FB.col('players').where(firebase.firestore.FieldPath.documentId(), 'in', ids).onSnapshot((qs) => {
+      friendDocs = qs.docs.map((x) => { const v = x.data(); return { pid: x.id, code: v.fcode || '??????', name: v.name || 'Player', avatar: v.avatar || null, seen: v.seen || 0 }; });
+      emit('change');
+    }, () => {});
+  }
+  setInterval(() => { if (me && friendDocs.length) emit('presence'); }, 60000);
+  function stop() {
+    unsubs.forEach((u) => { try { u(); } catch (e) {} }); unsubs = [];
+    if (friendUnsub) { friendUnsub(); friendUnsub = null; } lastFriendKey = '';
+    clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = [];
+  }
+  async function add(code) {
+    code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
+    if (!me) return 'Create a player first to add friends';
+    if (code === me.fcode) return 'That’s your own code';
+    const qs = await FB.col('players').where('fcode', '==', code).limit(1).get();
+    if (qs.empty) return 'No player has that code';
+    const them = qs.docs[0];
+    if ((me.friends || []).includes(them.id)) return 'Already friends';
+    // if they already asked me, just accept
+    const back = reqDocs.find((r) => r.from === them.id);
+    if (back) { await accept(code); return null; }
+    await FB.col('requests').doc(me.pid + '_' + them.id).set({ from: me.pid, to: them.id, fromCode: me.fcode, fromName: me.name, fromAvatar: me.avatar || null, t: FB.now() });
+    return null;
+  }
+  async function accept(code) {
+    const r = reqDocs.find((x) => x.fromCode === code); if (!r) return;
+    const FV = firebase.firestore.FieldValue;
+    await FB.col('players').doc(me.pid).set({ friends: FV.arrayUnion(r.from) }, { merge: true });
+    await FB.col('players').doc(r.from).set({ friends: FV.arrayUnion(me.pid) }, { merge: true });
+    await FB.col('requests').doc(r.id).delete();
+    emit('accepted', { code, name: r.fromName });
+  }
+  async function decline(code) { const r = reqDocs.find((x) => x.fromCode === code); if (r) await FB.col('requests').doc(r.id).delete(); }
+  async function remove(code) {
+    const f = friendDocs.find((x) => x.code === code); if (!f) return;
+    const FV = firebase.firestore.FieldValue;
+    await FB.col('players').doc(me.pid).set({ friends: FV.arrayRemove(f.pid) }, { merge: true });
+    await FB.col('players').doc(f.pid).set({ friends: FV.arrayRemove(me.pid) }, { merge: true }).catch(() => {});
+  }
+  async function invite(code, game) {
+    const f = friendDocs.find((x) => x.code === code); if (!f) return;
+    await FB.col('invites').add({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, game, t: FB.now() });
+  }
+  const friends = () => friendDocs.slice().sort((a, b) => (b.seen > Date.now() - ONLINE_MS) - (a.seen > Date.now() - ONLINE_MS) || a.name.localeCompare(b.name));
+  const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
+  const isOnline = (code) => { const f = friendDocs.find((x) => x.code === code); return !!(f && Date.now() - f.seen < ONLINE_MS); };
+  const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
+  return { ready, start, stop, add, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
+})();
+
+/* Turn alerts: watches your online games; shows a system notification when it becomes your turn */
+const TurnAlerts = (() => {
+  let unsub = null, pid = null; const seen = {};
+  const listeners = new Set();
+  function supported() { return 'Notification' in window; }
+  const enabled = () => supported() && Notification.permission === 'granted';
+  async function enable() {
+    if (!supported()) return 'unsupported';
+    try { const r = await Notification.requestPermission(); return r; } catch (e) { return 'denied'; }
+  }
+  async function notify(title, body, tag) {
+    if (!enabled()) return;
+    try {
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      const opts = { body, tag, icon: 'icon-192.png', badge: 'icon-192.png', renotify: true, data: { url: location.href.split('#')[0] } };
+      if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
+    } catch (e) {}
+  }
+  function start(myPid, onTurn) {
+    if (Store.kind !== 'firebase' || !myPid) return;
+    if (pid === myPid && unsub) return;
+    stop(); pid = myPid;
+    unsub = FB.col('games').where('pids', 'array-contains', myPid).onSnapshot((qs) => {
+      qs.docs.forEach((d) => {
+        const g = d.data(); if (!g || g.status !== 'playing' || !g.state) return;
+        const v = g.ver || 0, prev = seen[d.id]; seen[d.id] = v;
+        if (prev === undefined || v <= prev) return;
+        let s; try { s = JSON.parse(g.state); } catch (e) { return; }
+        const mySeat = g.guest && g.guest.pid === myPid ? 0 : 1;
+        const opp = mySeat === 0 ? g.host.name : g.guest.name;
+        if (s.winner !== null && s.winner !== undefined) { if (document.hidden) notify('Pai Sho', s.winner === mySeat ? `You beat ${opp}!` : `${opp} won the game`, 'g-' + d.id); listeners.forEach((f) => f('over', d.id)); return; }
+        if (s.turn === mySeat) {
+          if (document.hidden) notify('Your turn in Pai Sho', `${opp} has moved — game ${d.id}`, 'g-' + d.id);
+          listeners.forEach((f) => f('turn', { code: d.id, opp }));
+        }
+      });
+    }, () => {});
+  }
+  function stop() { if (unsub) unsub(); unsub = null; pid = null; }
+  const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
+  return { supported, enabled, enable, start, stop, on, notify };
+})();
+
 // ---- store.js ----
 /* Storage backends: artifact db (claude.ai), self-hosted server (server.js), or this device only */
 const Store = (() => {
@@ -1265,8 +1437,11 @@ const Store = (() => {
         if (db) { kind = 'artifact'; return kind; }
       }
     } catch (e) {}
-    if (/^https?:/.test(location.protocol)) {
+    if (/^https?:/.test(location.protocol) && !/github\.io$/.test(location.hostname)) {
       try { const r = await Promise.race([fetch('api/ping'), timeout(2500, null)]); if (r && r.ok) { kind = 'server'; return kind; } } catch (e) {}
+    }
+    if (typeof FB !== 'undefined' && /^https?:/.test(location.protocol)) {
+      try { if (await FB.init()) { kind = 'firebase'; uid = FB.uid; return kind; } } catch (e) {}
     }
     kind = 'local'; return kind;
   }
@@ -1280,12 +1455,14 @@ const Store = (() => {
 
   async function list(col) {
     if (viaP2P(col)) return P2P.list();
+    if (kind === 'firebase') { const q = col === 'games' ? FB.col(col).orderBy('updated', 'desc').limit(200) : FB.col(col).limit(500); const snap = await q.get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'artifact') { const snap = await db.collection(col).limit(500).get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'server') { const r = await fetch('api/c/' + col); return r.json(); }
     const c = localCol(col); return Object.keys(c).map((id) => Object.assign({ id }, c[id]));
   }
   async function get(col, id) {
     if (viaP2P(col)) return P2P.get(id);
+    if (kind === 'firebase') { const d = await FB.col(col).doc(id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'artifact') { const d = await db.doc(col + '/' + id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'server') { const r = await fetch('api/d/' + col + '/' + id); if (!r.ok) return null; const j = await r.json(); return j ? Object.assign({ id }, j) : null; }
     const c = localCol(col); return c[id] ? Object.assign({ id }, c[id]) : null;
@@ -1293,12 +1470,14 @@ const Store = (() => {
   async function set(col, id, data) {
     const body = JSON.parse(JSON.stringify(data)); delete body.id;
     if (viaP2P(col)) return P2P.set(id, body);
+    if (kind === 'firebase') return FB.col(col).doc(id).set(body, { merge: true });
     if (kind === 'artifact') return db.doc(col + '/' + id).set(body);
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const c = localCol(col); c[id] = body; localSave(col, c);
   }
   async function del(col, id) {
     if (viaP2P(col)) return P2P.del(id);
+    if (kind === 'firebase') return FB.col(col).doc(id).delete();
     if (kind === 'artifact') return db.doc(col + '/' + id).delete();
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
     const c = localCol(col); delete c[id]; localSave(col, c);
@@ -1306,6 +1485,7 @@ const Store = (() => {
   // live watch of one doc
   function watch(col, id, cb) {
     if (viaP2P(col)) return P2P.watch(id, cb);
+    if (kind === 'firebase') return FB.col(col).doc(id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'artifact') return db.doc(col + '/' + id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'server') {
       let es; try { es = new EventSource('api/w/' + col + '/' + id); es.onmessage = (e) => { const j = JSON.parse(e.data); cb(j ? Object.assign({ id }, j) : null); }; } catch (e) {}
@@ -1317,6 +1497,7 @@ const Store = (() => {
     return () => {};
   }
   function watchCol(col, cb) {
+    if (kind === 'firebase') { const q = col === 'games' ? FB.col(col).orderBy('updated', 'desc').limit(150) : FB.col(col).limit(300); return q.onSnapshot((snap) => cb(snap.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {}); }
     if (viaP2P(col)) { let stop = false; const tick = () => { if (stop) return; cb(P2P.list()); setTimeout(tick, 2000); }; tick(); return () => { stop = true; }; }
     if (kind === 'artifact') return db.collection(col).limit(200).onSnapshot((s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {});
     if (kind === 'server') {
@@ -1478,6 +1659,7 @@ const Guide = (() => {
 /* App UI: screens, game controller, online play, stats */
 (() => {
   const P = PaiSho, AI = PaiShoAI;
+  const Soc = () => (Store.kind === 'firebase' ? FireSocial : Social);
   const app = document.getElementById('app');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1554,18 +1736,22 @@ const Guide = (() => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
     await Store.init();
     const sess = Store.LS.get('session');
-    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; return go('home'); } }
+    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; rememberProfile(p.id); return go('home'); } }
     go('login');
   };
 
+  const knownIds = () => Store.LS.get('knownProfiles', []);
+  function rememberProfile(id) { const k = knownIds().filter((x) => x !== id); k.unshift(id); Store.LS.set('knownProfiles', k.slice(0, 12)); }
   screens.login = async () => {
-    const list = await players();
-    const where = { artifact: 'Profiles and stats are saved with this app and shared with everyone you invite.', server: 'Profiles and stats are saved on your PC server.', local: 'Profiles and stats are saved on this device only.' }[Store.kind];
+    let list = await players();
+    if (Store.kind === 'firebase') list = list.filter((p) => knownIds().includes(p.id));
+    const where = { firebase: 'Profiles, stats, friends and games are saved online — sign in from any phone with your name and PIN.', artifact: 'Profiles and stats are saved with this app and shared with everyone you invite.', server: 'Profiles and stats are saved on your PC server.', local: 'Profiles and stats are saved on this device only.' }[Store.kind];
     app.innerHTML = `<div class="screen">
       <div class="title">${logoSvg()}<h1>Pai Sho</h1><div class="sub">Key Pai Sho · The Garden Game</div></div>
       <div class="field"><label>Who's playing?</label></div>
       <div class="plist">${list.map((p) => `<button class="prof" data-act="pickProfile" data-id="${esc(p.id)}">${av(p.name)}<div><div class="nm">${esc(p.name)}</div><div class="tiny muted">${(p.stats && p.stats.games) || 0} games · ${(p.stats && p.stats.wins) || 0} wins ${p.cred ? '· 🔒 biometric' : ''}</div></div></button>`).join('') || '<div class="card muted">No players yet. Create one to track your stats.</div>'}</div>
       <button class="btn primary" data-act="newProfile">＋ New player</button>
+      ${Store.kind === 'firebase' ? '<button class="btn" data-act="findProfile">Sign in to an existing player</button>' : ''}
       <button class="btn ghost" data-act="guestPlay">Play as guest (no stats)</button>
       <div class="spacer"></div><div class="tiny muted" style="text-align:center">${where}</div></div>`;
   };
@@ -1635,7 +1821,7 @@ const Guide = (() => {
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
       try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
-      me = p;
+      me = p; rememberProfile(id);
       if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
       go('home');
     });
@@ -1654,7 +1840,7 @@ const Guide = (() => {
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
-        ${typeof Social !== 'undefined' && Social.ready() && Store.kind !== 'artifact' ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
+        ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
@@ -1722,7 +1908,7 @@ const Guide = (() => {
       ${Store.p2p() ? '<div id="opengames" style="display:none"></div>' : '<div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>'}
       <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
       ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
-      <div class="tiny muted">${Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
+      <div class="tiny muted">${Store.kind === 'firebase' ? 'Games are saved online: close the app any time and pick up where you left off. Turn on turn alerts in your profile to get a notification when it’s your move.' : Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
     </div>`;
     const pid = myPid();
     const timer = setTimeout(() => { const el = document.getElementById('opengames'); if (el && /Loading/.test(el.textContent)) el.innerHTML = '<div class="muted tiny">Can’t reach the game list yet.</div>'; }, 10000);
@@ -1743,7 +1929,8 @@ const Guide = (() => {
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
-      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null, pids: [myPid()] };
+    if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
     waitOnline(code);
@@ -1774,7 +1961,7 @@ const Guide = (() => {
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), fx: setup.fx[0].slice() };
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance });
-    const nd = Object.assign({}, d, { guest, status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
+    const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
     startOnline(Object.assign({ id: code }, nd));
@@ -1783,27 +1970,33 @@ const Guide = (() => {
 
   // ---------- friends ----------
   function friendsLine() {
-    const f = Social.friends(), on = f.filter((x) => Social.isOnline(x.code)).length, rq = Social.requests().length;
+    if (Store.kind === 'firebase' && !me) return 'Sign in to add friends';
+    const f = Soc().friends(), on = f.filter((x) => Soc().isOnline(x.code)).length, rq = Soc().requests().length;
     return rq ? `${rq} friend request${rq > 1 ? 's' : ''}` : f.length ? `${on} of ${f.length} online` : 'Add friends with a code';
   }
   function startSocial() {
-    if (typeof Social === 'undefined' || Store.kind === 'artifact') return;
-    const go2 = () => Social.start({ pid: myPid(), name: myName(), avatar: myAvatar() });
-    if (Social.ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Social.ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
+    if (Store.kind === 'artifact') return;
+    if (Store.kind === 'firebase') { if (me) { if (!FireSocial.active) FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); TurnAlerts.start(me.id); } return; }
+    const go2 = () => Soc().start({ pid: myPid(), name: myName(), avatar: myAvatar() });
+    if (Soc().ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Soc().ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
   }
   screens.friends = () => {
-    if (!Social.active) startSocial();
-    const fr = Social.friends(), rq = Social.requests();
+    if (Store.kind === 'firebase' && !me) {
+      app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to get a friend code and add friends.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`;
+      return;
+    }
+    if (!Soc().active) startSocial();
+    const fr = Soc().friends(), rq = Soc().requests();
     fr.concat(rq).forEach(noteHue);
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
     <div class="screen" id="friends-screen">
       ${Avatars.card({ name: myName(), avatar: myAvatar() || 'whitelotus', stats: me && me.stats }, esc, { noStats: !me })}
-      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Social.code || '……')}</div>
-        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Social.code || '')}">Copy code</button></div>
+      <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Soc().code || '……')}</div>
+        <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Soc().code || '')}">Copy code</button></div>
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
       <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
       ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
-      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Social.isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(f.name)}</div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
     </div>`;
   };
 
@@ -2319,7 +2512,7 @@ const Guide = (() => {
     choose: (d) => closeSheet(+d.k),
     closeSheet: () => closeSheet(),
     toc: (d, e) => { e.preventDefault(); const el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { if (typeof Social !== 'undefined') Social.stop(); me = pp; askKeep(pp); }); },
+    pickProfile: async (d) => { const p = await Store.get('players', d.id); if (!p) return toast('Player not found'); loginFlow(p, (pp) => { Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = pp; rememberProfile(pp.id); askKeep(pp); }); },
     newProfile: () => go('newProfile'),
     guestPlay: () => { me = null; Store.LS.set('session', null); go('home'); },
     sw: (d, e, el) => el.classList.toggle('on'),
@@ -2327,8 +2520,9 @@ const Guide = (() => {
     profileSheet: async () => {
       if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn" data-act="editProfile">Change display name</button><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
       const bio = await Auth.bioAvailable();
-      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: typeof Social !== 'undefined' && Social.code ? Social.code : '' })}</div><div class="menu">
+      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
         <button class="btn primary" data-act="editProfile">Edit profile</button>
+        ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on (send a test)' : '🔔 Turn on turn alerts'}</button>` : ''}
         <button class="btn" data-act="go" data-to="stats">Stats</button>
         ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
         <button class="btn" data-act="changePin">Change PIN</button>
@@ -2336,6 +2530,23 @@ const Guide = (() => {
         <button class="btn danger" data-act="deleteMe">Delete this player</button></div>`);
     },
     toLogin: () => go('login'),
+    findProfile: () => {
+      sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
+      document.getElementById('fpf').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const n = document.getElementById('fp-name').value.trim().toLowerCase(); if (!n) return;
+        const p = (await players()).find((x) => x.name.toLowerCase() === n);
+        if (!p) return toast('No player with that name');
+        closeSheet();
+        loginFlow(p, (pp) => { me = pp; rememberProfile(pp.id); askKeep(pp); });
+      });
+    },
+    alertsToggle: async () => {
+      closeSheet();
+      const r = await TurnAlerts.enable();
+      toast(r === 'granted' ? 'Turn alerts on' : r === 'unsupported' ? 'This browser can’t show notifications — install the app to your home screen first' : 'Notifications are blocked — allow them in your browser settings');
+      if (r === 'granted') TurnAlerts.notify('Pai Sho', 'Turn alerts are on. You’ll get one when it’s your move.', 'test');
+    },
     editProfile: () => {
       const cur = myName();
       let hue = me && me.hue != null ? me.hue : hueOf(cur);
@@ -2350,7 +2561,7 @@ const Guide = (() => {
         e.preventDefault();
         const name = document.getElementById('ep-name').value.trim().replace(/\s+/g, ' ');
         if (!name) return toast('Enter a name');
-        if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); if (typeof Social !== 'undefined') Social.stop(); return go('home'); }
+        if (!me) { Store.LS.set('guestName', name); Store.LS.set('guestAvatar', pickedAv); avs[name] = pickedAv; closeSheet(); Soc().stop(); return go('home'); }
         if (name.toLowerCase() !== me.name.toLowerCase()) {
           const list = await players();
           if (list.some((p) => p.id !== me.id && p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
@@ -2358,11 +2569,11 @@ const Guide = (() => {
         const prev = me.name;
         me.name = name; me.hue = hue; me.avatar = pickedAv; delete hues[prev]; delete avs[prev]; noteHue(me);
         try { await Store.set('players', me.id, me); } catch (err) { me.name = prev; return toast('Couldn’t save — try again'); }
-        if (typeof Social !== 'undefined') Social.stop();
+        Soc().stop(); FireSocial.stop();
         closeSheet(); toast('Profile saved'); go('home');
       });
     },
-    signOut: () => { if (typeof Social !== 'undefined') Social.stop(); me = null; Store.LS.set('session', null); go('login'); },
+    signOut: () => { Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = null; Store.LS.set('session', null); go('login'); },
     bioToggle: async () => {
       closeSheet();
       if (me.cred) me.cred = null;
@@ -2413,11 +2624,11 @@ const Guide = (() => {
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
-    addFriend: () => { const err = Social.add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
-    acceptFriend: (d) => { Social.accept(d.code); screens.friends(); },
-    declineFriend: (d) => { Social.decline(d.code); screens.friends(); },
-    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { Social.remove(d.code); screens.friends(); } },
-    inviteFriend: async (d) => { const code = await createOnline(); if (code) { Social.invite(d.code, code); toast('Invite sent'); } },
+    addFriend: async () => { const err = await Soc().add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
+    acceptFriend: async (d) => { await Soc().accept(d.code); screens.friends(); },
+    declineFriend: async (d) => { await Soc().decline(d.code); screens.friends(); },
+    removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { await Soc().remove(d.code); screens.friends(); } },
+    inviteFriend: async (d) => { const code = await createOnline(); if (code) { await Soc().invite(d.code, code); toast('Invite sent'); } },
     undo: () => {
       if (!canUndo()) return;
       G.s = G.history.pop();
@@ -2462,7 +2673,7 @@ const Guide = (() => {
   });
   window.addEventListener('beforeunload', () => {});
   if (typeof P2P !== 'undefined') P2P.onStatus((st) => { if (G && G.mode === 'online') { if (st === 'disconnected') toast('Opponent disconnected — waiting for them to come back'); if (st === 'connected') toast('Opponent connected'); } if (st === 'code-taken') toast('That code is busy — create a new game'); });
-  if (typeof Social !== 'undefined') Social.on(async (ev, d) => {
+  const socialHandler = async (ev, d) => {
     if (ev === 'change' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
     if (ev === 'request') toast(d.name + ' wants to be friends — see Friends', 3500);
     if (ev === 'accepted') toast(d.name + ' accepted your friend request');
@@ -2472,6 +2683,13 @@ const Guide = (() => {
       const ok = await choose(d.name + ' invited you to play', [{ label: 'Join game ' + d.game, value: true, cls: 'primary' }]);
       if (ok) joinGame(d.game);
     }
+    if (ev === 'presence' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
+  };
+  Social.on(socialHandler); FireSocial.on(socialHandler);
+  TurnAlerts.on((ev, d) => {
+    if (ev !== 'turn') return;
+    if (G && G.mode === 'online' && G.code === d.code) return;
+    toast('Your turn vs ' + d.opp + ' (game ' + d.code + ') — open it from Play online', 4000);
   });
   window.__paisho = { get G() { return G; }, doAction, P };
   go('boot');

@@ -16,8 +16,11 @@ const Store = (() => {
         if (db) { kind = 'artifact'; return kind; }
       }
     } catch (e) {}
-    if (/^https?:/.test(location.protocol)) {
+    if (/^https?:/.test(location.protocol) && !/github\.io$/.test(location.hostname)) {
       try { const r = await Promise.race([fetch('api/ping'), timeout(2500, null)]); if (r && r.ok) { kind = 'server'; return kind; } } catch (e) {}
+    }
+    if (typeof FB !== 'undefined' && /^https?:/.test(location.protocol)) {
+      try { if (await FB.init()) { kind = 'firebase'; uid = FB.uid; return kind; } } catch (e) {}
     }
     kind = 'local'; return kind;
   }
@@ -31,12 +34,14 @@ const Store = (() => {
 
   async function list(col) {
     if (viaP2P(col)) return P2P.list();
+    if (kind === 'firebase') { const q = col === 'games' ? FB.col(col).orderBy('updated', 'desc').limit(200) : FB.col(col).limit(500); const snap = await q.get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'artifact') { const snap = await db.collection(col).limit(500).get(); return snap.docs.map((d) => Object.assign({ id: d.id }, d.data())); }
     if (kind === 'server') { const r = await fetch('api/c/' + col); return r.json(); }
     const c = localCol(col); return Object.keys(c).map((id) => Object.assign({ id }, c[id]));
   }
   async function get(col, id) {
     if (viaP2P(col)) return P2P.get(id);
+    if (kind === 'firebase') { const d = await FB.col(col).doc(id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'artifact') { const d = await db.doc(col + '/' + id).get(); return d.exists ? Object.assign({ id }, d.data()) : null; }
     if (kind === 'server') { const r = await fetch('api/d/' + col + '/' + id); if (!r.ok) return null; const j = await r.json(); return j ? Object.assign({ id }, j) : null; }
     const c = localCol(col); return c[id] ? Object.assign({ id }, c[id]) : null;
@@ -44,12 +49,14 @@ const Store = (() => {
   async function set(col, id, data) {
     const body = JSON.parse(JSON.stringify(data)); delete body.id;
     if (viaP2P(col)) return P2P.set(id, body);
+    if (kind === 'firebase') return FB.col(col).doc(id).set(body, { merge: true });
     if (kind === 'artifact') return db.doc(col + '/' + id).set(body);
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const c = localCol(col); c[id] = body; localSave(col, c);
   }
   async function del(col, id) {
     if (viaP2P(col)) return P2P.del(id);
+    if (kind === 'firebase') return FB.col(col).doc(id).delete();
     if (kind === 'artifact') return db.doc(col + '/' + id).delete();
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
     const c = localCol(col); delete c[id]; localSave(col, c);
@@ -57,6 +64,7 @@ const Store = (() => {
   // live watch of one doc
   function watch(col, id, cb) {
     if (viaP2P(col)) return P2P.watch(id, cb);
+    if (kind === 'firebase') return FB.col(col).doc(id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'artifact') return db.doc(col + '/' + id).onSnapshot((d) => cb(d.exists ? Object.assign({ id }, d.data()) : null), () => {});
     if (kind === 'server') {
       let es; try { es = new EventSource('api/w/' + col + '/' + id); es.onmessage = (e) => { const j = JSON.parse(e.data); cb(j ? Object.assign({ id }, j) : null); }; } catch (e) {}
@@ -68,6 +76,7 @@ const Store = (() => {
     return () => {};
   }
   function watchCol(col, cb) {
+    if (kind === 'firebase') { const q = col === 'games' ? FB.col(col).orderBy('updated', 'desc').limit(150) : FB.col(col).limit(300); return q.onSnapshot((snap) => cb(snap.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {}); }
     if (viaP2P(col)) { let stop = false; const tick = () => { if (stop) return; cb(P2P.list()); setTimeout(tick, 2000); }; tick(); return () => { stop = true; }; }
     if (kind === 'artifact') return db.collection(col).limit(200).onSnapshot((s) => cb(s.docs.map((d) => Object.assign({ id: d.id }, d.data()))), () => {});
     if (kind === 'server') {
