@@ -72,7 +72,7 @@
 
   // ---------- screens ----------
   const screens = {};
-  function go(name, ...args) { closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+  function go(name, ...args) { if (name === 'loadouts') loTab = null; closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
 
   screens.boot = async () => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
@@ -183,17 +183,52 @@
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
         ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
+        <button class="btn" data-act="go" data-to="loadouts">${icon('loadout')}<span class="lbl">Loadouts<small>Equipped: ${esc(equipped().name)} · ${loIcons(equipped().fx, 16)}</small></span></button>
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
   };
   function icon(k) {
-    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"') };
+    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"'), loadout: Glyphs.svg('boat', 1, 'class="ic"') };
     return s[k];
   }
 
   screens.guide = (fromGame) => {
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="${fromGame ? 'backToGame' : 'go'}" data-to="home">‹</button><h2>How to play</h2><span style="width:42px"></span></div>${Guide.html()}`;
+  };
+
+  // ---------- loadouts ----------
+  const DEFAULT_LOADOUTS = () => [{ name: 'Loadout 1', fx: [] }, { name: 'Loadout 2', fx: Object.keys(P.SPECIAL) }, { name: 'Loadout 3', fx: [] }];
+  function getLoadouts() {
+    const src = me ? me.loadouts : Store.LS.get('guestLoadouts', null);
+    const l = Array.isArray(src) && src.length === 3 ? src : DEFAULT_LOADOUTS();
+    const active = me ? (me.activeLoadout | 0) : Store.LS.get('guestActiveLoadout', 0) | 0;
+    return { list: l.map((x) => ({ name: String(x.name || 'Loadout').slice(0, 20), fx: (x.fx || []).filter((t) => P.EFFECT_TYPES.includes(t)).slice(0, 6) })), active: Math.min(2, Math.max(0, active)) };
+  }
+  let saveLoT = null;
+  function saveLoadouts(list, active) {
+    if (me) { me.loadouts = list; me.activeLoadout = active; clearTimeout(saveLoT); saveLoT = setTimeout(() => Store.set('players', me.id, me).catch(() => toast('Couldn’t save loadout')), 500); }
+    else { Store.LS.set('guestLoadouts', list); Store.LS.set('guestActiveLoadout', active); }
+  }
+  const equipped = () => { const L = getLoadouts(); return L.list[L.active]; };
+  const loIcons = (fx, size = 22) => fx.length ? fx.map((t) => `<span style="display:inline-block;width:${size}px;height:${size}px">${Glyphs.svg(t, 0, `style="width:${size}px;height:${size}px"`)}</span>`).join('') : '<span class="tiny muted">No effect tiles (basic game)</span>';
+  let loTab = null;
+  screens.loadouts = () => {
+    const L = getLoadouts(); if (loTab == null) loTab = L.active;
+    const cur = L.list[loTab];
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Loadouts</h2><span style="width:42px"></span></div>
+    <div class="screen">
+      <p class="muted" style="margin:0">Set up to three effect-tile loadouts. Your equipped loadout is used automatically when you start or join a game.</p>
+      <div class="seg">${L.list.map((x, i) => `<button class="${i === loTab ? 'on' : ''}" data-act="loTab" data-i="${i}">${i === L.active ? '★ ' : ''}${esc(x.name)}</button>`).join('')}</div>
+      <div class="card">
+        <div class="field"><label>Name</label><input class="input" id="lo-name" maxlength="20" value="${esc(cur.name)}"></div>
+        <div class="row" style="margin:10px 0"><span class="muted">${cur.fx.length}/6 tiles</span><span class="spacer"></span>${loTab === L.active ? '<span class="pill" style="padding:6px 12px;color:var(--gold2)">★ Equipped</span>' : `<button class="btn small primary" data-act="loEquip">Equip</button>`}</div>
+        <div class="row wrap" style="margin-bottom:10px"><button class="btn small" data-act="loPreset" data-v="none">Clear</button><button class="btn small" data-act="loPreset" data-v="flowers">4 special flowers</button><button class="btn small" data-act="loPreset" data-v="rand">Random 6</button></div>
+        ${fxGrid(cur.fx, 'loFx')}
+      </div>
+    </div>`;
+    const nm = document.getElementById('lo-name');
+    nm.addEventListener('change', () => { const L2 = getLoadouts(); L2.list[loTab].name = nm.value.trim() || 'Loadout ' + (loTab + 1); saveLoadouts(L2.list, L2.active); screens.loadouts(); });
   };
 
   // ---------- setup ----------
@@ -210,16 +245,18 @@
       <div class="card">
         <div class="row"><b class="disp" style="color:var(--gold2)">Effect tiles</b><span class="spacer"></span><span class="muted">${fxSel.length}/6</span></div>
         ${S.mode === 'local' ? `<div class="seg" style="margin-top:10px"><button class="${S.fxTab === 0 ? 'on' : ''}" data-act="fxTab" data-v="0">${esc(myName())}</button><button class="${S.fxTab === 1 ? 'on' : ''}" data-act="fxTab" data-v="1">${esc(S.p2.name)}</button></div>` : ''}
-        <div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">Beginner (none)</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 special flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random 6</button></div>
+        ${(S.mode !== 'local' || S.fxTab === 0) ? `<div class="row wrap" style="margin:10px 0">${getLoadouts().list.map((x, i) => `<button class="btn small ${JSON.stringify(x.fx.slice().sort()) === JSON.stringify(fxSel.slice().sort()) ? 'primary' : ''}" data-act="useLoadout" data-i="${i}">${esc(x.name)}</button>`).join('')}<button class="btn small ghost" data-act="go" data-to="loadouts">Edit loadouts ›</button></div>` : ''}
+        <div class="row wrap" style="margin:6px 0 10px"><button class="btn small" data-act="fxPreset" data-v="none">Beginner (none)</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 special flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random 6</button></div>
         ${fxGrid(fxSel)}
+        <div class="tiny muted" style="margin-top:6px">Changes here apply to this game only.</div>
         ${S.mode === 'ai' ? `<div class="tiny muted" style="margin-top:8px">The computer uses: ${AI.AI_EFFECTS[S.level].map(P.tname).join(', ') || 'no effect tiles'}.</div>` : ''}
       </div>
       ${variationsCard()}
       <button class="btn primary" data-act="beginGame">Start game</button>
     </div>`;
   };
-  function fxGrid(sel) {
-    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => `<button class="fx ${sel.includes(t) ? 'on' : ''}" data-act="fx" data-t="${t}">${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`).join('')}</div>`;
+  function fxGrid(sel, act = 'fx') {
+    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => `<button class="fx ${sel.includes(t) ? 'on' : ''}" data-act="${act}" data-t="${t}">${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`).join('')}</div>`;
   }
   function variationsCard() {
     const S = setup;
@@ -234,8 +271,10 @@
 
   // ---------- lobby (online) ----------
   let lobbyUnsub = null;
+  let lobbyFxSet = false;
   screens.lobby = () => {
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
+    if (!document.getElementById('opengames')) setup.fx[0] = equipped().fx.slice();
     if (!Store.online()) {
       app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Play online</h2><span style="width:42px"></span></div>
       <div class="screen"><div class="card"><p>Online play needs a shared place to keep the game. It works automatically in the version hosted on claude.ai, or when you run <b>server.js</b> on your PC and open it from your phone on the same Wi-Fi.</p><p class="muted">Right now this copy is running on its own, so only computer and pass-and-play games are available.</p></div></div>`;
@@ -248,7 +287,7 @@
       <button class="btn primary" data-act="createOnline">Create a new game</button>
       <div class="field"><label>Your games</label><div id="mygames" class="menu"><div class="muted tiny">Loading…</div></div></div>
       ${Store.p2p() ? '<div id="opengames" style="display:none"></div>' : '<div class="field"><label>Open games</label><div id="opengames" class="menu"><div class="muted tiny">Loading…</div></div></div>'}
-      <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
+      <div class="card"><div class="row"><b class="disp" style="color:var(--gold2)">Your effect tiles</b><span class="spacer"></span><span class="muted">${S.fx[0].length}/6</span></div><div class="row wrap" style="margin:10px 0 0">${getLoadouts().list.map((x, i) => `<button class="btn small ${JSON.stringify(x.fx.slice().sort()) === JSON.stringify(S.fx[0].slice().sort()) ? 'primary' : ''}" data-act="useLoadout" data-i="${i}">${esc(x.name)}</button>`).join('')}</div><div class="row wrap" style="margin:10px 0"><button class="btn small" data-act="fxPreset" data-v="none">None</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random</button></div>${fxGrid(S.fx[0])}</div>
       ${variationsCard().replace('<b class="disp" style="color:var(--gold2)">Variations</b>', '<b class="disp" style="color:var(--gold2)">Variations (for games you create)</b>')}
       <div class="tiny muted">${Store.kind === 'firebase' ? 'Games are saved online: close the app any time and pick up where you left off. Turn on turn alerts in your profile to get a notification when it’s your move.' : Store.p2p() ? 'Phone-to-phone: create a game, send your friend the code, and keep this page open while you play. Works over Wi-Fi or mobile data.' : Store.kind === 'artifact' ? 'Friends need access to this app to join: share it with them as editors.' : 'Anyone on your Wi-Fi who opens this server can join.'}</div>
     </div>`;
@@ -514,6 +553,14 @@
       const pool = sel.first == null ? [...new Set(sel.moves.flatMap((m) => [m.a, m.b]))] : sel.moves.filter((m) => m.a === sel.first || m.b === sel.first).map((m) => (m.a === sel.first ? m.b : m.a));
       pool.forEach((i) => (o += ringAt(Board.cx(i), Board.cy(i))));
       if (sel.first != null) o += `<circle cx="${Board.cx(sel.first)}" cy="${Board.cy(sel.first)}" r="0.5" fill="none" stroke="#fff" stroke-width="0.1"/>`;
+    } else if (isHumanTurn() && !G.s.tp.mainDone && hintsOn() && G.ana && G.ana.sug) {
+      const a = G.ana.sug.a; let x, y;
+      if (a.t === 'plant') { if (a.gate === 'center') { x = 0; y = 0; } else [x, y] = Board.GATE_POS[a.gate]; o += `<circle cx="${x}" cy="${y}" r="0.9" fill="none" stroke="#5fe0c8" stroke-width="0.12" class="dest"/>`; }
+      else {
+        if (a.from.kind === 'sq') { x = Board.cx(a.from.i); y = Board.cy(a.from.i); } else if (a.from.kind === 'gate') [x, y] = Board.GATE_POS[a.from.g]; else { x = 0; y = 0; }
+        const x2 = Board.cx(a.to), y2 = Board.cy(a.to);
+        o += `<line x1="${x}" y1="${y}" x2="${x2}" y2="${y2}" stroke="#5fe0c8" stroke-width="0.09" stroke-dasharray="0.25 0.18" opacity=".85"/><circle cx="${x}" cy="${y}" r="0.52" fill="none" stroke="#5fe0c8" stroke-width="0.09"/><circle cx="${x2}" cy="${y2}" r="0.3" fill="#5fe0c8" class="dest"/>`;
+      }
     } else if (isHumanTurn() && !G.s.tp.mainDone) {
       // faint hint rings on tiles that can move
       const srcs = new Set(acts.filter((a) => a.t === 'move').map(srcOf));
@@ -590,7 +637,19 @@
         const t = P.clone(s); t.turn = 1 - p; t.tp = { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false };
         for (const a of P.legalActions(t, { noPlace: true, noAbility: true })) { if (a.t !== 'move') continue; try { if (P.findRing(P.apply(t, a), 1 - p)) { danger = true; break; } } catch (e) {} }
       }
-      g.ana = { win, danger };
+      let sug = null;
+      try {
+        const seq = AI.chooseTurn(s, 'medium');
+        const main = seq.find((a) => a.t === 'move' || a.t === 'plant');
+        const place = seq.find((a) => a.t === 'place');
+        if (main) {
+          const H0 = P.harmonies(s), base = harmCount(s, p, H0), oppBase = harmCount(s, 1 - p, H0);
+          const s2 = P.apply(s, main), H = P.harmonies(s2);
+          sug = { a: main, place, gain: harmCount(s2, p, H) - base, breaks: oppBase - harmCount(s2, 1 - p, H), ring: !!P.findRing(s2, p, H) };
+        }
+      } catch (e) {}
+      g.ana = { win, danger, sug };
+      if (G === g && !g.sel) renderSel();
       if (G === g && !g.sel) renderInfo(null);
     }, 30);
   }
@@ -606,20 +665,38 @@
     'Accent tiles don’t block harmonies, but they do block flowers from moving past them.',
     'Planted flowers in gates don’t harmonize yet — get them blooming in the garden.',
   ];
+  function sugText(sg) {
+    const s = G.s, a = sg.a; let t;
+    if (a.t === 'plant') t = `plant a <b>${P.tname(a.type)}</b> in the ${a.gate === 'center' ? 'centre' : P.GATE_NAMES[a.gate] + ' gate'}`;
+    else {
+      const tile = a.from.kind === 'gate' ? s.gates[a.from.g] : a.from.kind === 'center' ? s.center.tile : (a.mover === 'under' ? s.board[a.from.i].under : s.board[a.from.i].top);
+      t = `move your <b>${P.tname(tile.type)}</b> to ${P.sqName(a.to)}`;
+    }
+    const why = [];
+    if (sg.ring) why.push('completes a ring!'); else if (sg.gain > 0) why.push(`+${sg.gain} harmon${sg.gain > 1 ? 'ies' : 'y'}`);
+    if (sg.breaks > 0) why.push(`breaks ${sg.breaks} of theirs`);
+    if (!why.length && a.t === 'plant') why.push('gets another flower ready');
+    if (!why.length) why.push('sets up future harmonies');
+    return t + ` <span class="tiny">(${why.join(', ')})</span>` + (sg.place ? `, then place <b>${P.tname(sg.place.type)}</b>` : '');
+  }
   function renderInfo(type, owner) {
     const el = document.getElementById('info'); if (!el) return;
     if (!type) {
       if (G && hintsOn() && isHumanTurn()) {
         const a = G.ana, opp = esc(G.seats[1 - G.s.turn].name);
         if (G.sel && G.sel.kind === 'tile') { el.innerHTML = `<span>💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring</span>`; return; }
-        if (a && a.win) { el.innerHTML = `<span>⭐ <b>You can close a ring this turn!</b> Tap your flowers and look for the ★.</span>`; return; }
-        if (a && a.danger) { el.innerHTML = `<span>⚠️ <b>${opp} is one move from a ring.</b> Land a flower between two of theirs (look for blue-ringed dots) to break it.</span>`; return; }
+        const sg = a && a.sug ? `<br>🧭 <b>Try:</b> ${sugText(a.sug)}` : '';
+        const show = a && a.sug ? `<button class="btn small" data-act="showSug" style="flex:none;padding:6px 10px">Show</button>` : '';
+        if (a && a.win) { el.innerHTML = `<span style="flex:1">⭐ <b>You can close a ring this turn!</b>${sg}</span>${show}`; return; }
+        if (a && a.danger) { el.innerHTML = `<span style="flex:1">⚠️ <b>${opp} is one move from a ring</b> — block it.${sg}</span>${show}`; return; }
+        if (a && a.sug) { el.innerHTML = `<span style="flex:1">🧭 <b>Suggested:</b> ${sugText(a.sug)}<br><span class="tiny">💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span></span>${show}`; return; }
         el.innerHTML = `<span>💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span>`; return;
       }
       el.innerHTML = `<span>Tap any tile for its rules. Gold lines are harmonies.</span>`; return;
     }
     const inf = Guide.INFO[type];
-    el.innerHTML = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span><b>${P.tname(type)}</b> · ${inf[0]}. ${inf[1]}</span>`;
+    const ps = Guide.partners(type).filter((x) => x.ok).map((x) => x.type);
+    el.innerHTML = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span style="flex:1"><b>${P.tname(type)}</b> · ${inf[1]}<br><span class="tiny">${ps.length ? 'Harmonizes with: ' + [...new Set(ps)].map((t) => `<span style="display:inline-block;vertical-align:middle;width:18px;height:18px">${Glyphs.svg(t, owner || 0, 'style="width:18px;height:18px"')}</span>`).join('') : 'Doesn’t harmonize'}</span></span><button class="btn small ghost" data-act="tileDetails" data-t="${type}" data-o="${owner == null ? 0 : owner}" style="flex:none;padding:6px 8px">Rules ›</button>`;
   }
   function renderTray() {
     const el = document.getElementById('tray'); if (!el) return;
@@ -932,7 +1009,7 @@
       });
     },
     deleteMe: async () => { if (await confirmBox('Delete player?', 'This removes ' + me.name + ' and their stats for good.', 'Delete', true)) { await Store.del('players', me.id); me = null; Store.LS.set('session', null); go('login'); } },
-    startSetup: (d) => { setup.mode = d.mode; setup.fxTab = 0; go('setup'); },
+    startSetup: (d) => { setup.mode = d.mode; setup.fxTab = 0; setup.fx[0] = equipped().fx.slice(); go('setup'); },
     seg: (d) => { setup[d.k] = isNaN(+d.v) ? d.v : +d.v; rerenderSetup(); },
     fxTab: (d) => { setup.fxTab = +d.v; rerenderSetup(); },
     fx: (d) => {
@@ -955,7 +1032,7 @@
         document.getElementById('p2f').addEventListener('submit', (e) => { e.preventDefault(); setup.p2 = { name: document.getElementById('p2n').value.trim() || 'Player 2', pid: null }; closeSheet(); go('setup'); });
       } else {
         const p = await Store.get('players', v);
-        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id, avatar: pp.avatar }; go('setup'); }, 'setup');
+        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id, avatar: pp.avatar }; const lo = Array.isArray(pp.loadouts) && pp.loadouts[pp.activeLoadout | 0]; if (lo) setup.fx[1] = (lo.fx || []).slice(0, 6); go('setup'); }, 'setup');
       }
     },
     beginGame: () => startLocal(setup.mode),
@@ -966,6 +1043,29 @@
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    loTab: (d) => { loTab = +d.i; screens.loadouts(); },
+    loEquip: () => { const L = getLoadouts(); saveLoadouts(L.list, loTab); toast('Equipped ' + L.list[loTab].name); screens.loadouts(); },
+    loFx: (d) => { const L = getLoadouts(); const arr = L.list[loTab].fx; const i = arr.indexOf(d.t); if (i >= 0) arr.splice(i, 1); else if (arr.length < 6) arr.push(d.t); else return toast('Up to 6 effect tiles'); saveLoadouts(L.list, L.active); const y = window.scrollY; screens.loadouts(); window.scrollTo(0, y); },
+    loPreset: (d) => { const L = getLoadouts(); L.list[loTab].fx = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL) : P.EFFECT_TYPES.slice().sort(() => Math.random() - 0.5).slice(0, 6); saveLoadouts(L.list, L.active); screens.loadouts(); },
+    useLoadout: (d) => { setup.fx[0] = getLoadouts().list[+d.i].fx.slice(); rerenderSetup(); },
+    showSug: () => {
+      if (!G || !G.ana || !G.ana.sug) return;
+      const a = G.ana.sug.a;
+      if (a.t === 'plant') G.sel = { kind: 'plant', type: a.type, moves: acts.filter((x) => x.t === 'plant' && x.type === a.type) };
+      else { const k = srcOf(a); const ms = acts.filter((x) => x.t === 'move' && srcOf(x) === k && (x.mover || '') === (a.mover || '')); const tile = a.from.kind === 'gate' ? G.s.gates[a.from.g] : a.from.kind === 'center' ? G.s.center.tile : G.s.board[a.from.i].top; G.sel = { kind: 'tile', moves: ms, tileId: tile && tile.id }; }
+      renderBoard(); renderStatus(); renderTray(); renderInfo(null);
+    },
+    tileDetails: (d) => {
+      const t = d.t, o = +d.o, inf = Guide.INFO[t];
+      let live = '';
+      if (G && P.isFlower(t)) {
+        const H = P.harmonies(G.s); const mine = [];
+        for (let i = 0; i < 324; i++) { const c = G.s.board[i]; if (c && c.top.type === t && c.top.owner === o) H.forEach((h) => { if (h.a === i || h.b === i) { const j = h.a === i ? h.b : h.a; mine.push(`${P.tname(G.s.board[j].top.type)} at ${P.sqName(j)}`); } }); }
+        if (mine.length) live = `<div class="note" style="margin:8px 0">Right now your ${P.tname(t)}s are harmonizing with: ${[...new Set(mine)].map(esc).join(', ')}.</div>`;
+      }
+      sheet(`<div class="row" style="gap:12px">${Glyphs.svg(t, o, 'style="width:56px;height:56px"')}<div><h3 style="margin:0">${P.tname(t)}</h3><div class="muted tiny">${inf[0]} · moves ${inf[2]}</div></div></div>
+        <p>${inf[1]}</p><h3 style="font-size:16px">Harmony</h3><p class="muted">${Guide.harmonySummary(t)}</p>${live}${Guide.partnerHTML(t, o)}`);
+    },
     addFriend: async () => { const err = await Soc().add(document.getElementById('addcode').value); if (err) toast(err); else { toast('Request sent'); screens.friends(); } },
     acceptFriend: async (d) => { await Soc().accept(d.code); screens.friends(); },
     declineFriend: async (d) => { await Soc().decline(d.code); screens.friends(); },

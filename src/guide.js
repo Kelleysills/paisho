@@ -51,6 +51,10 @@ const Guide = (() => {
   const fig = (svgs) => `<div class="fig">${svgs.map(([s, cap]) => `<figure>${s}<figcaption>${cap}</figcaption></figure>`).join('')}</div>`;
   const trow = (t) => `<div class="trow">${Glyphs.svg(t, 0)}<div><b>${P.tname(t)}</b> <span class="tiny muted">${INFO[t][0]}</span><br>${INFO[t][1]}</div><div class="mv">${INFO[t][2]}</div></div>`;
 
+  function pairTable() {
+    const K = P.KEY_TYPES;
+    return `<div style="overflow-x:auto"><table class="lb" style="font-size:11px;min-width:420px"><tr><th></th>${K.map((b) => `<th style="text-align:center">${Glyphs.svg(b, 0, 'style="width:26px;height:26px"')}</th>`).join('')}</tr>${K.map((a) => `<tr><td>${Glyphs.svg(a, 0, 'style="width:26px;height:26px"')}</td>${K.map((b) => `<td style="text-align:center">${a === b ? '✕' : pairRule(a, b).replace('straight ', '↔ ').replace('diagonal ', '⤢ ').replace(' · ', '<br>')}</td>`).join('')}</tr>`).join('')}</table></div>`;
+  }
   function html() {
     const ring = [[6, 6, 'jasmine', 0], [6, 11, 'chrys', 0], [11, 11, 'jasmine', 0], [11, 6, 'chrys', 0]];
     const sec = [
@@ -61,6 +65,7 @@ const Guide = (() => {
         fig([[mini({ size: 6, colors: (r, c) => (r >= 4 && (c === 2 || c === 3) ? 'g' : 'n'), dots: [[3, 1], [3, 2], [3, 3], [3, 4], [4, 1], [5, 1], [4, 4], [5, 4]], cells: [[4.5, 2.5, 'rose', 0, 1.6]] }), 'Planted Rose: first-step squares']])],
       ['keys', 'Key flowers', `<p>Each player starts with 3 of each of the 6 key flowers. A key flower moves <b>once</b> per turn, in <b>one</b> straight direction, up to its number of squares, and never over other tiles.</p><div class="tlist">${P.KEY_TYPES.map(trow).join('')}</div>` +
         fig([[mini({ dots: moveDots(3, 3, A8, 3, 7), cells: [[3, 3, 'rose', 0]] }), 'Rose / Lily: 3, any direction'], [mini({ dots: moveDots(3, 3, O4, 5, 7), cells: [[3, 3, 'chrys', 0]] }), 'Chrysanthemum / Jasmine: 5, straight'], [mini({ dots: moveDots(3, 3, D4, 5, 7), cells: [[3, 3, 'rhodo', 0]] }), 'Rhododendron / Jade: 5, diagonal']]) +
+        `<h3>Who harmonizes with whom</h3><p>A harmony forms if <i>either</i> flower could reach the other, so the longer-reaching flower sets the distance. Tap any tile in a game to see its full list.</p>` + pairTable() +
         `<p><b>Garden colour:</b> dark flowers (orange) can’t <i>finish</i> a move in a light garden and light flowers (white) can’t finish in a dark garden. Both may pass through, and both may land in neutral or half-neutral squares.</p>`],
       ['harmony', 'Harmonies', `<p>A harmony is a line between two of your blooming flowers (not planted ones). It follows four rules:</p><ul><li>It forms when one key flower’s movement could reach the other flower’s square (garden colour is ignored here).</li><li>There must be <b>at least one square between</b> them.</li><li>Never between two flowers of the <b>same kind</b>.</li><li>It is <b>broken</b> if an opponent’s flower sits between them. Accent tiles in between don’t break it.</li></ul><p>Harmonies can’t stretch across the exact centre point or across gate squares.</p>` +
         fig([[mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0]], lines: [[3, 1, 3, 5]] }), 'Chrysanthemum reaches the Lily → harmony'], [mini({ cells: [[3, 1, 'chrys', 0], [3, 5, 'lily', 0], [3, 3, 'rose', 1]], lines: [[3, 1, 3, 2.6, '#7a5a3a'], [3, 3.4, 3, 5, '#7a5a3a']] }), 'Opponent’s Rose in between breaks it']])],
@@ -74,5 +79,33 @@ const Guide = (() => {
     return `<nav class="toc">${sec.map(([id, t]) => `<a href="#g-${id}" data-act="toc" data-id="g-${id}">${t}</a>`).join('')}</nav>` +
       `<div class="guide">${sec.map(([id, t, body]) => `<section id="g-${id}"><h3>${t}</h3>${body}</section>`).join('')}</div>`;
   }
-  return { html, INFO, mini };
+  // ---- harmony rules per tile ----
+  const reach = (t) => { const k = P.KEY[t]; return { o: k.dirs !== 'diag' ? k.range : 0, d: k.dirs !== 'ortho' ? k.range : 0 }; };
+  function pairRule(a, b) {
+    const ra = reach(a), rb = reach(b), o = Math.max(ra.o, rb.o), d = Math.max(ra.d, rb.d), parts = [];
+    if (o >= 2) parts.push('straight 2–' + o);
+    if (d >= 2) parts.push('diagonal 2–' + d);
+    return parts.join(' · ');
+  }
+  // [{type, rule, ok}] for the "harmonizes with" list
+  function partners(t) {
+    if (P.isKey(t)) return P.KEY_TYPES.map((b) => (b === t ? { type: b, ok: false, rule: 'never (same kind)' } : { type: b, ok: true, rule: pairRule(t, b) }))
+      .concat([{ type: 'lotus', ok: true, rule: 'any distance, any direction' }, { type: 'orchid', ok: true, rule: 'when this flower can reach it' }, { type: 'dahlia', ok: true, rule: 'when this flower can reach it' }]);
+    if (t === 'orchid' || t === 'dahlia') return P.KEY_TYPES.map((b) => { const r = reach(b); return { type: b, ok: true, rule: [r.o ? 'straight 2–' + r.o : '', r.d ? 'diagonal 2–' + r.d : ''].filter(Boolean).join(' · ') }; }).concat([{ type: 'lotus', ok: true, rule: 'any distance' }]);
+    if (t === 'lotus') return P.KEY_TYPES.concat(['orchid', 'dahlia', 'firelily', 'lotus']).map((b) => ({ type: b, ok: true, rule: 'any distance, any direction, even adjacent' }));
+    if (t === 'firelily') return [{ type: 'lotus', ok: true, rule: 'only with a White Lotus' }];
+    return [];
+  }
+  function harmonySummary(t) {
+    if (P.isAccent(t)) return 'Accent tiles never harmonize and don’t block harmonies — but they do block flower movement.';
+    if (P.isKey(t)) { const r = reach(t); return `Harmonizes with your other key flowers (not other ${P.tname(t)}s) ${r.o && r.d ? 'in any direction' : r.o ? 'in straight lines' : 'on diagonals'} up to ${P.KEY[t].range} squares, with at least one square between. A longer-reaching partner can extend that.`; }
+    if (t === 'lotus') return 'Harmonizes with any flower of either player, at any distance in a straight or diagonal line. Flowers in between block it.';
+    if (t === 'firelily') return 'Never harmonizes except with a White Lotus. It blocks your opponent’s harmonies but never yours.';
+    return 'Harmonizes with your key flowers when that key flower could move onto its square.';
+  }
+  function partnerHTML(t, owner) {
+    const ps = partners(t); if (!ps.length) return '';
+    return `<div class="tlist">${ps.map((x) => `<div class="trow" style="padding:6px 8px;align-items:center;${x.ok ? '' : 'opacity:.5'}">${Glyphs.svg(x.type, owner || 0)}<div><b>${P.tname(x.type)}</b><br><span class="tiny">${x.ok ? x.rule : x.rule}</span></div><div class="mv">${x.ok ? '✓' : '✕'}</div></div>`).join('')}</div>`;
+  }
+  return { html, INFO, mini, partners, pairRule, harmonySummary, partnerHTML };
 })();
