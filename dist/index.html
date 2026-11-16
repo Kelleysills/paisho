@@ -2046,7 +2046,7 @@ const FireSocial = (() => {
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */
 /* Closed-app push: subscriptions live in push/{pid}; a small Cloudflare Worker sends them */
 const Push = (() => {
-  const URL_ = 'PUSH_URL_PLACEHOLDER';
+  const URL_ = 'https://paisho-push.kelleysills.workers.dev';
   const ready = () => /^https:/.test(URL_) && 'serviceWorker' in navigator && 'PushManager' in window;
   const u8 = (b64) => { b64 = b64.replace(/-/g, '+').replace(/_/g, '/'); while (b64.length % 4) b64 += '='; return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); };
   const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'd' + (h >>> 0).toString(36); };
