@@ -111,6 +111,17 @@ const FireSocial = (() => {
     if (friendUnsub) { friendUnsub(); friendUnsub = null; } lastFriendKey = '';
     clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = [];
   }
+  async function addPid(pid) {
+    if (!me) return 'Create a player first to add friends';
+    if (pid === me.pid) return 'That’s you!';
+    const ref = FB.col('players').doc(pid), d = await ref.get();
+    if (!d.exists) return 'Player not found';
+    let code = d.data().fcode;
+    if (!code) { code = newCode(); await ref.set({ fcode: code }, { merge: true }); }
+    return add(code);
+  }
+  const isFriend = (pid) => !!(me && (me.friends || []).includes(pid));
+  const sentTo = (pid) => false;
   async function add(code) {
     code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
@@ -149,7 +160,7 @@ const FireSocial = (() => {
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
   const isOnline = (code) => { const f = friendDocs.find((x) => x.code === code); return !!(f && Date.now() - f.seen < ONLINE_MS); };
   const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
-  return { ready, start, stop, add, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
+  return { ready, start, stop, add, addPid, isFriend, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
 })();
 
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */

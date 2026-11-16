@@ -1988,6 +1988,17 @@ const FireSocial = (() => {
     if (friendUnsub) { friendUnsub(); friendUnsub = null; } lastFriendKey = '';
     clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = [];
   }
+  async function addPid(pid) {
+    if (!me) return 'Create a player first to add friends';
+    if (pid === me.pid) return 'That’s you!';
+    const ref = FB.col('players').doc(pid), d = await ref.get();
+    if (!d.exists) return 'Player not found';
+    let code = d.data().fcode;
+    if (!code) { code = newCode(); await ref.set({ fcode: code }, { merge: true }); }
+    return add(code);
+  }
+  const isFriend = (pid) => !!(me && (me.friends || []).includes(pid));
+  const sentTo = (pid) => false;
   async function add(code) {
     code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!/^[A-Z0-9]{6}$/.test(code)) return 'Friend codes are 6 letters/numbers';
@@ -2026,7 +2037,7 @@ const FireSocial = (() => {
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
   const isOnline = (code) => { const f = friendDocs.find((x) => x.code === code); return !!(f && Date.now() - f.seen < ONLINE_MS); };
   const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
-  return { ready, start, stop, add, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
+  return { ready, start, stop, add, addPid, isFriend, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
 })();
 
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */
@@ -2807,7 +2818,12 @@ const Guide = (() => {
     const card = Object.assign({}, p, { avatar: p.avatar || 'whitelotus', isAvatar: !!(avatarPid && p.id === avatarPid), lvl: Eco.level(p.xp || 0), xp: p.xp || 0 });
     const got = Eco.ACH.filter((a) => ach[a.id]);
     const best = Eco.ACH_MAIN.filter((a) => ach[a.id]).concat(Eco.TRACKS.map((t) => Eco.ACH.filter((a) => a.track === t.k && ach[a.id]).pop()).filter(Boolean));
-    sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}
+    let fbtn = '';
+    if (me && me.id !== p.id && Store.kind === 'firebase') {
+      if (!FireSocial.active) await FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).catch(() => {});
+      fbtn = FireSocial.isFriend && FireSocial.isFriend(p.id) ? '<div class="tiny" style="text-align:center;color:#9fd18b;margin:6px 0">✓ Friends</div>' : FireSocial.requests().some((r) => r.from === p.id) ? `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">Accept friend request</button>` : `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add friend</button>`;
+    } else if (!me) fbtn = '<div class="tiny muted" style="text-align:center">Create a player to add friends.</div>';
+    sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}${fbtn}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr></table></div>
@@ -3157,9 +3173,21 @@ const Guide = (() => {
         <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Soc().code || '')}">Copy code</button></div>
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
       <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
+      ${Store.kind === 'firebase' ? `<div class="card"><div class="field"><label>Find a player</label><input class="input" id="fsearch" maxlength="18" placeholder="Search by display name" autocomplete="off"></div><div class="menu" id="fresults"></div></div>` : ''}
       ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
       <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0" data-act="viewPlayer" data-name="${esc(f.name)}"${f.pid ? ` data-pid="${esc(f.pid)}"` : ''}><div class="nm"><u>${esc(f.name)}</u></div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${on && !f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
     </div>`;
+    const fs = document.getElementById('fsearch');
+    if (fs) {
+      let all = null, tm = null;
+      fs.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(async () => {
+        const q = fs.value.trim().toLowerCase(), box = document.getElementById('fresults'); if (!box) return;
+        if (q.length < 2) { box.innerHTML = ''; return; }
+        all = all || await players();
+        const hits = all.filter((p) => (!me || p.id !== me.id) && p.name.toLowerCase().includes(q)).slice(0, 12);
+        box.innerHTML = hits.map((p) => { const fr = FireSocial.isFriend && FireSocial.isFriend(p.id); return `<div class="prof" data-act="viewPlayer" data-pid="${esc(p.id)}">${av(p.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(p.name)}</div><div class="tiny muted">Lv ${Eco.level(p.xp || 0)} · ${(p.stats && p.stats.wins) || 0} wins</div></div>${fr ? '<span class="tiny" style="color:#9fd18b">✓ Friends</span>' : `<button class="btn small primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add</button>`}</div>`; }).join('') || '<div class="muted tiny">No players found</div>';
+      }, 300); });
+    }
   };
 
   // ---------- stats ----------
@@ -4045,7 +4073,16 @@ const Guide = (() => {
     tutHome: () => { closeSheet(); Music.stop(); G = null; go('home'); },
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
-    viewPlayer: (d) => viewPlayer(d),
+    viewPlayer: (d, e) => { if (e && e.target.closest('[data-act="addFriendPid"]') && e.target.closest('[data-act="addFriendPid"]') !== e.target.closest('[data-act]')) return; viewPlayer(d); },
+    addFriendPid: async (d, e) => {
+      if (e) e.stopPropagation();
+      if (!me) return toast('Create a player first');
+      if (!FireSocial.active) await FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).catch(() => {});
+      const err = await FireSocial.addPid(d.pid);
+      if (err) return toast(err);
+      toast('Friend request sent 🤝'); closeSheet();
+      if (document.getElementById('friends-screen')) { const v = (document.getElementById('fsearch') || {}).value; screens.friends(); const f = document.getElementById('fsearch'); if (f && v) { f.value = v; f.dispatchEvent(new Event('input')); } }
+    },
     achTrack: (d) => { achOpen = achOpen === d.k ? null : d.k; const y = window.scrollY; if (document.querySelector('[data-act="statsTab"]')) screens.stats(); else screens.achievements(); setTimeout(() => window.scrollTo(0, y), 0); },
     statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
