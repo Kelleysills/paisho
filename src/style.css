@@ -255,3 +255,19 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 
 #board.blackout{filter:none}
 #board.blackout .tile circle:nth-of-type(1){stroke:#cfcfcf}
+
+.bendbar{display:flex;gap:6px;overflow-x:auto;padding:4px 10px 2px;scrollbar-width:none;align-items:stretch}
+.bendbar::-webkit-scrollbar{display:none}
+.bb{flex:none;display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);font-size:13px;color:var(--ink);white-space:nowrap}
+.bb .i{font-size:18px}
+.bb b{display:block;font-size:13px;line-height:1.1}
+.bb small{display:block;font-size:10px;color:var(--dim);line-height:1.1}
+.bb.main{background:linear-gradient(180deg,#5a3216,#3e2210);border-color:#c8742a}
+.bb.main.sel{border-color:var(--gold2);box-shadow:0 0 0 2px #e6b54a66}
+.bb.sub{background:linear-gradient(180deg,#2c3c5a,#1c2840);border-color:#6f9fe0}
+.bb.spam{padding:6px 9px;flex-direction:column;gap:0}
+.bb.spam .i{font-size:16px}
+.bb.spent{opacity:.5;flex-direction:column;gap:0}
+.bb[disabled]{opacity:.4}
+.bb-sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
+.game .tray{min-height:68px}

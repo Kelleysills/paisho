@@ -769,6 +769,7 @@
       <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn chat-btn" id="chat-btn" data-act="chatOpen" aria-label="Chat">💬</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(G.boardInfo.theme)}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
       <div class="status" id="status"></div>
       <div class="info" id="info"></div>
+      <div class="bendbar" id="bendbar"></div>
       <div class="tray" id="tray"></div>
       <footer class="g-bar">
         <button class="btn" data-act="undo" id="b-undo">↶ Undo</button>
@@ -1100,11 +1101,30 @@
     bh.style.opacity = G.showH ? 1 : 0.5;
   }
   const bendSeat = () => (G.my != null ? G.my : G.s.turn);
+  function renderBendBar() {
+    const bar = document.getElementById('bendbar'); if (!bar) return;
+    const s = G.s, seat = bendSeat(), pw = (s.opts.powers || [])[seat] || {};
+    if (!s.bend || !(pw.nation || pw.avatar) || G.seats[seat].kind !== 'human' || s.winner !== null) { bar.style.display = 'none'; return; }
+    const els = pw.avatar ? ['fire', 'water', 'earth', 'air'] : [pw.nation];
+    const used = s.bend.used[seat], free = pw.avatar || P.hasHarmony(s, seat), cost = P.bendCost(s, seat);
+    const sel = G.sel && G.sel.kind === 'bend' ? G.sel.el : null;
+    let o = '';
+    if (!used) els.forEach((el) => {
+      const ok = free || cost;
+      o += `<button class="bb main ${sel === el ? 'sel' : ''}" data-act="bendGo" data-el="${el}" ${ok ? '' : 'disabled'}><span class="i">${Eco.BEND[el].icon}</span><span><b>${Eco.BEND[el].verb}</b><small>${free ? 'free now' : cost ? 'costs ' + P.tname(cost.type) : 'need a tile'}</small></span></button>`;
+    });
+    else o += `<span class="bb spent"><span class="i">${pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon}</span><small>bend used</small></span>`;
+    P.subAvailable(s, seat).forEach((k) => (o += `<button class="bb sub" data-act="subGo" data-k="${k}"><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>free · once</small></span></button>`));
+    o += '<span class="bb-sep"></span>';
+    els.forEach((el) => (o += `<button class="bb spam" data-act="spamGo" data-el="${el}"><span class="i">${Eco.BEND[el].icon}</span><small>${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</small></button>`));
+    if (!(s.melon && s.melon.used[seat])) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord</small></button>`;
+    o += `<button class="bb spam" data-act="bendMenu"><span class="i">ⓘ</span><small>Details</small></button>`;
+    bar.style.display = 'flex'; bar.innerHTML = o;
+  }
   function renderBendBtn() {
+    renderBendBar();
     const b = document.getElementById('bend-btn'); if (!b) return;
-    const s = G.s; const pw = (s.opts.powers || [])[bendSeat()] || {};
-    if (!s.bend || !(pw.nation || pw.avatar) || G.seats[bendSeat()].kind !== 'human') { b.style.display = 'none'; return; }
-    b.style.display = 'grid';
+    b.style.display = 'none'; return;
     b.textContent = pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon;
     b.classList.toggle('spent', !!s.bend.used[bendSeat()] && !P.subAvailable(s, bendSeat()).length);
   }
@@ -1520,7 +1540,7 @@
         <div class="card" style="margin-top:10px"><b>Show off</b> <span class="tiny muted">· free, cosmetic, as often as you like</span><p class="tiny muted">Cover their board in your element while they think. Earns bonus XP in online games.</p>
           <div class="row wrap">${els.map((el) => `<button class="btn small" data-act="spamGo" data-el="${el}">${Eco.BEND[el].icon} ${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</button>`).join('')}</div></div>`);
     },
-    bendGo: (d) => startBendSel(d.el),
+    bendGo: (d) => { if (G.sel && G.sel.kind === 'bend' && G.sel.el === d.el) { G.sel = null; renderBoard(); renderBendBar(); return; } startBendSel(d.el); renderBendBar(); },
     subGo: (d) => startSub(d.k),
     spamGo: (d) => spamBend(d.el),
     yipYip: async () => {
