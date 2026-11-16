@@ -1323,6 +1323,29 @@ const Eco = (() => {
     { id: 'sleep', e: '😴', t: 'Your move… eventually', kind: 'store', price: 120 },
     { id: 'flex', e: '💪', t: 'Too easy', kind: 'store', price: 150 },
     { id: 'lotus', e: '🪷', t: 'The garden blooms', kind: 'store', price: 200 },
+    // cartoony pack
+    { id: 'lol', e: '😂', t: 'LOL', kind: 'common' },
+    { id: 'eyes', e: '👀', t: 'I see what you did', kind: 'common' },
+    { id: 'salute', e: '🫡', t: 'Respect', kind: 'common' },
+    { id: 'cool', e: '😎', t: 'Too cool', kind: 'store', price: 80 },
+    { id: 'mind', e: '🤯', t: 'Mind = blown', kind: 'store', price: 100 },
+    { id: 'fine', e: '🥲', t: 'It’s fine. I’m fine.', kind: 'store', price: 100 },
+    { id: 'hmph', e: '😤', t: 'Hmph!', kind: 'store', price: 100 },
+    { id: 'clown', e: '🤡', t: 'Clowned', kind: 'store', price: 120 },
+    { id: 'dead', e: '💀', t: 'I’m dead', kind: 'store', price: 120 },
+    { id: 'melt', e: '🫠', t: 'Melting…', kind: 'store', price: 120 },
+    { id: 'slow', e: '🐢', t: 'Any day now…', kind: 'store', price: 120 },
+    { id: 'rawr', e: '🐉', t: 'RAWR', kind: 'store', price: 150 },
+    { id: 'dig', e: '🦡', t: 'Digging in', kind: 'store', price: 150 },
+    { id: 'melon', e: '🍈', t: 'Melon time', kind: 'store', price: 150 },
+    { id: 'cold', e: '🥶', t: 'Ice cold', kind: 'store', price: 150 },
+    { id: 'zen', e: '🧘', t: 'Inner peace', kind: 'store', price: 150 },
+    { id: 'evil', e: '😈', t: 'Mwahaha', kind: 'store', price: 180 },
+    { id: 'bull', e: '🎯', t: 'Bullseye', kind: 'store', price: 180 },
+    { id: 'truce', e: '🤝', t: 'Truce?', kind: 'store', price: 180 },
+    { id: 'crown', e: '👑', t: 'Bow down', kind: 'store', price: 250 },
+    { id: 'rocket', e: '🚀', t: 'To the moon', kind: 'store', price: 250 },
+    { id: 'cabbage', e: '🥬', t: 'My cabbages!', kind: 'store', price: 300 },
   ];
   const EMO = Object.fromEntries(EMOTES.map((x) => [x.id, x]));
   // board themes
@@ -1335,6 +1358,24 @@ const Eco = (() => {
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
+    sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
+    glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
+    desert:  { name: 'Desert Oasis',     price: 700,  wood: ['#d9b27a', '#a37a42'], light: '#fbf0d9', dark: '#d07a2a', rim: '#ffd88a', gate: '#7a3e12', gateEdge: '#ffe2a2', bg: '#3a2410' },
+    swamp:   { name: 'Misty Swamp',      price: 700,  wood: ['#5b6b45', '#323d24'], light: '#e3e8cf', dark: '#5f8a3a', rim: '#b8cf8a', gate: '#25351a', gateEdge: '#cfe39a', bg: '#141a0e' },
+    ember:   { name: 'Ember Glow',       price: 800,  wood: ['#3a1a12', '#1a0a06'], light: '#ffe0b8', dark: '#ff5a1f', rim: '#ffb02e', gate: '#3a0a04', gateEdge: '#ffcc66', bg: '#0e0402' },
+    ocean:   { name: 'Deep Ocean',       price: 800,  wood: ['#1f4a66', '#0d2436'], light: '#d9f0ff', dark: '#1a7fb8', rim: '#7fd4ff', gate: '#082033', gateEdge: '#9fe0ff', bg: '#04101a' },
+    spirit:  { name: 'Spirit World',     price: 900,  wood: ['#5b3a7a', '#2c1a40'], light: '#f1e6ff', dark: '#9a5fd6', rim: '#e0c4ff', gate: '#2a1442', gateEdge: '#d9b8ff', bg: '#120a1e' },
+    aurora:  { name: 'Aurora',           price: 900,  wood: ['#24414a', '#0f2026'], light: '#e6fff6', dark: '#2fb889', rim: '#9fffe0', gate: '#0c2e26', gateEdge: '#b8ffe8', bg: '#06120f' },
+    autumn:  { name: 'Autumn Leaves',    price: 700,  wood: ['#9a5a2a', '#5e3214'], light: '#fbecd8', dark: '#c4521f', rim: '#f2a54a', gate: '#5a240c', gateEdge: '#ffc77a', bg: '#26120a' },
+    marble:  { name: 'White Marble',     price: 1000, wood: ['#d8d6d0', '#a8a49a'], light: '#ffffff', dark: '#8a8a8a', rim: '#f0ece0', gate: '#4a4a4a', gateEdge: '#ffffff', bg: '#2a2a2a' },
+    obsidian:{ name: 'Obsidian',         price: 1000, wood: ['#2a2a32', '#121216'], light: '#cfcfd8', dark: '#4a3a6a', rim: '#9a8ac8', gate: '#0a0a12', gateEdge: '#c8b8ff', bg: '#050508' },
+    gold:    { name: 'Royal Gold',       price: 1500, wood: ['#c9a24a', '#8a6a1a'], light: '#fff7dc', dark: '#b8862a', rim: '#ffe28a', gate: '#5a3e0a', gateEdge: '#fff0b0', bg: '#2a1e06' },
+    lotusb:  { name: 'Lotus Pond',       price: 900,  wood: ['#3f6a5e', '#1f3a32'], light: '#f6fff9', dark: '#e48ab0', rim: '#ffd6e6', gate: '#1a3a30', gateEdge: '#ffd6e6', bg: '#0c1a16' },
+    candy:   { name: 'Candy Garden',     price: 800,  wood: ['#e89ac0', '#b05a8a'], light: '#fff6fb', dark: '#7ab8ff', rim: '#ffd1ea', gate: '#7a2a5a', gateEdge: '#ffe0f0', bg: '#2a1020' },
+    neon:    { name: 'Neon Night',       price: 1200, wood: ['#141428', '#07070f'], light: '#1e1e3a', dark: '#ff2fa8', rim: '#2ff3ff', gate: '#07070f', gateEdge: '#2ff3ff', bg: '#020206' },
+    stormy:  { name: 'Storm Clouds',     price: 800,  wood: ['#4f5866', '#272c34'], light: '#e8ecf2', dark: '#5a6f8f', rim: '#c8d4e6', gate: '#1a1f28', gateEdge: '#e0e8ff', bg: '#0c0f14' },
+    meadow:  { name: 'Spring Meadow',    price: 600,  wood: ['#8fb45a', '#56782e'], light: '#fbfff0', dark: '#f2b23a', rim: '#e6ff9a', gate: '#3a5418', gateEdge: '#f2ffb8', bg: '#16200a' },
+    bamboo:  { name: 'Bamboo Grove',     price: 700,  wood: ['#b8c46a', '#7a8a32'], light: '#f8fbe6', dark: '#4f8a3a', rim: '#e2ef9a', gate: '#33501c', gateEdge: '#eaf7b0', bg: '#141c08' },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
   // earnings
@@ -1486,7 +1527,7 @@ const Eco = (() => {
     { k: 'days', n: 70, a: 1, b: 2000, noun: 'Devotee', icon: '📅', d: (x) => `Play on ${x} different ${pl(x, 'day', 'days')}`, v: (p) => p.daysPlayed || 0 },
     { k: 'gold', n: 55, a: 2000, b: 5000000, noun: 'Treasure Keeper', icon: '🪙', d: (x) => `Hold ${x.toLocaleString()} gp at once`, v: (p) => Math.max(p.gp || 0, p.gpPeak || 0) },
     { k: 'friend', n: 35, a: 1, b: 100, noun: 'Companion', icon: '🫂', d: (x) => `Have ${x} ${pl(x, 'friend', 'friends')}`, v: (p, c) => (c && c.friends) || 0 },
-    { k: 'coll', n: 30, a: 3, b: 60, lin: true, noun: 'Collector', icon: '🎴', d: (x) => `Own ${x} store items (tiles, pictures, emotes and boards)`, v: (p) => { const o = p.owned || {}; return (o.tiles || []).length + (o.avatars || []).length + (o.emotes || []).length + (o.boards || []).length; } },
+    { k: 'coll', n: 30, a: 3, b: 120, lin: true, noun: 'Collector', icon: '🎴', d: (x) => `Own ${x} store items (tiles, pictures, emotes and boards)`, v: (p) => { const o = p.owned || {}; return (o.tiles || []).length + (o.avatars || []).length + (o.emotes || []).length + (o.boards || []).length; } },
   ];
   function ladder(t) {
     const out = []; let prev = 0;
@@ -1561,6 +1602,27 @@ const Avatars = (() => {
     { id: 'spiral', el: 'spirit', label: 'Spiral', g: (i) => `<path d="M0,0 C0.12,0 0.12,-0.18 0,-0.18 C-0.24,-0.18 -0.24,0.18 0,0.2 C0.35,0.22 0.38,-0.36 0,-0.38 C-0.5,-0.4 -0.55,0.42 0,0.45 C0.62,0.48 0.66,-0.6 0.05,-0.62" ${S(i, 0.09)}/>` },
     { id: 'tea', el: 'lotus', label: 'Teacup', g: (i) => `<path d="M-0.5,-0.05 H0.4 C0.4,0.35 0.2,0.5 -0.05,0.5 C-0.3,0.5 -0.5,0.35 -0.5,-0.05 Z" ${F(i)}/><path d="M0.4,0.05 C0.65,0.05 0.65,0.3 0.35,0.32" ${S(i, 0.08)}/><path d="M-0.65,0.6 H0.55" ${S(i, 0.08)}/><path d="M-0.2,-0.2 C-0.3,-0.35 -0.1,-0.45 -0.2,-0.6 M0.1,-0.2 C0,-0.35 0.2,-0.45 0.1,-0.6" ${S(i, 0.06)}/>` },
     { id: 'whitelotus', el: 'lotus', label: 'White Lotus', g: (i) => Array.from({ length: 8 }, (_, k) => `<ellipse cx="0" cy="-0.42" rx="0.15" ry="0.26" ${F(i)} transform="rotate(${k * 45 + 22.5})"/>`).join('') + `<circle r="0.18" ${F(i)}/><circle r="0.08" fill="rgba(0,0,0,.25)"/>` },
+    // ---- creature & nature collection (original art) ----
+    { id: 'bison', el: 'air', label: 'Sky Bison', price: 450, g: (i) => `<g transform="translate(0.1 0) scale(0.92)"><path d="M-0.62,0.18 C-0.7,-0.2 -0.45,-0.42 -0.1,-0.4 C0.25,-0.48 0.62,-0.3 0.64,0.05 C0.68,0.32 0.42,0.42 0.1,0.4 C-0.25,0.44 -0.58,0.42 -0.62,0.18 Z" ${F(i)}/><path d="M-0.55,-0.25 C-0.45,-0.42 -0.35,-0.3 -0.28,-0.42 C-0.2,-0.3 -0.1,-0.45 0,-0.35 C0.1,-0.48 0.2,-0.33 0.3,-0.45 C0.38,-0.32 0.5,-0.4 0.56,-0.22" ${F(i)}/><circle cx="-0.62" cy="0.02" r="0.22" ${F(i)}/><path d="M-0.78,-0.14 C-0.95,-0.2 -0.92,-0.38 -0.82,-0.42 M-0.48,-0.16 C-0.36,-0.26 -0.4,-0.42 -0.5,-0.45" ${S(i, 0.07)}/><circle cx="-0.68" cy="0" r="0.035" fill="rgba(0,0,0,.6)"/><circle cx="-0.54" cy="0" r="0.035" fill="rgba(0,0,0,.6)"/><path d="M-0.67,0.1 Q-0.61,0.15 -0.55,0.1" stroke="rgba(0,0,0,.55)" stroke-width="0.04" fill="none" stroke-linecap="round"/><path d="M-0.3,0.4 V0.55 M0,0.42 V0.57 M0.3,0.4 V0.55" ${S(i, 0.12)}/></g>` },
+    { id: 'crane', el: 'air', label: 'Crane', price: 300, g: (i) => `<path d="M-0.55,0.2 C-0.2,-0.05 0.15,-0.05 0.5,0.15 C0.2,0.05 -0.05,0.2 -0.2,0.45 Z" ${F(i)}/><path d="M-0.15,0.05 C-0.35,-0.35 -0.6,-0.45 -0.75,-0.38 M0.1,0.05 C0.35,-0.4 0.6,-0.5 0.75,-0.42" ${S(i, 0.09)}/><path d="M0.2,0.08 C0.35,-0.2 0.3,-0.45 0.42,-0.6 L0.6,-0.58" ${S(i, 0.08)}/><path d="M-0.2,0.45 L-0.3,0.68 M-0.1,0.42 L-0.1,0.68" ${S(i, 0.05)}/>` },
+    { id: 'fan', el: 'air', label: 'Fan', price: 200, g: (i) => `<path d="M0,0.5 L-0.62,-0.12 A0.88,0.88 0 0 1 0.62,-0.12 Z" ${F(i)}/>` + [-0.42, -0.21, 0, 0.21, 0.42].map((x) => `<path d="M0,0.5 L${x},-0.25" stroke="rgba(0,0,0,.35)" stroke-width="0.04"/>`).join('') + `<circle cx="0" cy="0.5" r="0.07" ${F(i)}/>` },
+    { id: 'koi', el: 'water', label: 'Koi', price: 250, g: (i) => `<path d="M-0.5,0.05 C-0.3,-0.35 0.25,-0.35 0.42,0 C0.25,0.35 -0.3,0.35 -0.5,0.05 Z" ${F(i)}/><path d="M0.38,0 L0.72,-0.28 L0.62,0 L0.72,0.28 Z" ${F(i)}/><path d="M-0.1,-0.22 L0.05,-0.42 L0.12,-0.2 M-0.1,0.22 L0.02,0.38" ${S(i, 0.06)}/><circle cx="-0.32" cy="-0.04" r="0.05" fill="rgba(0,0,0,.6)"/><path d="M-0.05,-0.1 C0.05,0 0.05,0.08 -0.05,0.15 M0.12,-0.12 C0.22,0 0.22,0.08 0.12,0.15" stroke="rgba(0,0,0,.3)" stroke-width="0.05" fill="none"/>` },
+    { id: 'moonocean', el: 'spirit', label: 'Moon & Ocean', price: 750, g: (i) => `<circle r="0.66" fill="none" stroke="${i}" stroke-width="0.05"/><path d="M0,-0.6 C0.45,-0.6 0.6,-0.2 0.35,0.05 C0.2,0.2 0.05,0.15 0,0.3 C-0.05,0.5 0.1,0.6 0.25,0.55 C-0.1,0.7 -0.5,0.45 -0.45,0.05 C-0.42,-0.3 -0.25,-0.6 0,-0.6 Z" ${F(i)}/><path d="M0,0.6 C-0.45,0.6 -0.6,0.2 -0.35,-0.05 C-0.2,-0.2 -0.05,-0.15 0,-0.3 C0.05,-0.5 -0.1,-0.6 -0.25,-0.55" fill="rgba(0,0,0,.35)"/><circle cx="0.18" cy="-0.3" r="0.07" fill="rgba(0,0,0,.65)"/><circle cx="-0.18" cy="0.3" r="0.07" ${F(i)}/>` },
+    { id: 'turtleduck', el: 'water', label: 'Turtle Duck', price: 250, g: (i) => `<path d="M-0.55,0.3 C-0.55,-0.15 0.3,-0.2 0.45,0.15 L0.5,0.3 Z" ${F(i)}/><path d="M-0.35,0.15 C-0.3,-0.05 0.15,-0.08 0.25,0.12" stroke="rgba(0,0,0,.3)" stroke-width="0.05" fill="none"/><circle cx="0.42" cy="-0.12" r="0.18" ${F(i)}/><path d="M0.58,-0.1 L0.75,-0.05 L0.58,0.02 Z" ${F(i)}/><circle cx="0.46" cy="-0.16" r="0.035" fill="rgba(0,0,0,.6)"/><path d="M-0.75,0.45 C-0.5,0.38 -0.25,0.52 0,0.45 C0.25,0.38 0.5,0.52 0.75,0.45" ${S(i, 0.06)}/>` },
+    { id: 'snow', el: 'water', label: 'Snowflake', price: 200, g: (i) => Array.from({ length: 6 }, (_, k) => `<g transform="rotate(${k * 60})"><path d="M0,0 V-0.66 M0,-0.4 L-0.16,-0.55 M0,-0.4 L0.16,-0.55 M0,-0.2 L-0.12,-0.3 M0,-0.2 L0.12,-0.3" ${S(i, 0.07)}/></g>`).join('') },
+    { id: 'badgermole', el: 'earth', label: 'Badgermole', price: 350, g: (i) => `<path d="M-0.55,0.5 C-0.65,0 -0.45,-0.5 0,-0.52 C0.45,-0.5 0.65,0 0.55,0.5 Z" ${F(i)}/><path d="M0,-0.52 C-0.08,-0.2 -0.08,0.1 0,0.25 C0.08,0.1 0.08,-0.2 0,-0.52 Z" fill="rgba(255,255,255,.55)"/><circle cx="-0.2" cy="-0.05" r="0.06" fill="rgba(0,0,0,.65)"/><circle cx="0.2" cy="-0.05" r="0.06" fill="rgba(0,0,0,.65)"/><ellipse cx="0" cy="0.25" rx="0.1" ry="0.07" fill="rgba(0,0,0,.6)"/><path d="M-0.55,0.5 L-0.62,0.66 M-0.45,0.52 L-0.48,0.68 M0.55,0.5 L0.62,0.66 M0.45,0.52 L0.48,0.68" ${S(i, 0.06)}/>` },
+    { id: 'lionturtle', el: 'earth', label: 'Lion Turtle', price: 650, g: (i) => `<path d="M-0.7,0.35 C-0.7,-0.25 0.4,-0.35 0.5,0.35 Z" ${F(i)}/><path d="M-0.5,0.35 L-0.38,-0.02 L-0.05,-0.12 L0.25,0.02 L0.32,0.35 M-0.38,-0.02 L-0.2,0.35 M-0.05,-0.12 L0.05,0.35" stroke="rgba(0,0,0,.3)" stroke-width="0.04" fill="none"/>` + Array.from({ length: 9 }, (_, k) => `<ellipse cx="0.5" cy="-0.05" rx="0.08" ry="0.2" ${F(i)} transform="rotate(${k * 40} 0.5 0.05) translate(0 -0.2)"/>`).join('') + `<circle cx="0.5" cy="0.05" r="0.2" ${F(i)}/><circle cx="0.45" cy="0" r="0.035" fill="rgba(0,0,0,.6)"/><circle cx="0.58" cy="0" r="0.035" fill="rgba(0,0,0,.6)"/><path d="M-0.55,0.35 V0.55 M0.3,0.35 V0.55" ${S(i, 0.12)}/>` },
+    { id: 'panda', el: 'earth', label: 'Panda', price: 300, g: (i) => `<circle cx="-0.38" cy="-0.38" r="0.17" fill="rgba(0,0,0,.55)"/><circle cx="0.38" cy="-0.38" r="0.17" fill="rgba(0,0,0,.55)"/><circle r="0.52" ${F(i)}/><ellipse cx="-0.2" cy="-0.05" rx="0.12" ry="0.16" fill="rgba(0,0,0,.55)" transform="rotate(-25 -0.2 -0.05)"/><ellipse cx="0.2" cy="-0.05" rx="0.12" ry="0.16" fill="rgba(0,0,0,.55)" transform="rotate(25 0.2 -0.05)"/><ellipse cx="0" cy="0.18" rx="0.08" ry="0.05" fill="rgba(0,0,0,.6)"/><path d="M-0.08,0.28 Q0,0.34 0.08,0.28" stroke="rgba(0,0,0,.55)" stroke-width="0.04" fill="none"/>` },
+    { id: 'bamboo', el: 'earth', label: 'Bamboo', price: 200, g: (i) => `<path d="M-0.15,0.7 V-0.65 M0.2,0.7 V-0.45" ${S(i, 0.16)}/><path d="M-0.25,0.25 H-0.05 M-0.25,-0.2 H-0.05 M0.1,0.35 H0.3 M0.1,-0.05 H0.3" stroke="rgba(0,0,0,.35)" stroke-width="0.04"/><path d="M-0.15,-0.2 C-0.4,-0.3 -0.55,-0.25 -0.65,-0.15 C-0.5,-0.32 -0.3,-0.38 -0.15,-0.2 Z M0.2,-0.05 C0.45,-0.2 0.6,-0.12 0.68,-0.02 C0.5,-0.22 0.32,-0.25 0.2,-0.05 Z" ${F(i)} stroke="${i}" stroke-width="0.05"/>` },
+    { id: 'dragon', el: 'fire', label: 'Dragon', price: 550, g: (i) => `<path d="M-0.65,0.45 C-0.3,0.55 -0.15,0.2 -0.35,0 C-0.55,-0.2 -0.3,-0.5 0,-0.38 C0.25,-0.28 0.2,0.05 0.42,0.05" ${S(i, 0.17)}/><path d="M0.35,-0.12 C0.5,-0.2 0.7,-0.1 0.72,0.05 C0.7,0.18 0.5,0.2 0.38,0.15 Z" ${F(i)}/><path d="M0.45,-0.15 L0.4,-0.38 L0.55,-0.18 M0.58,-0.14 L0.65,-0.35 L0.68,-0.1" ${F(i)} stroke="${i}" stroke-width="0.04"/><circle cx="0.56" cy="-0.02" r="0.035" fill="rgba(0,0,0,.65)"/><path d="M-0.42,-0.15 L-0.55,-0.25 M-0.2,-0.42 L-0.25,-0.58 M0.05,-0.4 L0.08,-0.56 M-0.2,0.2 L-0.38,0.22" ${S(i, 0.06)}/><path d="M0.72,0.08 C0.8,0.15 0.78,0.25 0.7,0.3" stroke="#ffcf4a" stroke-width="0.05" fill="none"/>` },
+    { id: 'phoenix', el: 'fire', label: 'Phoenix', price: 450, g: (i) => `<path d="M0,-0.2 C-0.3,-0.55 -0.7,-0.5 -0.75,-0.2 C-0.5,-0.32 -0.3,-0.2 -0.15,0 Z M0,-0.2 C0.3,-0.55 0.7,-0.5 0.75,-0.2 C0.5,-0.32 0.3,-0.2 0.15,0 Z" ${F(i)}/><ellipse cx="0" cy="0" rx="0.13" ry="0.24" ${F(i)}/><circle cx="0" cy="-0.32" r="0.1" ${F(i)}/><path d="M0,0.2 C-0.2,0.45 -0.25,0.6 -0.35,0.7 M0,0.2 C0,0.45 0,0.6 0,0.72 M0,0.2 C0.2,0.45 0.25,0.6 0.35,0.7" ${S(i, 0.07)}/>` },
+    { id: 'bolt', el: 'fire', label: 'Lightning', price: 300, g: (i) => `<path d="M0.12,-0.72 L-0.38,0.08 H-0.02 L-0.18,0.72 L0.4,-0.12 H0.05 Z" ${F(i)}/>` },
+    { id: 'volcano', el: 'fire', label: 'Volcano', price: 350, g: (i) => `<path d="M-0.72,0.55 L-0.22,-0.18 H0.2 L0.72,0.55 Z" ${F(i)}/><path d="M-0.22,-0.18 C-0.1,-0.1 0.1,-0.1 0.2,-0.18" stroke="rgba(0,0,0,.35)" stroke-width="0.05" fill="none"/><path d="M-0.05,-0.25 C-0.2,-0.45 -0.05,-0.55 -0.12,-0.72 M0.08,-0.25 C0.2,-0.42 0.1,-0.55 0.2,-0.68" ${S(i, 0.07)}/><path d="M-0.08,-0.15 C-0.15,0.1 -0.05,0.25 -0.15,0.45" stroke="#ffcf4a" stroke-width="0.06" fill="none"/>` },
+    { id: 'owl', el: 'spirit', label: 'Night Owl', price: 300, g: (i) => `<path d="M-0.45,-0.45 L-0.3,-0.2 M0.45,-0.45 L0.3,-0.2" ${S(i, 0.1)}/><ellipse cx="0" cy="0.08" rx="0.45" ry="0.55" ${F(i)}/><circle cx="-0.18" cy="-0.1" r="0.15" fill="rgba(255,255,255,.75)"/><circle cx="0.18" cy="-0.1" r="0.15" fill="rgba(255,255,255,.75)"/><circle cx="-0.18" cy="-0.1" r="0.07" fill="rgba(0,0,0,.7)"/><circle cx="0.18" cy="-0.1" r="0.07" fill="rgba(0,0,0,.7)"/><path d="M-0.06,0.06 L0,0.16 L0.06,0.06 Z" fill="rgba(0,0,0,.55)"/><path d="M-0.2,0.35 Q0,0.45 0.2,0.35 M-0.15,0.48 Q0,0.56 0.15,0.48" stroke="rgba(0,0,0,.3)" stroke-width="0.04" fill="none"/>` },
+    { id: 'fox', el: 'spirit', label: 'Spirit Fox', price: 350, g: (i) => `<path d="M-0.5,-0.55 L-0.25,-0.15 L0.25,-0.15 L0.5,-0.55 L0.42,0.05 L0,0.5 L-0.42,0.05 Z" ${F(i)}/><path d="M-0.42,-0.4 L-0.3,-0.2 M0.42,-0.4 L0.3,-0.2" stroke="rgba(0,0,0,.3)" stroke-width="0.05"/><path d="M-0.25,0 Q-0.17,-0.07 -0.1,0 M0.1,0 Q0.17,-0.07 0.25,0" stroke="rgba(0,0,0,.65)" stroke-width="0.05" fill="none"/><circle cx="0" cy="0.35" r="0.06" fill="rgba(0,0,0,.6)"/>` },
+    { id: 'comet', el: 'spirit', label: 'Comet', price: 400, g: (i) => `<circle cx="0.32" cy="-0.32" r="0.2" ${F(i)}/><path d="M0.18,-0.2 L-0.6,0.58 M0.25,-0.1 L-0.4,0.6 M0.1,-0.27 L-0.62,0.38" ${S(i, 0.06)}/>` + [[-0.5, -0.45], [0.55, 0.3], [-0.1, -0.6], [0.6, -0.65]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.04" ${F(i)}/>`).join('') },
+    { id: 'blossom', el: 'lotus', label: 'Cherry Blossom', price: 200, g: (i) => Array.from({ length: 5 }, (_, k) => `<path d="M0,0 C-0.3,-0.2 -0.22,-0.62 0,-0.55 C0.22,-0.62 0.3,-0.2 0,0 Z" ${F(i)} transform="rotate(${k * 72})"/>`).join('') + `<circle r="0.1" fill="rgba(0,0,0,.35)"/>` },
+    { id: 'balance', el: 'lotus', label: 'Balance', price: 500, g: (i) => `<circle r="0.62" ${F(i)}/><path d="M0,-0.62 A0.62,0.62 0 0 1 0,0.62 A0.31,0.31 0 0 1 0,0 A0.31,0.31 0 0 0 0,-0.62 Z" fill="rgba(0,0,0,.6)"/><circle cy="-0.31" r="0.09" fill="rgba(0,0,0,.6)"/><circle cy="0.31" r="0.09" ${F(i)}/>` },
   ];
   const byId = Object.fromEntries(LIST.map((a) => [a.id, a]));
   let n = 0;
@@ -1590,7 +1652,8 @@ const Avatars = (() => {
       ${opts.noStats ? '' : `<div class="pc-stats"><div><b>${st.wins || 0}</b><span>Wins</span></div><div><b>${st.losses || 0}</b><span>Losses</span></div><div><b>${pct}</b><span>Win %</span></div><div><b>${st.rings || 0}</b><span>Rings</span></div><div><b>${st.best || 0}</b><span>Best streak</span></div></div>`}
     </div>`;
   }
-  return { LIST, EL, svg, random, picker, card, elementOf, label, has: (id) => !!byId[id] };
+  const price = (id) => (byId[id] && byId[id].price) || null;
+  return { LIST, EL, svg, price, random, picker, card, elementOf, label, has: (id) => !!byId[id] };
 })();
 
 // ---- music.js ----
@@ -2479,7 +2542,7 @@ const Guide = (() => {
   function ensureMe() { if (!me) return; const before = JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board]); Eco.ensure(me); if (before !== JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board])) saveMe(); }
   const gpFmt = (n) => '🪙 ' + (n || 0).toLocaleString();
   const myBoard = () => (me && Eco.ownsBoard(me, me.board) ? me.board : 'classic');
-  const avLock = (prof) => (id) => (Eco.ownsAvatar(prof, id) ? null : Eco.AVATAR_PRICE);
+  const avLock = (prof) => (id) => (Eco.ownsAvatar(prof, id) ? null : Avatars.price(id) || Eco.AVATAR_PRICE);
   async function buy(kind, id, price, label) {
     if (!me) { toast('Create a player to earn and spend gold'); return false; }
     ensureMe();
@@ -2822,6 +2885,7 @@ const Guide = (() => {
     setTimeout(checkAch, 800);
     if (me && !Eco.dailyState(me).claimed && Store.LS.get('dailyShown') !== me.id + Eco.dayKey()) { Store.LS.set('dailyShown', me.id + Eco.dayKey()); setTimeout(() => { if (document.querySelector('[data-act="startSetup"]') && !document.querySelector('.sheet')) dailyOpen(); }, 700); }
     noteHue(me);
+    setTimeout(() => { if (document.querySelector('[data-act="startSetup"]')) newsCheck(); }, 1600);
     if (!screens.home._av) { screens.home._av = true; loadAvatar().then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); }
     startSocial();
     const nm = myName();
@@ -2944,7 +3008,7 @@ const Guide = (() => {
     if (storeTab === 'tiles') {
       body = `<p class="muted tiny" style="margin:0">Effect tiles for your loadouts. Everyone starts with Stone and Boat.</p><div class="store-grid">${P.EFFECT_TYPES.slice().sort((a, b) => Eco.TILE_PRICE[a] - Eco.TILE_PRICE[b]).map((t) => { const own = Eco.ownsTile(me, t); return `<div class="item ${own ? 'owned' : ''}">${Glyphs.svg(t, 0, 'style="width:52px;height:52px"')}<div class="nm">${P.tname(t)}</div><div class="ds">${esc(Guide.INFO[t][1].split('. ')[0])}.</div>${own ? '<span class="tiny" style="color:#9fd18b">✓ Owned</span>' : `<button class="btn small primary" data-act="buyItem" data-kind="tiles" data-id="${t}">🪙 ${Eco.TILE_PRICE[t]}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'avatars') {
-      body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${Eco.AVATAR_PRICE}</button>`}</div>`; }).join('')}</div>`;
+      body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${(Avatars.price(a.id) || Eco.AVATAR_PRICE)}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'emotes') {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
@@ -3258,6 +3322,22 @@ const Guide = (() => {
     show();
     if (me && sub) { Push.send(me.id, 'Pai Sho · test 2 of 2', 'This one came through the internet. Closed-app alerts work!', 'test-push'); add(null, 'Test 2 sent through the server (arrives in a few seconds)'); }
     show();
+  }
+  // ---------- What's new (shown once per update) ----------
+  const NEWS = { v: '2026-11-16c', items: [
+    ['🖼️', '20 new profile pictures', 'Sky Bison, Dragon, Lion Turtle, Badgermole, Moon & Ocean, Koi, Phoenix, Panda and more.'],
+    ['🎨', '19 new boards', 'Sakura Spring, Glacier, Spirit World, Aurora, Neon Night, Royal Gold and lots more.'],
+    ['😂', '22 new emotes', 'A cartoony pack, from 😎 Too cool to 🥬 My cabbages! Three of them are free.'],
+    ['🎁', 'Daily rewards', 'Claim free gold and XP every day. Your streak makes them bigger.'],
+    ['🏁', 'Game summaries', 'See who won, what you earned, your level bar and new achievements after every game.'],
+    ['🎮', 'Pick the mode when you invite', 'Choose the rules, timer and Elemental mode, and invite friends who are offline.'],
+  ] };
+  function newsCheck() {
+    if (!me || Store.LS.get('newsSeen') === NEWS.v || document.querySelector('.sheet')) return;
+    if (!Eco.dailyState(me).claimed && Store.LS.get('dailyShown') !== me.id + Eco.dayKey()) return; // daily reward first
+    Store.LS.set('newsSeen', NEWS.v);
+    sheet(`<div style="text-align:center"><div style="font-size:40px">📣</div><h3 style="margin:2px 0 10px">What’s new</h3></div><div class="tlist">${NEWS.items.map(([i, t, d]) => `<div class="trow" style="align-items:center"><span style="font-size:26px">${i}</span><div><b>${t}</b><br><span class="tiny">${d}</span></div></div>`).join('')}</div>
+      <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
   }
   function lvlBar(xp, from = null) {
     const lv = Eco.level(xp), into = xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
@@ -4246,6 +4326,7 @@ const Guide = (() => {
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
     dailyOpen: () => dailyOpen(),
+    newsStore: () => { closeSheet(); go('store'); },
     dailyClaim: () => dailyClaim(),
     viewPlayer: (d, e) => { if (e && e.target.closest('[data-act="addFriendPid"]') && e.target.closest('[data-act="addFriendPid"]') !== e.target.closest('[data-act]')) return; viewPlayer(d); },
     addFriendPid: async (d, e) => {
@@ -4409,7 +4490,7 @@ const Guide = (() => {
     },
     storeTab: (d) => { storeTab = d.k; screens.store(); },
     buyItem: async (d) => {
-      const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? Eco.AVATAR_PRICE : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
+      const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? (Avatars.price(d.id) || Eco.AVATAR_PRICE) : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
       const label = d.kind === 'tiles' ? P.tname(d.id) : d.kind === 'avatars' ? Avatars.label(d.id) + ' picture' : d.kind === 'emotes' ? '“' + Eco.EMO[d.id].t + '” emote' : Eco.BOARDS[d.id].name + ' board';
       const y = window.scrollY;
       if (await buy(d.kind, d.id, price, label)) { if (d.kind === 'boards') { me.board = d.id; await saveMe(); } screens.store(); window.scrollTo(0, y); }

@@ -18,7 +18,7 @@
   function ensureMe() { if (!me) return; const before = JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board]); Eco.ensure(me); if (before !== JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board])) saveMe(); }
   const gpFmt = (n) => '🪙 ' + (n || 0).toLocaleString();
   const myBoard = () => (me && Eco.ownsBoard(me, me.board) ? me.board : 'classic');
-  const avLock = (prof) => (id) => (Eco.ownsAvatar(prof, id) ? null : Eco.AVATAR_PRICE);
+  const avLock = (prof) => (id) => (Eco.ownsAvatar(prof, id) ? null : Avatars.price(id) || Eco.AVATAR_PRICE);
   async function buy(kind, id, price, label) {
     if (!me) { toast('Create a player to earn and spend gold'); return false; }
     ensureMe();
@@ -361,6 +361,7 @@
     setTimeout(checkAch, 800);
     if (me && !Eco.dailyState(me).claimed && Store.LS.get('dailyShown') !== me.id + Eco.dayKey()) { Store.LS.set('dailyShown', me.id + Eco.dayKey()); setTimeout(() => { if (document.querySelector('[data-act="startSetup"]') && !document.querySelector('.sheet')) dailyOpen(); }, 700); }
     noteHue(me);
+    setTimeout(() => { if (document.querySelector('[data-act="startSetup"]')) newsCheck(); }, 1600);
     if (!screens.home._av) { screens.home._av = true; loadAvatar().then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); }
     startSocial();
     const nm = myName();
@@ -483,7 +484,7 @@
     if (storeTab === 'tiles') {
       body = `<p class="muted tiny" style="margin:0">Effect tiles for your loadouts. Everyone starts with Stone and Boat.</p><div class="store-grid">${P.EFFECT_TYPES.slice().sort((a, b) => Eco.TILE_PRICE[a] - Eco.TILE_PRICE[b]).map((t) => { const own = Eco.ownsTile(me, t); return `<div class="item ${own ? 'owned' : ''}">${Glyphs.svg(t, 0, 'style="width:52px;height:52px"')}<div class="nm">${P.tname(t)}</div><div class="ds">${esc(Guide.INFO[t][1].split('. ')[0])}.</div>${own ? '<span class="tiny" style="color:#9fd18b">✓ Owned</span>' : `<button class="btn small primary" data-act="buyItem" data-kind="tiles" data-id="${t}">🪙 ${Eco.TILE_PRICE[t]}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'avatars') {
-      body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${Eco.AVATAR_PRICE}</button>`}</div>`; }).join('')}</div>`;
+      body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${(Avatars.price(a.id) || Eco.AVATAR_PRICE)}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'emotes') {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
@@ -797,6 +798,22 @@
     show();
     if (me && sub) { Push.send(me.id, 'Pai Sho · test 2 of 2', 'This one came through the internet. Closed-app alerts work!', 'test-push'); add(null, 'Test 2 sent through the server (arrives in a few seconds)'); }
     show();
+  }
+  // ---------- What's new (shown once per update) ----------
+  const NEWS = { v: '2026-11-16c', items: [
+    ['🖼️', '20 new profile pictures', 'Sky Bison, Dragon, Lion Turtle, Badgermole, Moon & Ocean, Koi, Phoenix, Panda and more.'],
+    ['🎨', '19 new boards', 'Sakura Spring, Glacier, Spirit World, Aurora, Neon Night, Royal Gold and lots more.'],
+    ['😂', '22 new emotes', 'A cartoony pack, from 😎 Too cool to 🥬 My cabbages! Three of them are free.'],
+    ['🎁', 'Daily rewards', 'Claim free gold and XP every day. Your streak makes them bigger.'],
+    ['🏁', 'Game summaries', 'See who won, what you earned, your level bar and new achievements after every game.'],
+    ['🎮', 'Pick the mode when you invite', 'Choose the rules, timer and Elemental mode, and invite friends who are offline.'],
+  ] };
+  function newsCheck() {
+    if (!me || Store.LS.get('newsSeen') === NEWS.v || document.querySelector('.sheet')) return;
+    if (!Eco.dailyState(me).claimed && Store.LS.get('dailyShown') !== me.id + Eco.dayKey()) return; // daily reward first
+    Store.LS.set('newsSeen', NEWS.v);
+    sheet(`<div style="text-align:center"><div style="font-size:40px">📣</div><h3 style="margin:2px 0 10px">What’s new</h3></div><div class="tlist">${NEWS.items.map(([i, t, d]) => `<div class="trow" style="align-items:center"><span style="font-size:26px">${i}</span><div><b>${t}</b><br><span class="tiny">${d}</span></div></div>`).join('')}</div>
+      <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
   }
   function lvlBar(xp, from = null) {
     const lv = Eco.level(xp), into = xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
@@ -1785,6 +1802,7 @@
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
     dailyOpen: () => dailyOpen(),
+    newsStore: () => { closeSheet(); go('store'); },
     dailyClaim: () => dailyClaim(),
     viewPlayer: (d, e) => { if (e && e.target.closest('[data-act="addFriendPid"]') && e.target.closest('[data-act="addFriendPid"]') !== e.target.closest('[data-act]')) return; viewPlayer(d); },
     addFriendPid: async (d, e) => {
@@ -1948,7 +1966,7 @@
     },
     storeTab: (d) => { storeTab = d.k; screens.store(); },
     buyItem: async (d) => {
-      const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? Eco.AVATAR_PRICE : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
+      const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? (Avatars.price(d.id) || Eco.AVATAR_PRICE) : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
       const label = d.kind === 'tiles' ? P.tname(d.id) : d.kind === 'avatars' ? Avatars.label(d.id) + ' picture' : d.kind === 'emotes' ? '“' + Eco.EMO[d.id].t + '” emote' : Eco.BOARDS[d.id].name + ' board';
       const y = window.scrollY;
       if (await buy(d.kind, d.id, price, label)) { if (d.kind === 'boards') { me.board = d.id; await saveMe(); } screens.store(); window.scrollTo(0, y); }

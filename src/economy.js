@@ -42,6 +42,29 @@ const Eco = (() => {
     { id: 'sleep', e: '😴', t: 'Your move… eventually', kind: 'store', price: 120 },
     { id: 'flex', e: '💪', t: 'Too easy', kind: 'store', price: 150 },
     { id: 'lotus', e: '🪷', t: 'The garden blooms', kind: 'store', price: 200 },
+    // cartoony pack
+    { id: 'lol', e: '😂', t: 'LOL', kind: 'common' },
+    { id: 'eyes', e: '👀', t: 'I see what you did', kind: 'common' },
+    { id: 'salute', e: '🫡', t: 'Respect', kind: 'common' },
+    { id: 'cool', e: '😎', t: 'Too cool', kind: 'store', price: 80 },
+    { id: 'mind', e: '🤯', t: 'Mind = blown', kind: 'store', price: 100 },
+    { id: 'fine', e: '🥲', t: 'It’s fine. I’m fine.', kind: 'store', price: 100 },
+    { id: 'hmph', e: '😤', t: 'Hmph!', kind: 'store', price: 100 },
+    { id: 'clown', e: '🤡', t: 'Clowned', kind: 'store', price: 120 },
+    { id: 'dead', e: '💀', t: 'I’m dead', kind: 'store', price: 120 },
+    { id: 'melt', e: '🫠', t: 'Melting…', kind: 'store', price: 120 },
+    { id: 'slow', e: '🐢', t: 'Any day now…', kind: 'store', price: 120 },
+    { id: 'rawr', e: '🐉', t: 'RAWR', kind: 'store', price: 150 },
+    { id: 'dig', e: '🦡', t: 'Digging in', kind: 'store', price: 150 },
+    { id: 'melon', e: '🍈', t: 'Melon time', kind: 'store', price: 150 },
+    { id: 'cold', e: '🥶', t: 'Ice cold', kind: 'store', price: 150 },
+    { id: 'zen', e: '🧘', t: 'Inner peace', kind: 'store', price: 150 },
+    { id: 'evil', e: '😈', t: 'Mwahaha', kind: 'store', price: 180 },
+    { id: 'bull', e: '🎯', t: 'Bullseye', kind: 'store', price: 180 },
+    { id: 'truce', e: '🤝', t: 'Truce?', kind: 'store', price: 180 },
+    { id: 'crown', e: '👑', t: 'Bow down', kind: 'store', price: 250 },
+    { id: 'rocket', e: '🚀', t: 'To the moon', kind: 'store', price: 250 },
+    { id: 'cabbage', e: '🥬', t: 'My cabbages!', kind: 'store', price: 300 },
   ];
   const EMO = Object.fromEntries(EMOTES.map((x) => [x.id, x]));
   // board themes
@@ -54,6 +77,24 @@ const Eco = (() => {
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
+    sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
+    glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
+    desert:  { name: 'Desert Oasis',     price: 700,  wood: ['#d9b27a', '#a37a42'], light: '#fbf0d9', dark: '#d07a2a', rim: '#ffd88a', gate: '#7a3e12', gateEdge: '#ffe2a2', bg: '#3a2410' },
+    swamp:   { name: 'Misty Swamp',      price: 700,  wood: ['#5b6b45', '#323d24'], light: '#e3e8cf', dark: '#5f8a3a', rim: '#b8cf8a', gate: '#25351a', gateEdge: '#cfe39a', bg: '#141a0e' },
+    ember:   { name: 'Ember Glow',       price: 800,  wood: ['#3a1a12', '#1a0a06'], light: '#ffe0b8', dark: '#ff5a1f', rim: '#ffb02e', gate: '#3a0a04', gateEdge: '#ffcc66', bg: '#0e0402' },
+    ocean:   { name: 'Deep Ocean',       price: 800,  wood: ['#1f4a66', '#0d2436'], light: '#d9f0ff', dark: '#1a7fb8', rim: '#7fd4ff', gate: '#082033', gateEdge: '#9fe0ff', bg: '#04101a' },
+    spirit:  { name: 'Spirit World',     price: 900,  wood: ['#5b3a7a', '#2c1a40'], light: '#f1e6ff', dark: '#9a5fd6', rim: '#e0c4ff', gate: '#2a1442', gateEdge: '#d9b8ff', bg: '#120a1e' },
+    aurora:  { name: 'Aurora',           price: 900,  wood: ['#24414a', '#0f2026'], light: '#e6fff6', dark: '#2fb889', rim: '#9fffe0', gate: '#0c2e26', gateEdge: '#b8ffe8', bg: '#06120f' },
+    autumn:  { name: 'Autumn Leaves',    price: 700,  wood: ['#9a5a2a', '#5e3214'], light: '#fbecd8', dark: '#c4521f', rim: '#f2a54a', gate: '#5a240c', gateEdge: '#ffc77a', bg: '#26120a' },
+    marble:  { name: 'White Marble',     price: 1000, wood: ['#d8d6d0', '#a8a49a'], light: '#ffffff', dark: '#8a8a8a', rim: '#f0ece0', gate: '#4a4a4a', gateEdge: '#ffffff', bg: '#2a2a2a' },
+    obsidian:{ name: 'Obsidian',         price: 1000, wood: ['#2a2a32', '#121216'], light: '#cfcfd8', dark: '#4a3a6a', rim: '#9a8ac8', gate: '#0a0a12', gateEdge: '#c8b8ff', bg: '#050508' },
+    gold:    { name: 'Royal Gold',       price: 1500, wood: ['#c9a24a', '#8a6a1a'], light: '#fff7dc', dark: '#b8862a', rim: '#ffe28a', gate: '#5a3e0a', gateEdge: '#fff0b0', bg: '#2a1e06' },
+    lotusb:  { name: 'Lotus Pond',       price: 900,  wood: ['#3f6a5e', '#1f3a32'], light: '#f6fff9', dark: '#e48ab0', rim: '#ffd6e6', gate: '#1a3a30', gateEdge: '#ffd6e6', bg: '#0c1a16' },
+    candy:   { name: 'Candy Garden',     price: 800,  wood: ['#e89ac0', '#b05a8a'], light: '#fff6fb', dark: '#7ab8ff', rim: '#ffd1ea', gate: '#7a2a5a', gateEdge: '#ffe0f0', bg: '#2a1020' },
+    neon:    { name: 'Neon Night',       price: 1200, wood: ['#141428', '#07070f'], light: '#1e1e3a', dark: '#ff2fa8', rim: '#2ff3ff', gate: '#07070f', gateEdge: '#2ff3ff', bg: '#020206' },
+    stormy:  { name: 'Storm Clouds',     price: 800,  wood: ['#4f5866', '#272c34'], light: '#e8ecf2', dark: '#5a6f8f', rim: '#c8d4e6', gate: '#1a1f28', gateEdge: '#e0e8ff', bg: '#0c0f14' },
+    meadow:  { name: 'Spring Meadow',    price: 600,  wood: ['#8fb45a', '#56782e'], light: '#fbfff0', dark: '#f2b23a', rim: '#e6ff9a', gate: '#3a5418', gateEdge: '#f2ffb8', bg: '#16200a' },
+    bamboo:  { name: 'Bamboo Grove',     price: 700,  wood: ['#b8c46a', '#7a8a32'], light: '#f8fbe6', dark: '#4f8a3a', rim: '#e2ef9a', gate: '#33501c', gateEdge: '#eaf7b0', bg: '#141c08' },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
   // earnings
@@ -205,7 +246,7 @@ const Eco = (() => {
     { k: 'days', n: 70, a: 1, b: 2000, noun: 'Devotee', icon: '📅', d: (x) => `Play on ${x} different ${pl(x, 'day', 'days')}`, v: (p) => p.daysPlayed || 0 },
     { k: 'gold', n: 55, a: 2000, b: 5000000, noun: 'Treasure Keeper', icon: '🪙', d: (x) => `Hold ${x.toLocaleString()} gp at once`, v: (p) => Math.max(p.gp || 0, p.gpPeak || 0) },
     { k: 'friend', n: 35, a: 1, b: 100, noun: 'Companion', icon: '🫂', d: (x) => `Have ${x} ${pl(x, 'friend', 'friends')}`, v: (p, c) => (c && c.friends) || 0 },
-    { k: 'coll', n: 30, a: 3, b: 60, lin: true, noun: 'Collector', icon: '🎴', d: (x) => `Own ${x} store items (tiles, pictures, emotes and boards)`, v: (p) => { const o = p.owned || {}; return (o.tiles || []).length + (o.avatars || []).length + (o.emotes || []).length + (o.boards || []).length; } },
+    { k: 'coll', n: 30, a: 3, b: 120, lin: true, noun: 'Collector', icon: '🎴', d: (x) => `Own ${x} store items (tiles, pictures, emotes and boards)`, v: (p) => { const o = p.owned || {}; return (o.tiles || []).length + (o.avatars || []).length + (o.emotes || []).length + (o.boards || []).length; } },
   ];
   function ladder(t) {
     const out = []; let prev = 0;
