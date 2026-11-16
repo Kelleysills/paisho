@@ -94,8 +94,35 @@ const FireSocial = (() => {
       });
       emit('change');
     }, () => {}));
+    // direct messages
+    unsubs.push(FB.col('dms').where('pids', 'array-contains', me.pid).onSnapshot((qs) => {
+      const prev = Object.fromEntries(dmDocs.map((d) => [d.id, d.lastT || 0]));
+      dmDocs = qs.docs.map((x) => Object.assign({ id: x.id }, x.data())).sort((a, b) => (b.lastT || 0) - (a.lastT || 0));
+      dmDocs.forEach((d) => { if (dmReady && d.lastFrom && d.lastFrom !== me.pid && (d.lastT || 0) > (prev[d.id] || 0)) emit('dm', { id: d.id, from: d.lastFrom, name: (d.names || {})[d.lastFrom] || 'Player', text: d.lastText || '' }); });
+      dmReady = true; emit('change'); emit('dmchange');
+    }, () => {}));
     return true;
   }
+  // ---- direct messages: one doc per pair, last 100 messages ----
+  let dmDocs = [], dmReady = false;
+  const dmId = (a, b) => [a, b].sort().join('__');
+  const dmThreads = () => dmDocs.slice();
+  const dmUnread = (d) => !!(me && d.lastFrom && d.lastFrom !== me.pid && (d.lastT || 0) > ((d.read || {})[me.pid] || 0));
+  const unreadCount = () => dmDocs.filter(dmUnread).length;
+  let lastDmSent = 0;
+  async function sendDM(toPid, toName, text) {
+    text = String(text || '').trim().slice(0, 300); if (!me || !text || toPid === me.pid) return 'empty';
+    if (Date.now() - lastDmSent < 1200) return 'slow'; lastDmSent = Date.now();
+    const id = dmId(me.pid, toPid), ref = FB.col('dms').doc(id), t = FB.now();
+    const m = { from: me.pid, text, t };
+    const FV = firebase.firestore.FieldValue;
+    await ref.set({ pids: [me.pid, toPid].sort(), names: { [me.pid]: me.name, [toPid]: toName }, msgs: FV.arrayUnion(m), lastT: t, lastFrom: me.pid, lastText: text.slice(0, 80), read: { [me.pid]: t } }, { merge: true });
+    const cur = dmDocs.find((d) => d.id === id); if (cur && (cur.msgs || []).length > 110) ref.set({ msgs: cur.msgs.slice(-100).concat([m]) }, { merge: true }).catch(() => {});
+    Push.send(toPid, '💬 ' + me.name, text.slice(0, 120), 'dm-' + me.pid);
+    return null;
+  }
+  function markRead(id) { if (!me) return; const d = dmDocs.find((x) => x.id === id); if (d && dmUnread(d)) { d.read = Object.assign({}, d.read, { [me.pid]: Date.now() }); FB.col('dms').doc(id).set({ read: { [me.pid]: Date.now() } }, { merge: true }).catch(() => {}); emit('change'); } }
+  function watchDM(id, cb) { return FB.col('dms').doc(id).onSnapshot((d) => cb(d.exists ? d.data() : null), () => {}); }
   let friendUnsub = null, lastFriendKey = '';
   function watchFriends() {
     const ids = (me.friends || []).slice(0, 30), key = ids.join(',');
@@ -111,7 +138,7 @@ const FireSocial = (() => {
   function stop() {
     unsubs.forEach((u) => { try { u(); } catch (e) {} }); unsubs = [];
     if (friendUnsub) { friendUnsub(); friendUnsub = null; } lastFriendKey = '';
-    clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = []; inviteDocs = [];
+    clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = []; inviteDocs = []; dmDocs = []; dmReady = false;
   }
   async function addPid(pid) {
     if (!me) return 'Create a player first to add friends';
@@ -167,7 +194,7 @@ const FireSocial = (() => {
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
   const isOnline = (code) => { const f = friendDocs.find((x) => x.code === code); return !!(f && Date.now() - f.seen < ONLINE_MS); };
   const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
-  return { ready, start, stop, add, addPid, isFriend, invites, dismissInvite, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
+  return { ready, start, stop, add, addPid, isFriend, invites, dismissInvite, dmId, dmThreads, dmUnread, unreadCount, sendDM, markRead, watchDM, get myPid() { return me && me.pid; }, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
 })();
 
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */

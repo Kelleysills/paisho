@@ -214,7 +214,7 @@
 
   // ---------- screens ----------
   const screens = {};
-  function go(name, ...args) { if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+  function go(name, ...args) { if (name !== 'dm' && dmUnsub) { dmUnsub(); dmUnsub = null; dmOpen = null; } if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
 
   screens.boot = async () => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
@@ -441,7 +441,7 @@
     let fbtn = '';
     if (me && me.id !== p.id && Store.kind === 'firebase') {
       if (!FireSocial.active) await FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).catch(() => {});
-      fbtn = FireSocial.isFriend && FireSocial.isFriend(p.id) ? '<div class="tiny" style="text-align:center;color:#9fd18b;margin:6px 0">✓ Friends</div>' : FireSocial.requests().some((r) => r.from === p.id) ? `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">Accept friend request</button>` : `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add friend</button>`;
+      fbtn = `<button class="btn" data-act="dmOpen" data-pid="${esc(p.id)}" data-name="${esc(p.name)}">💬 Message ${esc(p.name)}</button>` + (FireSocial.isFriend && FireSocial.isFriend(p.id) ? '<div class="tiny" style="text-align:center;color:#9fd18b;margin:6px 0">✓ Friends</div>' : FireSocial.requests().some((r) => r.from === p.id) ? `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">Accept friend request</button>` : `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add friend</button>`);
     } else if (!me) fbtn = '<div class="tiny muted" style="text-align:center">Create a player to add friends.</div>';
     sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}${fbtn}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
@@ -739,6 +739,7 @@
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="cancelOnline" data-code="${code}">‹</button><h2>Waiting</h2><span style="width:42px"></span></div>
       <div class="screen" style="justify-content:center;text-align:center">${logoSvg(120)}<p class="muted">Share this code with your opponent</p><div class="code">${code}</div><p class="muted">They join from <b>Play online</b>. You’ll play as the Host; the Guest moves first.</p>
       <button class="btn" data-act="copyCode" data-code="${code}">Copy code</button>
+      ${invited && invPick && invPick.pid ? `<button class="btn" data-act="dmOpen" data-pid="${esc(invPick.pid)}" data-name="${esc(invited)}">💬 Message ${esc(invited)}</button>` : ''}
       ${invited ? `<p class="tiny muted" style="margin-top:14px">${esc(invited)} doesn’t have to be online. They’ll get a notification, and you’ll get one when they join.</p>` : ''}
       <button class="btn ghost" data-act="leaveWaiting">Keep it open and go home</button><div class="tiny muted">It stays under <b>Your games</b> in Play online. Use ‹ to cancel it instead.</div></div>`;
     const un = Store.watch('games', code, (d) => {
@@ -774,6 +775,8 @@
     if (Store.kind === 'firebase' && !me) return 'Sign in to add friends';
     const f = Soc().friends(), on = f.filter((x) => Soc().isOnline(x.code)).length, rq = Soc().requests().length;
     const iv = Store.kind === 'firebase' && FireSocial.invites ? FireSocial.invites().length : 0;
+    const un = Store.kind === 'firebase' && FireSocial.unreadCount ? FireSocial.unreadCount() : 0;
+    if (un) return `💬 ${un} unread message${un > 1 ? 's' : ''}`;
     if (iv) return `🎮 ${iv} game invite${iv > 1 ? 's' : ''} waiting`;
     return rq ? `${rq} friend request${rq > 1 ? 's' : ''}` : f.length ? `${on} of ${f.length} online` : 'Add friends with a code';
   }
@@ -862,6 +865,38 @@
       ${skud ? '' : tog('chance', 'Game of Chance', 'Key flowers are drawn at random') + tog('enigma', 'Effect Tile Enigma', 'Effect tiles stay hidden until played')}
       <button class="btn primary" data-act="invSend" style="margin-top:8px">Send invite</button>`);
   }
+  // ---------- direct messages ----------
+  let dmUnsub = null, dmOpen = null;
+  screens.messages = () => {
+    if (!me || Store.kind !== 'firebase') { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="friends">‹</button><h2>Messages</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Sign in to message other players.</div></div>`; return; }
+    if (!FireSocial.active) FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).then(() => document.getElementById('dm-list') && screens.messages());
+    const th = FireSocial.dmThreads();
+    const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 1440 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="friends">‹</button><h2>Messages</h2><span style="width:42px"></span></div>
+      <div class="screen" id="dm-list"><div class="menu">${th.map((d) => { const other = d.pids.find((x) => x !== me.id), nm = (d.names || {})[other] || 'Player', un = FireSocial.dmUnread(d); return `<div class="prof" data-act="dmOpen" data-pid="${esc(other)}" data-name="${esc(nm)}">${av(nm)}<div style="flex:1;min-width:0"><div class="nm">${esc(nm)} ${un ? '<span class="dm-dot"></span>' : ''}</div><div class="tiny muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.lastFrom === me.id ? 'You: ' : ''}${esc(d.lastText || '')}</div></div><span class="tiny muted">${ago(d.lastT || 0)}</span></div>`; }).join('') || '<div class="card muted">No messages yet. Tap 💬 next to a friend, or on anyone’s profile.</div>'}</div></div>`;
+  };
+  screens.dm = (pid, name) => {
+    if (!me) return go('login');
+    if (dmUnsub) { dmUnsub(); dmUnsub = null; }
+    const id = FireSocial.dmId(me.id, pid); dmOpen = id;
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="dmBack">‹</button><h2 data-act="viewPlayer" data-pid="${esc(pid)}" style="cursor:pointer">${esc(name)}</h2><span style="width:42px"></span></div>
+      <div class="dm-wrap"><div class="dm-msgs" id="dm-msgs"><div class="muted tiny" style="text-align:center;margin-top:30px">Loading…</div></div>
+      <form class="dm-bar" id="dm-form"><input class="input" id="dm-in" maxlength="300" placeholder="Message ${esc(name)}…" autocomplete="off"><button class="btn primary" type="submit">Send</button></form></div>`;
+    const box = document.getElementById('dm-msgs');
+    const draw = (doc) => {
+      const msgs = (doc && doc.msgs) || [];
+      box.innerHTML = msgs.map((m) => `<div class="dm-m ${m.from === me.id ? 'me' : ''}"><div>${esc(m.text)}</div><span>${new Date(m.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></div>`).join('') || `<div class="muted tiny" style="text-align:center;margin-top:30px">Say hi to ${esc(name)} 👋</div>`;
+      box.scrollTop = box.scrollHeight; FireSocial.markRead(id);
+    };
+    dmUnsub = FireSocial.watchDM(id, draw);
+    document.getElementById('dm-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); const inp = document.getElementById('dm-in'), t = inp.value.trim(); if (!t) return;
+      const err = await FireSocial.sendDM(pid, name, t).catch(() => 'fail');
+      if (err === 'slow') return toast('Slow down a little'); if (err) return toast('Message not sent');
+      inp.value = ''; inp.focus(); bump('chatsSent');
+    });
+    setTimeout(() => { const i = document.getElementById('dm-in'); if (i) i.focus(); }, 100);
+  };
   function invitesHTML() {
     if (Store.kind !== 'firebase' || !FireSocial.invites) return '';
     const iv = FireSocial.invites(); if (!iv.length) return '';
@@ -884,9 +919,10 @@
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
       <div class="card"><div class="field"><label>Add a friend</label><div class="row"><input class="input" id="addcode" maxlength="7" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:.2em;font-family:Cinzel"><button class="btn primary" data-act="addFriend">Add</button></div></div></div>
       ${Store.kind === 'firebase' ? `<div class="card"><div class="field"><label>Find a player</label><input class="input" id="fsearch" maxlength="18" placeholder="Search by display name" autocomplete="off"></div><div class="menu" id="fresults"></div></div>` : ''}
+      ${Store.kind === 'firebase' && me ? `<button class="btn" data-act="go" data-to="messages">💬 Messages${FireSocial.unreadCount && FireSocial.unreadCount() ? ` <span class="dm-badge">${FireSocial.unreadCount()}</span>` : ''}</button>` : ''}
       ${invitesHTML()}
       ${rq.length ? `<div class="field"><label>Friend requests</label><div class="menu">${rq.map((r) => `<div class="prof">${av(r.name)}<div style="flex:1"><div class="nm">${esc(r.name)}</div><div class="tiny muted">${esc(r.code)}</div></div><button class="btn small primary" data-act="acceptFriend" data-code="${esc(r.code)}">Accept</button><button class="btn small ghost" data-act="declineFriend" data-code="${esc(r.code)}">✕</button></div>`).join('')}</div></div>` : ''}
-      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0" data-act="viewPlayer" data-name="${esc(f.name)}"${f.pid ? ` data-pid="${esc(f.pid)}"` : ''}><div class="nm"><u>${esc(f.name)}</u></div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${!f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}" data-name="${esc(f.name)}" data-on="${on ? 1 : ''}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
+      <div class="field"><label>Your friends</label><div class="menu">${fr.map((f) => { const on = Soc().isOnline(f.code); return `<div class="prof">${av(f.name)}<div style="flex:1;min-width:0" data-act="viewPlayer" data-name="${esc(f.name)}"${f.pid ? ` data-pid="${esc(f.pid)}"` : ''}><div class="nm"><u>${esc(f.name)}</u></div><div class="tiny muted"><span class="dot" style="background:${on ? 'var(--ok)' : 'var(--mute)'}"></span>${f.pending ? 'Request sent' : on ? 'Online' : 'Offline'}</div></div>${!f.pending && f.pid && Store.kind === 'firebase' ? `<button class="btn small" data-act="dmOpen" data-pid="${esc(f.pid)}" data-name="${esc(f.name)}" aria-label="Message">💬</button>` : ''}${!f.pending ? `<button class="btn small primary" data-act="inviteFriend" data-code="${esc(f.code)}" data-name="${esc(f.name)}" data-on="${on ? 1 : ''}">Invite</button>` : ''}<button class="btn small ghost" data-act="removeFriend" data-code="${esc(f.code)}" aria-label="Remove">✕</button></div>`; }).join('') || '<div class="card muted">No friends yet. Swap codes to add each other.</div>'}</div></div>
     </div>`;
     const fs = document.getElementById('fsearch');
     if (fs) {
@@ -2010,7 +2046,9 @@
     acceptFriend: async (d) => { await Soc().accept(d.code); screens.friends(); },
     declineFriend: async (d) => { await Soc().decline(d.code); screens.friends(); },
     removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { await Soc().remove(d.code); screens.friends(); } },
-    inviteFriend: (d) => { invPick = { code: d.code, name: d.name || 'your friend', on: !!d.on }; inviteSheet(); },
+    inviteFriend: (d) => { const f = Soc().friends().find((x) => x.code === d.code); invPick = { code: d.code, name: d.name || 'your friend', on: !!d.on, pid: f && f.pid }; inviteSheet(); },
+    dmOpen: (d) => { closeSheet(); if (G && G.waitingUnsub) { G.waitingUnsub(); G = null; } go('dm', d.pid, d.name); },
+    dmBack: () => go('messages'),
     invOpt: (d) => { const S = setup; if (d.k === 'minH' || d.k === 'timer') S[d.k] = +d.v; else if (d.k === 'rules') S.rules = d.v; else S[d.k] = !S[d.k]; Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { [d.k]: S[d.k] })); inviteSheet(); },
     invSend: async () => { const d = invPick; if (!d) return; closeSheet(); const code = await createOnline(d.name); if (code) { await Soc().invite(d.code, code); toast(d.on ? 'Invite sent' : 'Invite sent — they’ll get it next time they’re on'); } },
     leaveWaiting: () => { if (G && G.waitingUnsub) G.waitingUnsub(); G = null; toast('Game kept open — we’ll let you know when they join'); go('home'); },
@@ -2074,6 +2112,8 @@
   window.addEventListener('beforeunload', () => {});
   if (typeof P2P !== 'undefined') P2P.onStatus((st) => { if (G && G.mode === 'online') { if (st === 'disconnected') toast('Opponent disconnected — waiting for them to come back'); if (st === 'connected') toast('Opponent connected'); } if (st === 'code-taken') toast('That code is busy — create a new game'); });
   const socialHandler = async (ev, d) => {
+    if (ev === 'dm') { const id = FireSocial.dmId(me ? me.id : '', d.from); if (dmOpen !== id) { toast('💬 ' + d.name + ': ' + String(d.text).slice(0, 60), 3500); buzz(15); } }
+    if (ev === 'dmchange' && document.getElementById('dm-list')) screens.messages();
     if (ev === 'change' && document.querySelector('[data-act="startSetup"]') && !document.querySelector('.sheet')) screens.home();
     if (ev === 'change' && document.getElementById('friends-screen')) { const y = window.scrollY; screens.friends(); window.scrollTo(0, y); }
     if (ev === 'request') toast(d.name + ' wants to be friends — see Friends', 3500);
