@@ -236,3 +236,19 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 
 .event-banner{text-align:center;padding:10px 12px;border-radius:14px;background:linear-gradient(90deg,#5a3a12,#7a4a14,#5a3a12);border:1px solid #e6b54a;font-size:14px;color:#ffe6a8}
 .event-banner.big{background:linear-gradient(90deg,#f7cf63,#5fb2ea,#8cc152,#f0633f);color:#1b120c;font-weight:800;animation:avglow 3s infinite}
+
+.chat-btn{right:auto;left:6px;top:auto;bottom:6px}
+.chat-btn .badge{position:absolute;top:-4px;right:-4px;background:#e8513a;color:#fff;font-size:11px;font-weight:900;border-radius:99px;min-width:18px;padding:0 4px}
+.chat-log{max-height:45dvh;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:4px 0}
+.chat-log .msg{background:var(--panel);border-radius:12px;padding:8px 10px;font-size:14px;max-width:85%}
+.chat-log .msg.mine{align-self:flex-end;background:#4a321f}
+.chat-log .msg b{color:var(--gold2);margin-right:4px}
+/* seismic sense (blind) */
+#board.blind .tile circle:nth-of-type(1){fill:#000;stroke:#d8d8d8;stroke-width:.05;filter:drop-shadow(0 0 .25px #fff)}
+#board.blind .tile circle:nth-of-type(2), #board.blind .tile g{display:none}
+#board.blind{filter:grayscale(1)}
+.ripple{fill:none;stroke:#e8e8e8;stroke-width:.05;opacity:.7;animation:ripple 1.5s ease-out forwards;pointer-events:none;transform-box:fill-box;transform-origin:center}
+.ripple.strong{stroke-width:.09;opacity:1}
+@keyframes ripple{from{transform:scale(.3)}to{transform:scale(2.6);opacity:0}}
+.blind-count{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:6;color:#fff;text-shadow:0 2px 8px #000;font-family:Cinzel,serif;font-weight:700}
+.blind-count b{font-size:72px;line-height:1}

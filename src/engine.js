@@ -453,9 +453,19 @@ const PaiSho = (() => {
       applyBend(s, a.by != null ? a.by : p, a);
     } else if (a.t === 'sub') {
       applySub(s, a.by != null ? a.by : p, a);
+    } else if (a.t === 'melon') {
+      const by = a.by != null ? a.by : p;
+      if (!s.bend) throw new Error('Elemental mode only');
+      s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] };
+      if (s.melon.used[by]) throw new Error('Already used');
+      s.melon.used[by] = true; s.melon.blind = 1 - by;
+    } else if (a.t === 'forfeit') {
+      s.log.push({ p, turn: s.turnNo, text: 'grabbed the wrong tile while blind and lost the turn' });
+      return endTurn(s, desc);
     } else if (a.t === 'end') {
       return endTurn(s, desc);
     }
+    if ((a.t === 'move' || a.t === 'plant') && s.melon && s.melon.blind === p) s.melon.bonus[p] = true;
     if (desc) s.log.push({ p: a.by != null ? a.by : p, turn: s.turnNo, text: desc });
     return s;
   }
@@ -491,6 +501,7 @@ const PaiSho = (() => {
     }
     if (s.winner === null && s.turnNo >= s.opts.maxTurns) { s.winner = 'draw'; s.winReason = 'turn limit'; }
     if (s.center && s.center.owner === p) s.centerAge = (s.centerAge || 0) + 1;
+    if (s.melon && s.melon.blind === p) s.melon.blind = null;
     s.turn = 1 - p; s.turnNo++;
     s.tp = freshTP();
     if (s.rubble) { for (const k of Object.keys(s.rubble)) { if (--s.rubble[k] <= 0) delete s.rubble[k]; } if (!Object.keys(s.rubble).length) s.rubble = null; }
@@ -707,6 +718,7 @@ const PaiSho = (() => {
     if (a.t === 'wheel') return `turned Wheel ${a.dir > 0 ? 'clockwise' : 'counter-clockwise'} ${a.n}`;
     if (a.t === 'koi') return `Koi swapped ${sqName(a.a)} ↔ ${sqName(a.b)}`;
     if (a.t === 'bend') { const t = s.board[a.target] && s.board[a.target].top; return { fire: 'burned', water: 'washed out', earth: 'smashed', air: 'swept' }[a.el] + ` ${t ? 'the ' + tname(t.type) : 'a tile'} at ${sqName(a.target)} with ${a.el}bending`; }
+    if (a.t === 'melon') return 'called on the MELON LORD — the opponent is blinded! 🍈';
     if (a.t === 'sub') return { metal: 'metalbent two tiles into each other’s places', lightning: 'struck with lightning — the opponent skips a turn', blood: 'took control of the opponent’s turn', flight: 'took flight and can see the opponent’s plans' }[a.kind];
     return '';
   }

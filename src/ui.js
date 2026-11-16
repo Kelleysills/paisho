@@ -109,6 +109,7 @@
       p.xp = (p.xp || 0) + out.xp;
       out.levelUp = Eco.level(p.xp) > lvBefore; out.subUnlocked = !subBefore && p.xp >= Eco.SUB_XP;
       if (isMe && G) p.bends = (p.bends || 0) + (G.bendsUsed || 0) + (G.spam || 0);
+      if (isMe && G && G.s.melon && G.s.melon.bonus[G.my != null ? G.my : 0] && mode !== 'local') { const bg = Math.round(50 * bst.gp), bx = Math.round(50 * bst.xp); p.gp += bg; out.gp += bg; p.xp += bx; out.xp += bx; out.melon = true; }
       if (mode === 'online' && oppPid && !oppPid.startsWith('g-')) {
         const o = await Store.get('players', oppPid).catch(() => null);
         const oppR = o && typeof o.rating === 'number' ? o.rating : Eco.START_RATING;
@@ -367,7 +368,7 @@
   function showFx(el) {
     const wrap = document.querySelector('.board-wrap'); if (!wrap) return;
     const fx = document.createElement('div'); fx.className = 'bend-fx fx-' + el;
-    const ch = { fire: '🔥', water: '🌊', earth: '🪨', air: '🌪️' }[el] || '✨';
+    const ch = { fire: '🔥', water: '🌊', earth: '🪨', air: '🌪️', melon: '🍈' }[el] || '✨';
     let parts = '';
     for (let k = 0; k < 16; k++) parts += `<span style="left:${Math.random() * 92}%;top:${Math.random() * 90}%;animation-delay:${(Math.random() * 0.8).toFixed(2)}s;font-size:${22 + Math.random() * 30}px">${ch}</span>`;
     fx.innerHTML = parts; wrap.appendChild(fx);
@@ -410,7 +411,7 @@
     let s2;
     try { s2 = P.apply(G.s, a); } catch (e) { toast(e.message === 'No effect tile to give up' ? 'You need an effect tile to give up' : 'That bend isn’t possible'); renderBoard(); return; }
     G.history.push(G.s); G.s = s2; if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
-    if (a.t === 'bend') showFx(a.el); else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air' }[a.kind]);
+    if (a.t === 'bend') showFx(a.el); else if (a.t === 'melon') showFx('melon'); else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air' }[a.kind]);
     const lb = G.s.lastBend; if (lb && lb.paid) toast(`It cost you your ${P.tname(lb.paid)}`);
     if (G.mode === 'online') pushOnline();
     renderGame();
@@ -424,10 +425,51 @@
     Object.keys(nd.bq).sort().forEach((id) => {
       if (G.s.bqDone.includes(id)) return;
       const a = nd.bq[id];
-      try { const s2 = P.apply(G.s, a); s2.bqDone = (G.s.bqDone || []).concat([id]); G.s = s2; changed = true; showFx(a.t === 'bend' ? a.el : 'fire'); toast(`${G.seats[a.by].name} ${a.t === 'bend' ? Eco.BEND[a.el].verb.toLowerCase() + (a.el === 'air' ? 's' : a.el === 'water' ? 'es' : 's') + ' one of your tiles!' : 'used ' + Eco.SUBS[a.kind].name + '!'}`, 3200); }
+      try { const s2 = P.apply(G.s, a); s2.bqDone = (G.s.bqDone || []).concat([id]); G.s = s2; changed = true; showFx(a.t === 'bend' ? a.el : a.t === 'melon' ? 'melon' : 'fire'); toast(a.t === 'melon' ? `🍈 ${G.seats[a.by].name} called the MELON LORD! You’re going blind…` : `${G.seats[a.by].name} ${a.t === 'bend' ? Eco.BEND[a.el].verb.toLowerCase() + (a.el === 'air' ? 's' : a.el === 'water' ? 'es' : 's') + ' one of your tiles!' : 'used ' + Eco.SUBS[a.kind].name + '!'}`, 3200); }
       catch (e) { G.s = P.clone(G.s); G.s.bqDone = (G.s.bqDone || []).concat([id]); }
     });
     if (changed) { G.sel = null; G.history = []; renderGame(); pushOnline(); }
+  }
+
+  // ---------- chat & the Melon Lord ----------
+  const MELON = /m+\W*e+\W*l+\W*o+\W*n+[\s\-_.,!~*]*l+\W*o+\W*r+\W*d+/i;
+  function addChat(m, fromRemote) {
+    G.chat = G.chat || []; if (G.chat.some((x) => x.id === m.id)) return;
+    G.chat.push(m); G.chat.sort((a, b) => a.t - b.t);
+    const open = document.getElementById('chat-log');
+    if (open) renderChatLog(); else if (fromRemote) { G.unread = (G.unread || 0) + 1; renderChatBtn(); }
+    if (fromRemote) showTextBubble(m.seat, m.text);
+  }
+  function renderChatBtn() { const b = document.getElementById('chat-btn'); if (b) b.innerHTML = '💬' + (G.unread ? `<span class="badge">${G.unread}</span>` : ''); }
+  function renderChatLog() {
+    const el = document.getElementById('chat-log'); if (!el) return;
+    el.innerHTML = (G.chat || []).map((m) => `<div class="msg ${m.seat === (G.my != null ? G.my : -1) ? 'mine' : ''}"><b>${esc(G.seats[m.seat].name)}</b> ${esc(m.text)}</div>`).join('') || '<div class="muted tiny">Say hi! In Elemental games, a certain earthbender’s favourite title has… effects. 🍈</div>';
+    el.scrollTop = el.scrollHeight;
+  }
+  function showTextBubble(seat, text) {
+    const seatEl = document.querySelectorAll('#seats .seat')[seat]; if (!seatEl) return;
+    const r = seatEl.getBoundingClientRect();
+    const b = document.createElement('div'); b.className = 'bubble';
+    b.innerHTML = `<span>💬 ${esc(text.length > 60 ? text.slice(0, 58) + '…' : text)}</span>`;
+    b.style.top = (r.bottom + 6) + 'px'; b.style.left = Math.max(8, Math.min(window.innerWidth - 260, r.left + 8)) + 'px';
+    document.body.appendChild(b);
+    setTimeout(() => { b.style.transition = 'opacity .3s'; b.style.opacity = '0'; setTimeout(() => b.remove(), 320); }, 3500);
+  }
+  async function sendChat(text) {
+    text = (text || '').trim().slice(0, 140); if (!text || !G) return;
+    const seat = G.my != null ? G.my : G.s.turn;
+    const m = { id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), seat, text, t: Date.now() };
+    addChat(m, false);
+    if (G.mode === 'online') Store.patch('games', G.code, { chat: { [m.id]: { seat, text, t: m.t } } }).catch(() => toast('Message not sent'));
+    else if (G.mode === 'local') showTextBubble(seat, text);
+    // 🍈 the Melon Lord
+    const s = G.s;
+    if (s.bend && MELON.test(text) && !(s.melon && s.melon.used[seat]) && s.winner === null) {
+      const target = 1 - seat;
+      if (G.seats[target].kind === 'ai') { s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] }; }
+      doBend({ t: 'melon' });
+      toast('🍈 MELON LORD! ' + G.seats[target].name + ' is blinded for their next move');
+    }
   }
 
   // ---------- emotes ----------
@@ -666,12 +708,15 @@
     const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
+    G.chat = d.chat ? Object.keys(d.chat).map((id) => ({ id, seat: d.chat[id].seat, text: String(d.chat[id].text || '').slice(0, 140), t: d.chat[id].t })).sort((a, b) => a.t - b.t) : []; G.chatReady = false;
     G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0; G.lastSpamT = (d.spam && d.spam.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
       if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
       if (nd.spam && nd.spam.t > (G.lastSpamT || 0)) { const fresh = G.lastSpamT !== undefined; G.lastSpamT = nd.spam.t; if (fresh && nd.spam.seat !== G.my) showFx(nd.spam.el); }
       applyQueuedBends(nd);
+      if (nd.chat) Object.keys(nd.chat).forEach((id) => { const m = nd.chat[id]; if (m && !(G.chat || []).some((x) => x.id === id)) addChat({ id, seat: m.seat, text: String(m.text || '').slice(0, 140), t: m.t }, G.chatReady && m.seat !== G.my); });
+      G.chatReady = true;
       if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
       if ((nd.ver || 0) > G.ver) {
         G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
@@ -696,7 +741,7 @@
   function gameScreen() {
     app.innerHTML = `<div class="game">
       <header class="g-top" id="seats"></header>
-      <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(myBoard())}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
+      <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn chat-btn" id="chat-btn" data-act="chatOpen" aria-label="Chat">💬</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(myBoard())}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
       <div class="status" id="status"></div>
       <div class="info" id="info"></div>
       <div class="tray" id="tray"></div>
@@ -729,8 +774,37 @@
     }
     return out;
   }
+  const viewerSeat = () => (G.my != null ? G.my : G.s.turn);
+  function blindState() {
+    const s = G.s, v = viewerSeat();
+    if (!s.melon || s.melon.blind !== v || s.turn !== v || !isHumanTurn()) { G.blindKey = null; return 'off'; }
+    const key = s.turnNo + ':' + v;
+    if (G.blindKey !== key) { G.blindKey = key; G.blindAt = Date.now() + 3000; blindCountdown(); }
+    return Date.now() >= G.blindAt ? 'blind' : 'peek';
+  }
+  function blindCountdown() {
+    let n = 3; const wrap = document.querySelector('.board-wrap'); if (!wrap) return;
+    const o = document.createElement('div'); o.className = 'blind-count'; wrap.appendChild(o);
+    const tick = () => { if (!document.body.contains(o)) return; if (n <= 0) { o.remove(); renderGame(); return; } o.innerHTML = `<div>🍈 MELON LORD!</div><b>${n}</b><div class="tiny">Memorise the board…</div>`; n--; setTimeout(tick, 1000); };
+    tick();
+  }
+  function ripple(x, y, strong) {
+    const svg = document.getElementById('board'); if (!svg) return;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 1); c.setAttribute('class', 'ripple' + (strong ? ' strong' : ''));
+    svg.appendChild(c); setTimeout(() => c.remove(), 1600);
+  }
+  function seismicPulse() {
+    if (!G || !document.getElementById('board') || !G.blindOn) return;
+    tilePositions(G.s).forEach((p) => { if (Math.random() < 0.45) ripple(p.x, p.y, false); });
+    G.pulseT = setTimeout(seismicPulse, 1400);
+  }
   function renderBoard() {
     const s = G.s;
+    const bs = blindState(), blind = bs === 'blind';
+    const svgEl = document.getElementById('board'); if (svgEl) svgEl.classList.toggle('blind', blind);
+    if (blind && !G.blindOn) { G.blindOn = true; clearTimeout(G.pulseT); seismicPulse(); }
+    if (!blind && G.blindOn) { G.blindOn = false; clearTimeout(G.pulseT); }
     const lt = document.getElementById('l-tiles'); if (!lt) return;
     const pos = tilePositions(s);
     const seen = new Set();
@@ -758,7 +832,7 @@
     // centre gate tint
     if (s.center) P.CENTER_SQ.forEach((i) => (h += sqRect(i, '#e6b54a', 0.35)));
     if (s.rubble) Object.keys(s.rubble).forEach((k) => { const i = +k; h += `<g transform="translate(${Board.cx(i)},${Board.cy(i)})"><rect x="-0.5" y="-0.5" width="1" height="1" fill="#5b4a36"/><path d="M-0.35,0.3 L-0.2,-0.1 L0,0.05 L0.15,-0.3 L0.38,0.3 Z" fill="#8a7458" stroke="#2a1a10" stroke-width="0.04"/><text y="0.42" font-size="0.22" text-anchor="middle" fill="#fff">${s.rubble[k]}</text></g>`; });
-    hl.innerHTML = h;
+    hl.innerHTML = blind ? '<circle r="9.5" fill="#000"/>' : h;
     // harmonies
     const lh = document.getElementById('l-harm'); let hh = '';
     if (G.showH || s.winner !== null) {
@@ -769,12 +843,13 @@
       });
       if (s.winRing) hh += `<polygon class="ring" points="${s.winRing.map((i) => Board.cx(i) + ',' + Board.cy(i)).join(' ')}"/>`;
     }
-    lh.innerHTML = hh;
+    lh.innerHTML = blind ? '' : hh;
     renderSel();
   }
   function srcOf(a) { return a.from.kind === 'sq' ? 'sq' + a.from.i : a.from.kind === 'gate' ? 'g' + a.from.g : 'c'; }
   function renderSel() {
     const ld = document.getElementById('l-dest'); if (!ld) return;
+    if (G.blindOn && !(G.sel && G.sel.kind === 'plant')) { tileEls.forEach((el) => el.classList.remove('lift')); const k = G.sel && G.sel.kind === 'blindPick' ? G.sel : null; ld.innerHTML = k ? `<circle cx="${k.x}" cy="${k.y}" r="0.55" fill="none" stroke="#fff" stroke-width="0.08" opacity=".9"/>` : ''; return; }
     let o = '';
     tileEls.forEach((el) => el.classList.remove('lift'));
     const ringAt = (x, y, r = 0.48) => `<circle class="dest-cap" cx="${x}" cy="${y}" r="${r}"/>`;
@@ -949,6 +1024,7 @@
   }
   function renderInfo(type, owner) {
     const el = document.getElementById('info'); if (!el) return;
+    if (!type && G && G.blindOn) { el.innerHTML = '<span>🍈 <b>You’re blind!</b> Tap a tile, then where it goes. Grab one of theirs and you lose the turn. A legal move earns a bonus.</span>'; return; }
     if (!type) {
       if (G && hintsOn() && isHumanTurn()) {
         const a = G.ana && G.ana.s === G.s ? G.ana : null, opp = esc(G.seats[1 - G.s.turn].name);
@@ -1023,10 +1099,33 @@
     const tgt = { i, gate: P.gateOfSq[i], center: !!(G.s.center && Math.hypot(p.x, p.y) < 1) || (Math.hypot(p.x, p.y) < 1 && G.sel && G.sel.kind === 'plant' && G.sel.moves.some((m) => m.gate === 'center')) };
     tap(tgt);
   }
+  function boardXY(tg) {
+    if (tg.center) return [0, 0];
+    if (tg.gate >= 0) return Board.GATE_POS[tg.gate];
+    return [Board.cx(tg.i), Board.cy(tg.i)];
+  }
   async function tap(tg) {
     const s = G.s, sel = G.sel;
     // info for whatever is under the finger
     const cellTop = s.board[tg.i] && s.board[tg.i].top;
+    if (G.blindOn && isHumanTurn() && !(sel && sel.kind === 'plant')) {
+      const p = boardXY(tg); ripple(p[0], p[1], true);
+      let key = null, tile = null;
+      if (tg.center && s.center) { key = 'c'; tile = s.center.tile; } else if (tg.gate >= 0) { key = 'g' + tg.gate; tile = s.gates[tg.gate]; } else { key = 'sq' + tg.i; tile = cellTop; }
+      if (sel && sel.kind === 'blindPick') {
+        if (key === sel.key) { G.sel = null; return renderSel(); }
+        if (sel.mine) {
+          const m = acts.find((a) => a.t === 'move' && srcOf(a) === sel.key && a.to === tg.i);
+          if (m) { G.sel = null; return doAction(m); }
+          if (tile && tile.owner === s.turn) { G.sel = { kind: 'blindPick', key, mine: true, x: p[0], y: p[1] }; return renderSel(); }
+          return toast('Can’t move there');
+        }
+        G.sel = null; toast('🍈 That wasn’t your tile! You lose this turn.', 3000); buzz(80);
+        return doAction({ t: 'forfeit' });
+      }
+      if (tile) { G.sel = { kind: 'blindPick', key, mine: tile.owner === s.turn, x: p[0], y: p[1] }; return renderSel(); }
+      return;
+    }
     if (sel && ['bend', 'sweep', 'metal', 'blood'].includes(sel.kind)) {
       if (sel.kind === 'bend' && sel.targets.includes(tg.i)) {
         if (sel.el === 'air') { const d = P.sweepDests(s, tg.i); if (!d.length) return toast('Nowhere to sweep that tile'); G.sel = { kind: 'sweep', target: tg.i, dests: d }; return renderBoard(); }
@@ -1135,7 +1234,7 @@
       G.s = P.apply(G.s, a);
     } catch (e) { G.history.pop(); toast('That move isn’t allowed'); console.warn(e); return; }
     G.sel = null; buzz(10);
-    if (a.t === 'end') return turnEnded();
+    if (a.t === 'end' || a.t === 'forfeit') return turnEnded();
     renderGame();
     // auto-end when nothing optional is left
     if (G.s.tp.mainDone) {
@@ -1182,10 +1281,16 @@
     G.busy = true; renderStatus(); renderBar();
     const g = G;
     await sleep(500);
-    const seq = AI.chooseTurn(g.s, g.seats[g.s.turn].level);
+    let seq = AI.chooseTurn(g.s, g.seats[g.s.turn].level);
+    if (g.s.melon && g.s.melon.blind === g.s.turn) {
+      showBubble(g.s.turn, 'wow');
+      const mains = P.legalActions(g.s, { noPlace: true, noAbility: true }).filter((x) => x.t === 'move' || x.t === 'plant');
+      seq = Math.random() < 0.3 || !mains.length ? [{ t: 'forfeit' }] : [mains[Math.floor(Math.random() * mains.length)], { t: 'end' }];
+    }
     for (const a of seq) {
       if (G !== g) return;
       if (a.t === 'end') break;
+      if (a.t === 'forfeit') { g.s = P.apply(g.s, a); g.busy = false; renderGame(); afterTurnChange(); return; }
       try { g.s = P.apply(g.s, a); } catch (e) { // board changed under it (bending) — finish the turn sensibly
         if (!g.s.tp.mainDone) { const re = AI.chooseTurn(g.s, g.seats[g.s.turn].level).find((x) => x.t === 'move' || x.t === 'plant'); if (re) { try { g.s = P.apply(g.s, re); } catch (e2) {} } }
         break;
@@ -1225,7 +1330,7 @@
     else if (G.mode === 'local') head = esc(G.seats[s.winner].name) + ' wins!';
     else head = s.winner === G.my ? 'You win!' : esc(G.seats[s.winner].name) + ' wins';
     sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:28px">${head}</h3><p class="muted">${s.winner === 'draw' ? 'The game reached the turn limit.' : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.'}</p>
-      ${G.reward && (G.reward.gp || G.reward.ranked || G.reward.xp) ? `<div class="card" style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-weight:900;margin-bottom:10px">${G.reward.gp ? `<span style="color:#ffd77a">+${G.reward.gp} gp</span>` : ''}${G.reward.xp ? `<span style="color:#9fd1ff">+${G.reward.xp} XP</span>` : ''}${G.reward.ranked ? `<span>⭐ ${G.reward.rating} (${G.reward.delta >= 0 ? '+' : ''}${G.reward.delta})</span>` : ''}</div>${G.reward.boost && (G.reward.gp || G.reward.xp) ? `<div class="tiny" style="margin:-4px 0 10px;color:#ffd77a">${G.reward.boost.icon} ${G.reward.boost.name}: ${G.reward.boost.xp}× XP · ${G.reward.boost.gp}× gold</div>` : ''}${G.reward.subUnlocked ? '<div class="note" style="margin-bottom:10px">🌀 <b>Sub-bending unlocked!</b> Use it in Elemental mode games.</div>' : G.reward.levelUp ? '<div class="note" style="margin-bottom:10px">⬆️ Level up!</div>' : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold — play the computer or online to earn.</div>' : ''}</div>
+      ${G.reward && (G.reward.gp || G.reward.ranked || G.reward.xp) ? `<div class="card" style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-weight:900;margin-bottom:10px">${G.reward.gp ? `<span style="color:#ffd77a">+${G.reward.gp} gp</span>` : ''}${G.reward.xp ? `<span style="color:#9fd1ff">+${G.reward.xp} XP</span>` : ''}${G.reward.ranked ? `<span>⭐ ${G.reward.rating} (${G.reward.delta >= 0 ? '+' : ''}${G.reward.delta})</span>` : ''}</div>${G.reward.boost && (G.reward.gp || G.reward.xp) ? `<div class="tiny" style="margin:-4px 0 10px;color:#ffd77a">${G.reward.boost.icon} ${G.reward.boost.name}: ${G.reward.boost.xp}× XP · ${G.reward.boost.gp}× gold</div>` : ''}${G.reward.melon ? '<div class="note" style="margin-bottom:10px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}${G.reward.subUnlocked ? '<div class="note" style="margin-bottom:10px">🌀 <b>Sub-bending unlocked!</b> Use it in Elemental mode games.</div>' : G.reward.levelUp ? '<div class="note" style="margin-bottom:10px">⬆️ Level up!</div>' : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold — play the computer or online to earn.</div>' : ''}</div>
       <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div>`);
   }
 
@@ -1362,6 +1467,15 @@
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    chatOpen: () => {
+      G.unread = 0; renderChatBtn();
+      sheet(`<h3>Chat</h3><div class="chat-log" id="chat-log"></div>
+        <div class="row wrap" style="margin:8px 0">${['Good luck!', 'Nice move', 'Hmm…', 'GG'].concat(G.s.bend && !(G.s.melon && G.s.melon.used[G.my != null ? G.my : G.s.turn]) ? ['MELON LORD! 🍈'] : []).map((q) => `<button class="btn small" data-act="chatQuick" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+        <form id="chatf" class="row"><input class="input" id="chat-in" maxlength="140" placeholder="Message…" autocomplete="off"><button class="btn primary" type="submit">Send</button></form>`);
+      renderChatLog();
+      document.getElementById('chatf').addEventListener('submit', (e) => { e.preventDefault(); const i = document.getElementById('chat-in'); sendChat(i.value); i.value = ''; });
+    },
+    chatQuick: (d) => { sendChat(d.q); },
     bendMenu: () => {
       if (!G || !G.s.bend) return;
       const s = G.s, seat = bendSeat(), pw = (s.opts.powers || [])[seat] || {};
