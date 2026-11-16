@@ -59,7 +59,7 @@ const FB = (() => {
 
 /* Friends over Firestore: friend codes, requests, presence, invites */
 const FireSocial = (() => {
-  let me = null, unsubs = [], beat = null, friendDocs = [], reqDocs = [];
+  let me = null, unsubs = [], beat = null, friendDocs = [], reqDocs = [], inviteDocs = [];
   const listeners = new Set();
   const emit = (ev, d) => listeners.forEach((f) => { try { f(ev, d); } catch (e) {} });
   const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -85,12 +85,14 @@ const FireSocial = (() => {
       emit('change');
     }, () => {}));
     unsubs.push(FB.col('invites').where('to', '==', me.pid).onSnapshot((qs) => {
+      const WEEK = 7 * 864e5;
+      inviteDocs = qs.docs.map((x) => Object.assign({ id: x.id }, x.data())).filter((v) => { if (Date.now() - (v.t || 0) > WEEK) { FB.col('invites').doc(v.id).delete().catch(() => {}); return false; } return true; }).sort((a, b) => b.t - a.t);
       qs.docChanges().forEach((ch) => {
         if (ch.type !== 'added') return;
         const v = ch.doc.data();
-        ch.doc.ref.delete().catch(() => {});
-        if (Date.now() - (v.t || 0) < 10 * 60000) emit('invite', { code: v.fromCode, name: v.fromName, game: v.game });
+        if (Date.now() - (v.t || 0) < 10 * 60000) emit('invite', { id: ch.doc.id, code: v.fromCode, name: v.fromName, game: v.game });
       });
+      emit('change');
     }, () => {}));
     return true;
   }
@@ -109,7 +111,7 @@ const FireSocial = (() => {
   function stop() {
     unsubs.forEach((u) => { try { u(); } catch (e) {} }); unsubs = [];
     if (friendUnsub) { friendUnsub(); friendUnsub = null; } lastFriendKey = '';
-    clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = [];
+    clearInterval(beat); beat = null; me = null; friendDocs = []; reqDocs = []; inviteDocs = [];
   }
   async function addPid(pid) {
     if (!me) return 'Create a player first to add friends';
@@ -154,16 +156,18 @@ const FireSocial = (() => {
     await FB.col('players').doc(me.pid).set({ friends: FV.arrayRemove(f.pid) }, { merge: true });
     await FB.col('players').doc(f.pid).set({ friends: FV.arrayRemove(me.pid) }, { merge: true }).catch(() => {});
   }
+  const invites = () => inviteDocs.slice();
+  const dismissInvite = (id) => { inviteDocs = inviteDocs.filter((v) => v.id !== id); emit('change'); return FB.col('invites').doc(id).delete().catch(() => {}); };
   async function invite(code, game) {
     const f = friendDocs.find((x) => x.code === code); if (!f) return;
-    await FB.col('invites').add({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, game, t: FB.now() });
+    await FB.col('invites').doc(game + '_' + f.pid).set({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, fromAvatar: me.avatar || null, game, t: FB.now() });
     Push.send(f.pid, '🎮 Game invite', `${me.name} invited you to a game of Pai Sho`, 'inv-' + me.pid);
   }
   const friends = () => friendDocs.slice().sort((a, b) => (b.seen > Date.now() - ONLINE_MS) - (a.seen > Date.now() - ONLINE_MS) || a.name.localeCompare(b.name));
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));
   const isOnline = (code) => { const f = friendDocs.find((x) => x.code === code); return !!(f && Date.now() - f.seen < ONLINE_MS); };
   const on = (f) => { listeners.add(f); return () => listeners.delete(f); };
-  return { ready, start, stop, add, addPid, isFriend, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
+  return { ready, start, stop, add, addPid, isFriend, invites, dismissInvite, accept, decline, remove, invite, friends, requests, isOnline, on, get code() { return me && me.fcode; }, get active() { return !!me; }, async: true };
 })();
 
 /* Turn alerts: watches your online games; shows a system notification when it becomes your turn */
