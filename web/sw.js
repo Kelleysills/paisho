@@ -1,5 +1,5 @@
 // Pai Sho service worker: works offline; network first so updates land right away.
-const CACHE = "paisho-v3";
+const CACHE = "paisho-v4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
@@ -15,7 +15,8 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
-    if (cs.some((c) => c.visibilityState === "visible" && c.focused)) return; // app is open and showing: it alerts in-app
+    const test = String(d.tag || "").startsWith("test");
+    if (!test && cs.some((c) => c.visibilityState === "visible" && c.focused)) return; // app is open and showing: it alerts in-app
     return self.registration.showNotification(d.title || "Pai Sho", { body: d.body || "", tag: d.tag || undefined, renotify: !!d.tag, icon: "icon-192.png", badge: "icon-192.png", data: { url: d.url || "./" } });
   }));
 });

@@ -779,6 +779,22 @@
     const go2 = () => Soc().start({ pid: myPid(), name: myName(), avatar: myAvatar() });
     if (Soc().ready()) go2(); else { let n = 0; const t = setInterval(() => { if (Soc().ready()) { clearInterval(t); go2(); if (document.querySelector('[data-act="startSetup"]')) screens.home(); } else if (++n > 40) clearInterval(t); }, 250); }
   }
+  async function notifTest() {
+    const rows = [];
+    const add = (ok, t) => rows.push(`<div class="trow" style="align-items:center"><span style="font-size:20px">${ok === null ? '⏳' : ok ? '✅' : '❌'}</span><div>${t}</div></div>`);
+    const show = () => sheet(`<h3>🔔 Notification check</h3><div class="tlist">${rows.join('')}</div><p class="tiny muted">If ✅ everywhere but no banner pops up, it’s the phone’s setting: long-press a Pai Sho notification → ⚙️ → set to <b>Alert</b> and turn on <b>Pop-up</b>. Also check Do Not Disturb.</p>`);
+    add('Notification' in window && Notification.permission === 'granted', 'Permission: ' + ('Notification' in window ? Notification.permission : 'not supported'));
+    let reg = null; try { reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => {}); } catch (e) {}
+    add(!!(reg && reg.active), 'Background helper: ' + (reg && reg.active ? 'running' : 'missing'));
+    let sub = null; try { sub = reg && await reg.pushManager.getSubscription(); } catch (e) {}
+    if (!sub && me) { await Push.subscribe(me.id); try { sub = reg && await reg.pushManager.getSubscription(); } catch (e) {} }
+    add(!!sub, 'Closed-app alerts: ' + (sub ? 'signed up' : 'not signed up'));
+    show();
+    try { if (reg) await reg.showNotification('Pai Sho · test 1 of 2', { body: 'This one came straight from the app.', tag: 'test-local', icon: 'icon-192.png', badge: 'icon-192.png' }); add(true, 'Test 1 sent from the app (should pop up now)'); } catch (e) { add(false, 'Test 1 failed: ' + esc(e.message || e)); }
+    show();
+    if (me && sub) { Push.send(me.id, 'Pai Sho · test 2 of 2', 'This one came through the internet. Closed-app alerts work!', 'test-push'); add(null, 'Test 2 sent through the server (arrives in a few seconds)'); }
+    show();
+  }
   function invitesHTML() {
     if (Store.kind !== 'firebase' || !FireSocial.invites) return '';
     const iv = FireSocial.invites(); if (!iv.length) return '';
@@ -1687,7 +1703,7 @@
       const bio = await Auth.bioAvailable();
       sheet(`<div style="margin-bottom:12px">${Avatars.card(meCard(), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
         <button class="btn primary" data-act="editProfile">Edit profile</button>
-        ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on (send a test)' : '🔔 Turn on turn alerts'}</button>` : ''}
+        ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on · run a test' : '🔔 Turn on turn alerts'}</button>` : ''}
         <button class="btn" data-act="go" data-to="stats">Stats</button>
         ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
         <button class="btn" data-act="changePin">Change PIN</button>
@@ -1731,6 +1747,7 @@
     },
     alertsToggle: async () => {
       closeSheet();
+      if (TurnAlerts.enabled()) return notifTest();
       const r = await TurnAlerts.enable();
       toast(r === 'granted' ? 'Turn alerts on' : r === 'unsupported' ? 'This browser can’t show notifications — install the app to your home screen first' : 'Notifications are blocked — allow them in your browser settings');
       if (r === 'granted') TurnAlerts.notify('Pai Sho', 'Turn alerts are on. You’ll get one when it’s your move.', 'test');
@@ -1959,6 +1976,7 @@
   // Mark every tappable non-button as a button so Chrome's "Tap to Search" treats it as a control, not words
   const markTappables = (root) => root.querySelectorAll && root.querySelectorAll('[data-act]:not(button):not(a):not([role])').forEach((el) => { el.setAttribute('role', 'button'); el.setAttribute('tabindex', '-1'); });
   new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { markTappables(n); if (n.matches && n.matches('[data-act]:not(button):not(a):not([role])')) { n.setAttribute('role', 'button'); n.setAttribute('tabindex', '-1'); } } }))).observe(document.body, { childList: true, subtree: true });
+  try { navigator.serviceWorker && navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); } catch (e) {}
   document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
   document.addEventListener('selectstart', (e) => { if (!e.target.closest || !e.target.closest('input,textarea,[contenteditable="true"]')) e.preventDefault(); });
   document.addEventListener('input', (e) => { if (e.target && e.target.id === 'musicVol') Music.setVolume(e.target.value / 100); });
