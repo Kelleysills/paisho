@@ -12,7 +12,9 @@ const Eco = (() => {
   const TILE_PRICE = { stone: 0, boat: 0, wheel: 200, knotweed: 300, orchid: 300, firelily: 350, dahlia: 350, koi: 400, badgermole: 450, skybison: 500, dragon: 600, lotus: 750 };
   // profile pictures (Avatars.LIST ids)
   const FREE_AVATARS = ['gust', 'wave', 'peak', 'flame', 'lantern', 'tea'];
-  const AVATAR_PRICE = 150;
+  const PRICE_MULT = 3; // store prices tripled (Nov 2026); items already owned stay owned
+  const AVATAR_PRICE = 150 * PRICE_MULT;
+  Object.keys(TILE_PRICE).forEach((k) => (TILE_PRICE[k] *= PRICE_MULT));
   // emotes
   const EMOTES = [
     { id: 'hi', e: '👋', t: 'Hello!', kind: 'common' },
@@ -66,6 +68,7 @@ const Eco = (() => {
     { id: 'rocket', e: '🚀', t: 'To the moon', kind: 'store', price: 250 },
     { id: 'cabbage', e: '🥬', t: 'My cabbages!', kind: 'store', price: 300 },
   ];
+  EMOTES.forEach((x) => { if (x.price) x.price *= PRICE_MULT; });
   const EMO = Object.fromEntries(EMOTES.map((x) => [x.id, x]));
   // board themes
   const BOARDS = {
@@ -97,6 +100,7 @@ const Eco = (() => {
     bamboo:  { name: 'Bamboo Grove',     price: 700,  wood: ['#b8c46a', '#7a8a32'], light: '#f8fbe6', dark: '#4f8a3a', rim: '#e2ef9a', gate: '#33501c', gateEdge: '#eaf7b0', bg: '#141c08' },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
+  Object.values(BOARDS).forEach((b) => { if (b.price) b.price *= PRICE_MULT; });
   // earnings
   const EARN = {
     ai: { easy: [12, 4, 6], medium: [25, 6, 10], hard: [45, 10, 18] }, // [win, loss, draw]
@@ -166,7 +170,7 @@ const Eco = (() => {
     return { pid: eligible[0].p.id, tie: null };
   }
   // ---- XP, sub-bending, achievements ----
-  const SUB_LEVEL = 20, SUB_XP = (SUB_LEVEL - 1) * 500; // level(xp) = 1 + floor(xp/500) → Level 20 = 9,500 XP
+  const SUB_LEVEL = 10, SUB_XP = (SUB_LEVEL - 1) * 500; // level(xp) = 1 + floor(xp/500) → Level 10 = 4,500 XP
   const SUBS = {
     metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Swap any two tiles on the board.' },
     lightning: { name: 'Lightning', el: 'fire', icon: '⚡', desc: 'Your opponent skips their next turn.' },
@@ -288,5 +292,5 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();

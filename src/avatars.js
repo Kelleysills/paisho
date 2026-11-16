@@ -77,6 +77,6 @@ const Avatars = (() => {
       ${opts.noStats ? '' : `<div class="pc-stats"><div><b>${st.wins || 0}</b><span>Wins</span></div><div><b>${st.losses || 0}</b><span>Losses</span></div><div><b>${pct}</b><span>Win %</span></div><div><b>${st.rings || 0}</b><span>Rings</span></div><div><b>${st.best || 0}</b><span>Best streak</span></div></div>`}
     </div>`;
   }
-  const price = (id) => (byId[id] && byId[id].price) || null;
+  const price = (id) => (byId[id] && byId[id].price ? byId[id].price * (typeof Eco !== 'undefined' && Eco.PRICE_MULT ? Eco.PRICE_MULT : 1) : null);
   return { LIST, EL, svg, price, random, picker, card, elementOf, label, has: (id) => !!byId[id] };
 })();
