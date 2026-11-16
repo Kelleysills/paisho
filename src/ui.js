@@ -965,7 +965,7 @@
     G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0; G.lastSpamT = (d.spam && d.spam.t) || 0; G.lastDoodleT = (d.doodle && d.doodle.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
-      if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
+      if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my && Date.now() - (G.nudgeShownT || 0) > 60000 && (G.nudgeShownT = Date.now())) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
       if (nd.doodle && nd.doodle.t > (G.lastDoodleT || 0)) { const fresh = G.lastDoodleT !== undefined; G.lastDoodleT = nd.doodle.t; if (fresh && nd.doodle.seat !== G.my) { try { Doodle.show(JSON.parse(nd.doodle.s), nd.doodle.seat); } catch (e) {} } }
       if (nd.spam && nd.spam.t > (G.lastSpamT || 0)) { const fresh = G.lastSpamT !== undefined; G.lastSpamT = nd.spam.t; if (fresh && nd.spam.seat !== G.my) showFx(nd.spam.el); }
       applyQueuedBends(nd);
@@ -1906,10 +1906,10 @@
     spamGo: (d) => spamBend(d.el),
     yipYip: async () => {
       if (!G || G.mode !== 'online' || isHumanTurn()) return;
-      const last = (G.doc && G.doc.nudge && G.doc.nudge.seat === G.my && G.doc.nudge.t) || G.lastYip || 0;
+      const last = Math.max((G.doc && G.doc.nudge && G.doc.nudge.seat === G.my && G.doc.nudge.t) || 0, G.lastYip || 0, (Store.LS.get('yip', {})[G.code]) || 0);
       const wait = 60000 - (Date.now() - last);
       if (wait > 0) return toast(`You can yip again in ${Math.ceil(wait / 1000)}s`);
-      G.lastYip = Date.now();
+      G.lastYip = Date.now(); const yl = Store.LS.get('yip', {}); yl[G.code] = G.lastYip; Store.LS.set('yip', yl);
       try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); bump('nudgesSent'); Push.send(G.seats[1 - G.my].pid, '📣 Yip yip!', `${G.seats[G.my].name} is waiting for your move (game ${G.code})`, 'n-' + G.code); }
       catch (e) { toast('Couldn’t send the nudge'); }
     },
@@ -2033,7 +2033,7 @@
   };
   Social.on(socialHandler); FireSocial.on(socialHandler);
   TurnAlerts.on((ev, d) => {
-    if (ev === 'nudge') { if (!(G && G.mode === 'online' && G.code === d.code)) toast('📣 Yip yip! ' + d.who + ' is waiting for your move (game ' + d.code + ')', 4000); return; }
+    if (ev === 'nudge') { if (!(G && G.mode === 'online' && G.code === d.code) && Date.now() - (window.__nudgeT || 0) > 60000 && (window.__nudgeT = Date.now())) toast('📣 Yip yip! ' + d.who + ' is waiting for your move (game ' + d.code + ')', 4000); return; }
     if (ev !== 'turn') return;
     if (G && G.mode === 'online' && G.code === d.code) return;
     toast('Your turn vs ' + d.opp + ' (game ' + d.code + ') — open it from Play online', 4000);

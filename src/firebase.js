@@ -231,7 +231,8 @@ const TurnAlerts = (() => {
         const nz = g.nudge, nkey = 'n:' + d.id, mineSeat = g.guest && g.guest.pid === myPid ? 0 : 1;
         if (nz && nz.t) {
           const pn = seen[nkey]; seen[nkey] = nz.t;
-          if (pn !== undefined && nz.t > pn && nz.seat !== mineSeat && Date.now() - nz.t < 10 * 60000) {
+          if (pn !== undefined && nz.t > pn && nz.seat !== mineSeat && Date.now() - nz.t < 10 * 60000 && Date.now() - (seen['nt:' + d.id] || 0) > 60000) {
+            seen['nt:' + d.id] = Date.now();
             const who = nz.seat === 0 ? g.guest.name : g.host.name;
             if (document.hidden) notify('📣 Yip yip!', `${who} is waiting for your move (game ${d.id})`, 'n-' + d.id);
             listeners.forEach((f) => f('nudge', { code: d.id, who }));

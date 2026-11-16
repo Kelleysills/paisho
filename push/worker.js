@@ -71,6 +71,12 @@ export default {
         if (!r.ok) return json({ error: 'auth' }, 401);
         const doc = await r.json();
         const subs = Object.values(((doc.fields || {}).subs || {}).mapValue?.fields || {}).map((x) => { try { return JSON.parse(x.stringValue); } catch (e) { return null; } }).filter(Boolean).slice(0, 10);
+        // Yip yip nudges: at most one per game per minute, whatever the sender's app does
+        if (/^n-/.test(m.tag || '')) {
+          const key = new Request(`https://rate.paisho/${m.to}/${encodeURIComponent(m.tag)}`), cache = caches.default;
+          if (await cache.match(key)) return json({ sent: 0, limited: true });
+          await cache.put(key, new Response('1', { headers: { 'Cache-Control': 'max-age=60' } }));
+        }
         const v = await vapid(env);
         const payload = JSON.stringify({ title: clip(m.title, 80), body: clip(m.body, 180), tag: clip(m.tag, 60), url: clip(m.url, 200) });
         const res = await Promise.all(subs.map((s) => sendPush(env, v, s, payload).catch(() => 0)));
