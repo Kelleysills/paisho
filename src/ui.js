@@ -13,7 +13,7 @@
   let avatarPid = null;
   const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid), lvl: Eco.level(me.xp || 0), xp: me.xp || 0 });
   const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
-  const saveMe = () => (me ? Store.set('players', me.id, me).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
+  const saveMe = () => (me ? (delete me._mig, Store.set('players', me.id, me)).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
   async function loadAvatar() { try { const m = await Store.get('meta', 'avatar'); avatarPid = (m && m.pid) || null; } catch (e) {} }
   function ensureMe() { if (!me) return; const before = JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board]); Eco.ensure(me); if (before !== JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board])) saveMe(); }
   const gpFmt = (n) => '🪙 ' + (n || 0).toLocaleString();
@@ -29,6 +29,8 @@
     await saveMe(); toast(`Unlocked ${label}!`); setTimeout(checkAch, 1200); return true;
   }
   let achBusy = false;
+  let bumpT = null;
+  function bump(k, n = 1) { if (!me) return; me[k] = (me[k] || 0) + n; clearTimeout(bumpT); bumpT = setTimeout(() => { saveMe(); checkAch(); }, 2500); }
   async function checkAch() {
     if (!me || achBusy) return;
     achBusy = true;
@@ -39,7 +41,9 @@
       if (!got.length) return;
       got.forEach((a) => { me.ach[a.id] = Date.now(); me.gp += a.gp; });
       await saveMe();
-      got.forEach((a, k) => setTimeout(() => toast(`🏆 ${a.name}! +${a.gp.toLocaleString()} gp`, 3500), k * 1800));
+      const shown = got.slice(0, 2), rest = got.slice(2);
+      shown.forEach((a, k) => setTimeout(() => toast(`${a.icon || '🏆'} ${a.name}! +${a.gp.toLocaleString()} gp`, 3500), k * 1800));
+      if (rest.length) setTimeout(() => toast(`🏆 +${rest.length} more achievements! +${rest.reduce((n, a) => n + a.gp, 0).toLocaleString()} gp`, 4000), shown.length * 1800);
       if (document.querySelector('[data-act="startSetup"]')) screens.home();
     } finally { achBusy = false; }
   }
@@ -90,7 +94,7 @@
 
   // ---------- profiles ----------
   const emptyStats = () => ({ games: 0, wins: 0, losses: 0, draws: 0, ai: { easy: [0, 0, 0], medium: [0, 0, 0], hard: [0, 0, 0] }, local: [0, 0, 0], online: [0, 0, 0], streak: 0, best: 0, rings: 0, recent: [] });
-  async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).map(noteHue).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
+  async function players() { try { return (await Store.list('players')).filter((p) => p && p.name).map((p) => Eco.ensure(p)).map(noteHue).sort((a, b) => a.name.localeCompare(b.name)); } catch (e) { return []; } }
   // ---- unique display names: "Aang", "aang" and "A-ang" are the same name ----
   function normName(n) {
     const raw = String(n || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
@@ -147,23 +151,29 @@
       out.xp = Math.round((Eco.xpFor(mode, res) + (mode === 'online' ? spam * 5 : 0)) * bst.xp);
       const lvBefore = Eco.level(p.xp || 0), subBefore = (p.xp || 0) >= Eco.SUB_XP;
       p.xp = (p.xp || 0) + out.xp;
+      const today = new Date().toISOString().slice(0, 10);
+      if (p.lastDay !== today) { p.lastDay = today; p.daysPlayed = (p.daysPlayed || 0) + 1; }
       out.levelUp = Eco.level(p.xp) > lvBefore; out.subUnlocked = !subBefore && p.xp >= Eco.SUB_XP;
       if (isMe && G) p.bends = (p.bends || 0) + (G.bendsUsed || 0) + (G.spam || 0);
       if (isMe && G && G.s.melon && G.s.melon.bonus[G.my != null ? G.my : 0] && mode !== 'local') { const bg = Math.round(50 * bst.gp), bx = Math.round(50 * bst.xp); p.gp += bg; out.gp += bg; p.xp += bx; out.xp += bx; out.melon = true; }
       if (mode === 'online' && oppPid && !oppPid.startsWith('g-')) {
         const o = await Store.get('players', oppPid).catch(() => null);
         const oppR = o && typeof o.rating === 'number' ? o.rating : Eco.START_RATING;
-        const nr = Eco.newRating(p.rating, oppR, res); out.delta = nr - p.rating; p.rating = nr; out.rating = nr;
+        const nr = Eco.newRating(p.rating, oppR, res); out.delta = nr - p.rating; p.rating = nr; out.rating = nr; p.ratingPeak = Math.max(p.ratingPeak || 0, nr);
         p.ranked[res === 'w' ? 'w' : res === 'l' ? 'l' : 'd']++;
         out.ranked = true;
       }
       const st = Object.assign(emptyStats(), p.stats || {});
       const k = res === 'w' ? 0 : res === 'l' ? 1 : 2;
-      st.games++; st[['wins', 'losses', 'draws'][k]]++;
-      if (mode === 'ai') { st.ai[level] = st.ai[level] || [0, 0, 0]; st.ai[level][k]++; } else st[mode][k]++;
-      st.streak = res === 'w' ? st.streak + 1 : 0; st.best = Math.max(st.best, st.streak);
-      if (res === 'w' && ring) st.rings++;
+      if (mode === 'ai') { st.ai[level] = st.ai[level] || [0, 0, 0]; st.ai[level][k]++; } // computer games are practice: separate record only
+      else {
+        st[mode][k]++; st.games++; st[['wins', 'losses', 'draws'][k]]++;
+        st.streak = res === 'w' ? st.streak + 1 : 0; st.best = Math.max(st.best, st.streak);
+        if (res === 'w' && ring) st.rings++;
+      }
+      st.v2 = true;
       st.recent = [{ t: Date.now(), mode, level, res, opp, turns }].concat(st.recent || []).slice(0, 20);
+      p.gpPeak = Math.max(p.gpPeak || 0, p.gp || 0);
       p.stats = st; await Store.set('players', pid, p);
       if (me && me.id === pid) me = p;
       return out;
@@ -345,7 +355,7 @@
 
   let nameChecked = null;
   screens.home = () => {
-    if (me && Store.kind === 'firebase' && nameChecked !== me.id) { nameChecked = me.id; claimName(me.name, me.id).catch(() => {}); }
+    if (me && nameChecked !== me.id) { nameChecked = me.id; if (Store.kind === 'firebase') claimName(me.name, me.id).catch(() => {}); Eco.ensure(me); if (me._mig) { delete me._mig; saveMe(); } }
     ensureMe();
     setTimeout(checkAch, 800);
     noteHue(me);
@@ -423,18 +433,30 @@
     const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`, pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
     const card = Object.assign({}, p, { avatar: p.avatar || 'whitelotus', isAvatar: !!(avatarPid && p.id === avatarPid), lvl: Eco.level(p.xp || 0), xp: p.xp || 0 });
     const got = Eco.ACH.filter((a) => ach[a.id]);
+    const best = Eco.ACH_MAIN.filter((a) => ach[a.id]).concat(Eco.TRACKS.map((t) => Eco.ACH.filter((a) => a.track === t.k && ach[a.id]).pop()).filter(Boolean));
     sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr></table></div>
-      <div class="field"><label>🏆 Achievements · ${got.length}/${Eco.ACH.length}</label><div class="ach-chips">${got.slice(-60).reverse().map((a) => `<span class="chip" title="${esc(a.desc)}">🏆 ${esc(a.name)}</span>`).join('') || '<span class="muted tiny">None yet</span>'}${got.length > 60 ? `<span class="chip">+${got.length - 60} more</span>` : ''}</div></div>
+      <div class="field"><label>🏆 Achievements · ${got.length.toLocaleString()}/${Eco.ACH.length.toLocaleString()}</label><div class="ach-chips">${best.map((a) => `<span class="chip" title="${esc(a.desc)}">${a.icon || '🏆'} ${esc(a.name)}</span>`).join('') || '<span class="muted tiny">None yet</span>'}</div></div>
 </div>`);
   }
-  function achBody() {
-    const ach = me.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
-    const order = Eco.ACH.filter((a) => ach[a.id]).concat(Eco.ACH.filter((a) => !ach[a.id]));
-    return `<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.level(me.xp)}</div><div class="tiny muted">${(me.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${(me.bends || 0)}</div><div class="tiny muted">bends</div></div><div><div class="disp" style="font-size:22px">${(me.xp || 0) >= Eco.SUB_XP ? '🌀' : Math.max(0, Eco.SUB_XP - (me.xp || 0))}</div><div class="tiny muted">${(me.xp || 0) >= Eco.SUB_XP ? 'sub-bending on' : 'XP to sub-bending'}</div></div></div>
-      <div class="tlist">${order.map((a) => `<div class="trow" style="align-items:center;${ach[a.id] ? '' : 'opacity:.65'}"><span style="font-size:26px">${ach[a.id] ? '🏆' : '🔒'}</span><div><b>${a.name}</b><br><span class="tiny">${a.desc}</span></div><div class="mv" style="color:#ffd77a">${ach[a.id] ? '✓' : '+' + a.gp}</div></div>`).join('')}</div>`;
+  let achOpen = null;
+  function achBody(p = me, ctx = null) {
+    const ach = p.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
+    const c = ctx || { isAvatar: !!(avatarPid && p.id === avatarPid), friends: p === me ? (Store.kind === 'firebase' && FireSocial.active ? FireSocial.friends().length : (Social.friends ? Social.friends().length : 0)) : 0 };
+    const head = `<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.level(p.xp)}</div><div class="tiny muted">${(p.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${done.toLocaleString()}</div><div class="tiny muted">of ${Eco.ACH.length.toLocaleString()} unlocked</div></div><div><div class="disp" style="font-size:22px">${(p.xp || 0) >= Eco.SUB_XP ? '🌀' : 'Lv ' + Eco.SUB_LEVEL}</div><div class="tiny muted">${(p.xp || 0) >= Eco.SUB_XP ? 'sub-bending' : 'sub-bending at'}</div></div></div>`;
+    const main = Eco.ACH_MAIN.filter((a) => ach[a.id]).concat(Eco.ACH_MAIN.filter((a) => !ach[a.id]));
+    const row = (a) => `<div class="trow" style="align-items:center;${ach[a.id] ? '' : 'opacity:.6'}"><span style="font-size:22px">${ach[a.id] ? (a.icon || '🏆') : '🔒'}</span><div><b>${esc(a.name)}</b><br><span class="tiny">${esc(a.desc)}</span></div><div class="mv" style="color:#ffd77a">${ach[a.id] ? '✓' : '+' + a.gp}</div></div>`;
+    const tracks = Eco.TRACKS.map((t) => {
+      const list = Eco.ACH.filter((a) => a.track === t.k), got = list.filter((a) => ach[a.id]).length;
+      const top = list.filter((a) => ach[a.id]).pop(), next = list.find((a) => !ach[a.id]);
+      const val = t.v(p, c), pct = next ? Math.min(100, Math.round((100 * val) / next.goal)) : 100;
+      const open = achOpen === t.k;
+      return `<div class="ach-track ${open ? 'open' : ''}"><button class="ach-th" data-act="achTrack" data-k="${t.k}"><span class="ai">${t.icon}</span><span class="am"><b>${top ? esc(top.name) : 'Unranked ' + esc(t.noun)}</b><span class="tiny muted">${next ? esc(next.desc) + ' · ' + val.toLocaleString() + '/' + next.goal.toLocaleString() : 'All tiers complete!'}</span><span class="bar"><i style="width:${pct}%"></i></span></span><span class="ac">${got}/${list.length}</span></button>
+        ${open ? `<div class="tlist">${list.map(row).join('')}</div>` : ''}</div>`;
+    }).join('');
+    return head + `<div class="field"><label>Milestones</label><div class="tlist">${main.map(row).join('')}</div></div><div class="field"><label>Ladders · tap one to see every tier</label>${tracks}</div>`;
   }
   screens.achievements = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Achievements</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player to earn achievements.</div></div>`; return; }
@@ -480,7 +502,7 @@
   async function spamBend(el) {
     if (Date.now() - lastSpam < 800) return;
     lastSpam = Date.now(); closeSheet();
-    G.spam = (G.spam || 0) + 1;
+    G.spam = (G.spam || 0) + 1; bump('spamSent');
     if (G.mode === 'online') { Store.patch('games', G.code, { spam: { seat: G.my, el, t: Date.now() } }).catch(() => {}); if (G.spam === 1) toast(Eco.BEND[el].icon + ' Sent to their board!'); buzz(6); }
     else showFx(el);
   }
@@ -561,7 +583,7 @@
     text = (text || '').trim().slice(0, 140); if (!text || !G) return;
     const seat = G.my != null ? G.my : G.s.turn;
     const m = { id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), seat, text, t: Date.now() };
-    addChat(m, false);
+    addChat(m, false); bump('chatsSent');
     if (G.mode === 'online') Store.patch('games', G.code, { chat: { [m.id]: { seat, text, t: m.t } } }).catch(() => toast('Message not sent'));
     else if (G.mode === 'local') showTextBubble(seat, text);
     // 🍈 the Melon Lord
@@ -789,7 +811,7 @@
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
       <tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr>
-      <tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
+      <tr><td colspan="2" class="tiny muted">Computer games are practice: they have their own record and don’t count toward your wins, losses or streaks.</td></tr><tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
       <div class="field"><label>Recent games</label><div class="log">${(st.recent || []).map((r) => `<div><span class="dot" style="background:${r.res === 'w' ? 'var(--ok)' : r.res === 'l' ? 'var(--red)' : 'var(--mute)'}"></span><b>${{ w: 'Won', l: 'Lost', d: 'Draw' }[r.res]}</b> vs ${esc(r.opp)} · ${r.turns} turns <span class="muted tiny">${new Date(r.t).toLocaleDateString()}</span></div>`).join('') || '<div class="muted">No games yet.</div>'}</div></div>`
       : `<div class="card muted">You’re playing as a guest. Create a player to track your stats.</div>`) +
       `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard <span class="tiny muted" style="text-transform:none;letter-spacing:0">· tap a player</span></label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr class="lb-row" data-act="viewPlayer" data-pid="${esc(p.id)}"><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}<u>${esc(p.name)}</u></td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`);
@@ -1493,7 +1515,7 @@
       const d = live; live = null;
       const strokes = d.strokes.filter((s) => s.length);
       if (!strokes.length) return;
-      show(strokes, d.seat);
+      show(strokes, d.seat); bump('doodles');
       if (G && G.mode === 'online') Store.patch('games', G.code, { doodle: { seat: G.my, t: Date.now(), s: JSON.stringify(strokes) } }).catch(() => toast('Doodle not sent'));
     }
     function attach(w) {
@@ -1651,6 +1673,7 @@
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
     viewPlayer: (d) => viewPlayer(d),
+    achTrack: (d) => { achOpen = achOpen === d.k ? null : d.k; const y = window.scrollY; if (document.querySelector('[data-act="statsTab"]')) screens.stats(); else screens.achievements(); setTimeout(() => window.scrollTo(0, y), 0); },
     statsTab: (d) => { statsTab = d.k; screens.stats(); },
     findProfile: () => {
       sheet(`<h3>Sign in</h3><form id="fpf" class="menu"><div class="field"><label>Player name</label><input class="input" id="fp-name" maxlength="18" autocomplete="username"></div><button class="btn primary" type="submit">Next</button></form>`);
@@ -1796,7 +1819,7 @@
       const wait = 60000 - (Date.now() - last);
       if (wait > 0) return toast(`You can yip again in ${Math.ceil(wait / 1000)}s`);
       G.lastYip = Date.now();
-      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); }
+      try { await Store.patch('games', G.code, { nudge: { seat: G.my, t: Date.now() } }); toast('📣 Yip yip! ' + G.seats[1 - G.my].name + ' has been nudged'); buzz(20); bump('nudgesSent'); }
       catch (e) { toast('Couldn’t send the nudge'); }
     },
     storeTab: (d) => { storeTab = d.k; screens.store(); },

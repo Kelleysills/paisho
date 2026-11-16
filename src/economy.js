@@ -81,6 +81,13 @@ const Eco = (() => {
   function ensure(p) {
     if (!p) return p;
     if (typeof p.gp !== 'number') p.gp = START_GP;
+    if (p.stats && !p.stats.v2) { // computer games no longer count toward overall wins/losses
+      const S = p.stats, add = (a) => (a || [0, 0, 0]);
+      const on = add(S.online), lo = add(S.local);
+      S.wins = on[0] + lo[0]; S.losses = on[1] + lo[1]; S.draws = on[2] + lo[2]; S.games = S.wins + S.losses + S.draws;
+      S.best = Math.min(S.best || 0, S.wins); S.streak = Math.min(S.streak || 0, S.wins); S.rings = Math.min(S.rings || 0, S.wins);
+      S.v2 = true; p._mig = true;
+    }
     p.owned = p.owned || {};
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
@@ -154,11 +161,72 @@ const Eco = (() => {
     { id: 'melon100', name: 'Seismic Sense', desc: 'Call the Melon Lord 100 times (unlocks the Blackout board)', gp: 1000, ok: (p) => (p.melonUses || 0) >= 100 },
     { id: 'rich', name: 'Treasure Keeper', desc: 'Hold 5,000 gp at once', gp: 500, ok: (p) => (p.gp || 0) >= 5000 },
   ];
+  // ---- 1,500 themed tier achievements: ladders across many skills ----
+  const TIER_WORDS = ['Seedling', 'Sprout', 'Petal', 'Bud', 'Blossom', 'Pebble', 'Ember', 'Ripple', 'Breeze', 'Novice',
+    'Spark', 'Stone', 'Wave', 'Gust', 'Apprentice', 'Lily', 'Jasmine', 'Rose', 'Jade', 'Chrysanthemum',
+    'Flame', 'Current', 'Boulder', 'Gale', 'Disciple', 'Bronze', 'Copper', 'Iron', 'Silver', 'Gold',
+    'Blaze', 'Tide', 'Cliff', 'Whirlwind', 'Adept', 'Dawn', 'Noon', 'Dusk', 'Twilight', 'Moonrise',
+    'Inferno', 'Riptide', 'Mountain', 'Cyclone', 'Expert', 'Orchid', 'Dahlia', 'Firelily', 'Knotweed', 'Lotus',
+    'Wildfire', 'Maelstrom', 'Earthshaker', 'Tempest', 'Veteran', 'Platinum', 'Crystal', 'Moonstone', 'Sunstone', 'Obsidian',
+    'Comet', 'Starfall', 'Aurora', 'Solstice', 'Equinox', 'Eclipse', 'Master', 'Grandmaster', 'Sage', 'Elder',
+    'Guardian', 'Luminary', 'Paragon', 'Legend', 'Mythic', 'Spirit', 'Ascended', 'Celestial', 'Eternal', 'Infinite'];
+  const pl = (x, one, many) => (x === 1 ? one : many);
+  const sum3 = (a) => (a ? (a[0] || 0) + (a[1] || 0) + (a[2] || 0) : 0);
+  const st = (p) => p.stats || {};
+  const TRACKS = [
+    { k: 'wins', n: 80, a: 1, b: 20000, noun: 'Victor', icon: '🏆', d: (x) => `Win ${x} ${pl(x, 'match', 'matches')}`, v: (p) => st(p).wins || 0 },
+    { k: 'games', n: 80, a: 1, b: 40000, noun: 'Gardener', icon: '🌱', d: (x) => `Play ${x} ${pl(x, 'match', 'matches')}`, v: (p) => st(p).games || 0 },
+    { k: 'onl', n: 80, a: 1, b: 10000, noun: 'Wanderer', icon: '🌍', d: (x) => `Win ${x} online ${pl(x, 'match', 'matches')}`, v: (p) => (st(p).online || [])[0] || 0 },
+    { k: 'onlg', n: 60, a: 1, b: 20000, noun: 'Traveler', icon: '🧭', d: (x) => `Play ${x} online ${pl(x, 'match', 'matches')}`, v: (p) => sum3(st(p).online) },
+    { k: 'ring', n: 80, a: 1, b: 15000, noun: 'Harmonist', icon: '⭕', d: (x) => `Win ${x} ${pl(x, 'match', 'matches')} by completing a ring`, v: (p) => st(p).rings || 0 },
+    { k: 'easy', n: 50, a: 1, b: 5000, noun: 'Student', icon: '🍵', d: (x) => `Beat the Easy computer ${x} ${pl(x, 'time', 'times')}`, v: (p) => ((st(p).ai || {}).easy || [])[0] || 0 },
+    { k: 'med', n: 55, a: 1, b: 5000, noun: 'Tactician', icon: '♟️', d: (x) => `Beat the Medium computer ${x} ${pl(x, 'time', 'times')}`, v: (p) => ((st(p).ai || {}).medium || [])[0] || 0 },
+    { k: 'hard', n: 70, a: 1, b: 5000, noun: 'Strategist', icon: '🐉', d: (x) => `Beat the Hard computer ${x} ${pl(x, 'time', 'times')}`, v: (p) => ((st(p).ai || {}).hard || [])[0] || 0 },
+    { k: 'aig', n: 50, a: 1, b: 20000, noun: 'Practitioner', icon: '🤖', d: (x) => `Play ${x} ${pl(x, 'match', 'matches')} against the computer`, v: (p) => { const a = st(p).ai || {}; return sum3(a.easy) + sum3(a.medium) + sum3(a.hard); } },
+    { k: 'local', n: 45, a: 1, b: 5000, noun: 'Host', icon: '🤝', d: (x) => `Play ${x} pass-and-play matches`, v: (p) => sum3(st(p).local) },
+    { k: 'streak', n: 50, a: 2, b: 100, lin: true, noun: 'Unbroken', icon: '🔥', d: (x) => `Win ${x} ${pl(x, 'match', 'matches')} in a row`, v: (p) => st(p).best || 0 },
+    { k: 'loss', n: 60, a: 1, b: 10000, noun: 'Persistent', icon: '🌧️', d: (x) => `Keep playing through ${x} ${pl(x, 'loss', 'losses')}`, v: (p) => st(p).losses || 0 },
+    { k: 'draw', n: 32, a: 1, b: 1000, noun: 'Balanced', icon: '☯️', d: (x) => `Draw ${x} ${pl(x, 'match', 'matches')}`, v: (p) => st(p).draws || 0 },
+    { k: 'bend', n: 80, a: 1, b: 25000, noun: 'Bender', icon: '🌀', d: (x) => `Bend ${x} ${pl(x, 'time', 'times')}`, v: (p) => p.bends || 0 },
+    { k: 'spam', n: 70, a: 5, b: 200000, noun: 'Showoff', icon: '🎇', d: (x) => `Show off with ${x} flames, waves, quakes or gusts`, v: (p) => p.spamSent || 0 },
+    { k: 'lvl', n: 60, a: 2, b: 500, noun: 'Ascendant', icon: '📈', d: (x) => `Reach Level ${x}`, v: (p) => 1 + Math.floor((p.xp || 0) / 500) },
+    { k: 'rate', n: 50, a: 1050, b: 3500, lin: true, step: 50, noun: 'Contender', icon: '⭐', d: (x) => `Reach a ranked rating of ${x}`, v: (p) => p.ratingPeak || p.rating || 0 },
+    { k: 'emote', n: 65, a: 1, b: 50000, noun: 'Expressive', icon: '😊', d: (x) => `Send ${x} ${pl(x, 'emote', 'emotes')}`, v: (p) => p.emotesSent || 0 },
+    { k: 'chat', n: 65, a: 1, b: 50000, noun: 'Storyteller', icon: '💬', d: (x) => `Send ${x} chat ${pl(x, 'message', 'messages')}`, v: (p) => p.chatsSent || 0 },
+    { k: 'melon', n: 45, a: 1, b: 10000, noun: 'Seismic', icon: '🍈', d: (x) => `Call the Melon Lord ${x} ${pl(x, 'time', 'times')}`, v: (p) => p.melonUses || 0 },
+    { k: 'nudge', n: 43, a: 1, b: 5000, noun: 'Sky Herder', icon: '📣', d: (x) => `Send ${x} Yip yip! ${pl(x, 'nudge', 'nudges')}`, v: (p) => p.nudgesSent || 0 },
+    { k: 'doodle', n: 40, a: 1, b: 10000, noun: 'Calligrapher', icon: '✍️', d: (x) => `Draw ${x} S Pen ${pl(x, 'doodle', 'doodles')}`, v: (p) => p.doodles || 0 },
+    { k: 'days', n: 70, a: 1, b: 2000, noun: 'Devotee', icon: '📅', d: (x) => `Play on ${x} different ${pl(x, 'day', 'days')}`, v: (p) => p.daysPlayed || 0 },
+    { k: 'gold', n: 55, a: 2000, b: 5000000, noun: 'Treasure Keeper', icon: '🪙', d: (x) => `Hold ${x.toLocaleString()} gp at once`, v: (p) => Math.max(p.gp || 0, p.gpPeak || 0) },
+    { k: 'friend', n: 35, a: 1, b: 100, noun: 'Companion', icon: '🫂', d: (x) => `Have ${x} ${pl(x, 'friend', 'friends')}`, v: (p, c) => (c && c.friends) || 0 },
+    { k: 'coll', n: 30, a: 3, b: 60, lin: true, noun: 'Collector', icon: '🎴', d: (x) => `Own ${x} store items (tiles, pictures, emotes and boards)`, v: (p) => { const o = p.owned || {}; return (o.tiles || []).length + (o.avatars || []).length + (o.emotes || []).length + (o.boards || []).length; } },
+  ];
+  function ladder(t) {
+    const out = []; let prev = 0;
+    for (let i = 0; i < t.n; i++) {
+      const f = t.n === 1 ? 1 : i / (t.n - 1);
+      let x = t.lin ? t.a + (t.b - t.a) * f : t.a * Math.pow(t.b / t.a, f);
+      const mag = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, x))) - 1));
+      x = t.lin || x < 20 ? Math.round(x) : Math.round(x / mag) * mag;
+      if (t.step) x = Math.round(x / t.step) * t.step;
+      if (x <= prev) x = prev + 1;
+      out.push(x); prev = x;
+    }
+    return out;
+  }
+  TRACKS.forEach((t) => {
+    t.tiers = ladder(t);
+    t.tiers.forEach((x, i) => {
+      const word = TIER_WORDS[Math.min(TIER_WORDS.length - 1, Math.floor((i / t.n) * TIER_WORDS.length))];
+      ACH.push({ id: t.k + '_' + i, track: t.k, tier: i, name: `${word} ${t.noun}`, desc: t.d(x), goal: x, icon: t.icon, gp: Math.round(20 + 480 * Math.pow(i / Math.max(1, t.n - 1), 1.6)), ok: (p, c) => t.v(p, c) >= x });
+    });
+  });
+  const ACH_MAIN = ACH.filter((a) => !a.track);
   // reward events (player's local date): Avatar Day beats weekends
   function boost(d = new Date()) {
     if (d.getMonth() === 3 && d.getDate() === 28) return { xp: 100, gp: 5, name: 'Avatar Day', icon: '🎉' };
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { boost, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { boost, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();

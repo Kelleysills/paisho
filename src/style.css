@@ -293,3 +293,10 @@ g.tut-glow{filter:drop-shadow(0 0 .35px #fff) drop-shadow(0 0 .25px #f2cf6e)}
 .lb-row{cursor:pointer}.lb-row:active{background:rgba(255,255,255,.06)}
 .ach-chips{display:flex;flex-wrap:wrap;gap:6px}.ach-chips .chip{background:rgba(242,207,110,.12);border:1px solid rgba(242,207,110,.35);border-radius:999px;padding:3px 9px;font-size:12px}
 .seat[data-act]{cursor:pointer}
+
+.ach-track{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:8px;overflow:hidden}
+.ach-th{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:inherit;text-align:left;padding:10px 12px;font:inherit}
+.ach-th .ai{font-size:24px}.ach-th .am{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.ach-th .ac{font-weight:900;color:#ffd77a;font-size:13px}
+.ach-th .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:3px}.ach-th .bar i{display:block;height:100%;background:linear-gradient(90deg,#f2cf6e,#ffb347)}
+.ach-track .tlist{padding:0 8px 8px;max-height:420px;overflow:auto}
