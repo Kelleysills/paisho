@@ -10,8 +10,33 @@
   const hues = {}, avs = {}; // display name -> avatar colour / avatar id
   const noteHue = (p) => { if (p && p.name) { if (p.hue != null) hues[p.name] = p.hue; if (p.avatar && Avatars.has(p.avatar)) avs[p.name] = p.avatar; } return p; };
   const av = (name, cls = '') => avs[name] ? `<span class="avatar av-img ${cls}">${Avatars.svg(avs[name], '100%')}</span>` : `<span class="avatar ${cls}" style="background:hsl(${hues[name] != null ? hues[name] : hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
+  let avatarPid = null;
+  const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid) });
+  const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
+  const saveMe = () => (me ? Store.set('players', me.id, me).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
+  async function loadAvatar() { try { const m = await Store.get('meta', 'avatar'); avatarPid = (m && m.pid) || null; } catch (e) {} }
+  function ensureMe() { if (!me) return; const before = JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board]); Eco.ensure(me); if (before !== JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board])) saveMe(); }
+  const gpFmt = (n) => '🪙 ' + (n || 0).toLocaleString();
+  const myBoard = () => (me && Eco.ownsBoard(me, me.board) ? me.board : 'classic');
+  const avLock = (prof) => (id) => (Eco.ownsAvatar(prof, id) ? null : Eco.AVATAR_PRICE);
+  async function buy(kind, id, price, label) {
+    if (!me) { toast('Create a player to earn and spend gold'); return false; }
+    ensureMe();
+    if ((me.gp || 0) < price) { toast(`You need ${price} gp — you have ${me.gp}. Win games to earn more!`); return false; }
+    const ok = await choose(`Unlock ${label}?`, [{ label: `Buy for ${gpFmt(price)}`, value: true, cls: 'primary' }], `You have ${gpFmt(me.gp)}.`);
+    if (!ok) return false;
+    me.gp -= price; me.owned[kind] = [...new Set((me.owned[kind] || []).concat([id]))];
+    await saveMe(); toast(`Unlocked ${label}!`); return true;
+  }
   const myAvatar = () => (me && me.avatar) || Store.LS.get('guestAvatar', null);
-  function bindPicker(root, onPick) { root.addEventListener('click', (e) => { const b = e.target.closest('[data-av]'); if (!b) return; root.querySelectorAll('.av-opt').forEach((x) => x.classList.toggle('on', x === b)); onPick(b.dataset.av); }); }
+  function bindPicker(root, onPick) { root.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-av]'); if (!b) return;
+    if (b.dataset.price) {
+      if (!me) return toast('Unlock more pictures in the Store once you’ve created your player');
+      if (!(await buy('avatars', b.dataset.av, +b.dataset.price, Avatars.label(b.dataset.av) + ' picture'))) return;
+      b.classList.remove('locked'); delete b.dataset.price; const l = b.querySelector('.av-lock'); if (l) l.remove();
+    }
+    root.querySelectorAll('.av-opt').forEach((x) => x.classList.toggle('on', x === b)); onPick(b.dataset.av); }); }
   const HUES = [8, 28, 45, 95, 150, 190, 215, 265, 300, 335];
   const buzz = (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
@@ -54,10 +79,20 @@
   function myPid() { if (me) return me.id; let g = Store.LS.get('guestId'); if (!g) { g = 'g-' + Auth.rid(6); Store.LS.set('guestId', g); } return g; }
   const myName = () => (me ? me.name : Store.LS.get('guestName', 'Guest'));
 
-  async function recordResult(pid, mode, level, res, opp, turns, ring) {
-    if (!pid || pid.startsWith('g-')) return;
+  async function recordResult(pid, mode, level, res, opp, turns, ring, oppPid) {
+    if (!pid || pid.startsWith('g-')) return null;
     try {
-      const p = await Store.get('players', pid); if (!p) return;
+      const p = await Store.get('players', pid); if (!p) return null;
+      Eco.ensure(p);
+      const out = { gp: Eco.earnings(mode, level, res, ring), delta: 0, rating: p.rating };
+      p.gp += out.gp;
+      if (mode === 'online' && oppPid && !oppPid.startsWith('g-')) {
+        const o = await Store.get('players', oppPid).catch(() => null);
+        const oppR = o && typeof o.rating === 'number' ? o.rating : Eco.START_RATING;
+        const nr = Eco.newRating(p.rating, oppR, res); out.delta = nr - p.rating; p.rating = nr; out.rating = nr;
+        p.ranked[res === 'w' ? 'w' : res === 'l' ? 'l' : 'd']++;
+        out.ranked = true;
+      }
       const st = Object.assign(emptyStats(), p.stats || {});
       const k = res === 'w' ? 0 : res === 'l' ? 1 : 2;
       st.games++; st[['wins', 'losses', 'draws'][k]]++;
@@ -67,7 +102,39 @@
       st.recent = [{ t: Date.now(), mode, level, res, opp, turns }].concat(st.recent || []).slice(0, 20);
       p.stats = st; await Store.set('players', pid, p);
       if (me && me.id === pid) me = p;
+      return out;
+    } catch (e) { console.warn(e); return null; }
+  }
+  // decide the Avatar from ranked ratings; ties trigger a trial match
+  async function updateAvatar() {
+    try {
+      const list = (await Store.list('players')).filter((p) => p && p.name).map(Eco.ensure);
+      const r = Eco.computeAvatar(list);
+      const meta = (await Store.get('meta', 'avatar').catch(() => null)) || {};
+      delete meta.id;
+      if (r.pid && r.pid !== meta.pid) {
+        const pl = list.find((x) => x.id === r.pid);
+        await Store.set('meta', 'avatar', { pid: r.pid, name: pl.name, since: Date.now(), trial: null });
+        if (me && me.id === r.pid) toast('👑 You are now the Avatar! Every nation’s emotes are unlocked.', 5000);
+      } else if (!r.pid && r.tie) {
+        const pids = r.tie.map((x) => x.id).sort();
+        const t = meta.trial;
+        if (!(t && t.pids && t.pids.join() === pids.join() && Date.now() - t.t < 3 * 864e5)) {
+          const code = await createTrial(r.tie[0], r.tie[1]);
+          await Store.set('meta', 'avatar', Object.assign({}, meta, { trial: { code, pids, t: Date.now() } }));
+        }
+      }
+      avatarPid = r.pid || meta.pid || null;
     } catch (e) { console.warn(e); }
+  }
+  async function createTrial(a, b) {
+    const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
+    const fxOf = (p) => { const lo = Array.isArray(p.loadouts) && p.loadouts[p.activeLoadout | 0]; return lo ? (lo.fx || []).filter((t) => Eco.ownsTile(p, t)).slice(0, 6) : []; };
+    const host = { pid: a.id, name: a.name, avatar: a.avatar || null, fx: fxOf(a) }, guest = { pid: b.id, name: b.name, avatar: b.avatar || null, fx: fxOf(b) };
+    const s = P.newGame({ effects: [guest.fx, host.fx], minHarmonies: 4 });
+    await Store.set('games', code, { code, status: 'playing', trial: true, created: Date.now(), updated: Date.now(), ver: 1, state: JSON.stringify(s), opts: { minH: 4, timer: 0, chance: false, enigma: false }, host, guest, pids: [a.id, b.id] });
+    if (Store.kind === 'firebase') for (const p of [a, b]) FB.col('invites').add({ to: p.id, from: 'system', fromCode: 'AVATAR', fromName: '👑 Avatar Trial', game: code, t: Date.now() }).catch(() => {});
+    return code;
   }
 
   // ---------- screens ----------
@@ -138,6 +205,7 @@
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="login">‹</button><h2>New player</h2><span style="width:42px"></span></div>
       <form class="screen" id="npf">
         <div class="field"><label>Player name</label><input class="input" id="np-name" maxlength="18" autocomplete="nickname" required></div>
+        <div class="field"><label>Your nation</label><div class="nat-pick" id="np-nat">${Object.entries(Eco.NATIONS).map(([k, n]) => `<button type="button" class="nat" data-nat="${k}">${Avatars.svg(n.icon, 40)}<b style="color:${n.color}">${n.name}</b></button>`).join('')}</div><div class="tiny muted">Unlocks your nation’s emotes and board. You start with ${Eco.START_GP.toLocaleString()} gold pieces.</div></div>
         <div class="field"><label>Avatar</label><div id="np-av"></div></div>
         <div class="field"><label>PIN (4–6 digits)</label><input class="input" id="np-pin" inputmode="numeric" pattern="[0-9]{4,6}" maxlength="6" type="password" required></div>
         <div class="field"><label>Confirm PIN</label><input class="input" id="np-pin2" inputmode="numeric" maxlength="6" type="password" required></div>
@@ -145,8 +213,10 @@
         <div class="toggle"><div><b>Keep me signed in</b><div class="tiny muted">On this device</div></div><span class="sw on" id="np-keep" data-act="sw"></span></div>
         <div class="tiny muted">Your PIN keeps casual players out of your stats. It isn't bank-grade security — don't reuse an important PIN.</div>
         <button class="btn primary" type="submit">Create player</button></form>`;
-    let pickedAv = Avatars.random();
-    const npav = document.getElementById('np-av'); npav.innerHTML = Avatars.picker(pickedAv); bindPicker(npav, (id) => (pickedAv = id));
+    let pickedAv = Eco.FREE_AVATARS[Math.floor(Math.random() * Eco.FREE_AVATARS.length)], pickedNat = null;
+    const npav = document.getElementById('np-av'); npav.innerHTML = Avatars.picker(pickedAv, avLock(null)); bindPicker(npav, (id) => (pickedAv = id));
+    const npn = document.getElementById('np-nat');
+    npn.addEventListener('click', (e) => { const b = e.target.closest('[data-nat]'); if (!b) return; pickedNat = b.dataset.nat; npn.querySelectorAll('.nat').forEach((x) => x.classList.toggle('on', x === b)); });
     document.getElementById('npf').addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('np-name').value.trim();
@@ -154,11 +224,12 @@
       if (!name) return toast('Enter a name');
       if (!/^\d{4,6}$/.test(pin)) return toast('PIN must be 4–6 digits');
       if (pin !== pin2) return toast('PINs don’t match');
+      if (!pickedNat) return toast('Pick your nation');
       const list = await players();
       if (list.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
       const id = 'p-' + Auth.rid(8).replace(/[^A-Za-z0-9]/g, 'x');
       const salt = Auth.rid(10);
-      const p = { id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null, avatar: pickedAv };
+      const p = Eco.ensure({ id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null, avatar: pickedAv, nation: pickedNat, board: pickedNat });
       if (bio && document.getElementById('np-bio').classList.contains('on')) {
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
@@ -170,26 +241,29 @@
   };
 
   screens.home = () => {
+    ensureMe();
     noteHue(me);
+    if (!screens.home._av) { screens.home._av = true; loadAvatar().then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); }
     startSocial();
     const nm = myName();
     const st = (me && me.stats) || null;
     app.innerHTML = `<div class="screen">
-      <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span><button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
+      <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span>${me ? `<button class="gp-pill" data-act="go" data-to="store">${gpFmt(me.gp)}</button>` : ''}<button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
       <div class="title" style="padding:0">${logoSvg(84)}<h1 style="font-size:28px">Pai Sho</h1></div>
-      ${me ? `<button style="text-align:left;padding:0" data-act="profileSheet">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc)}</button>` : `<div class="sub muted" style="text-align:center;letter-spacing:.2em;text-transform:uppercase;font-size:13px">Guest mode</div>`}
+      ${me ? `<button style="text-align:left;padding:0" data-act="profileSheet">${Avatars.card(meCard(), esc)}</button>` : `<div class="sub muted" style="text-align:center;letter-spacing:.2em;text-transform:uppercase;font-size:13px">Guest mode</div>`}
       <div class="menu">
         <button class="btn primary" data-act="startSetup" data-mode="ai">${icon('cpu')}<span class="lbl">Play the computer<small>Easy, medium or hard</small></span></button>
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
         ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
+        <button class="btn" data-act="go" data-to="store">${icon('store')}<span class="lbl">Store<small>${me ? gpFmt(me.gp) + ' · tiles, pictures, emotes, boards' : 'Create a player to earn gold'}</small></span></button>
         <button class="btn" data-act="go" data-to="loadouts">${icon('loadout')}<span class="lbl">Loadouts<small>Equipped: ${esc(equipped().name)} · ${loIcons(equipped().fx, 16)}</small></span></button>
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
         <button class="btn" data-act="go" data-to="stats">${icon('chart')}<span class="lbl">Stats &amp; leaderboard<small>${me ? 'Your record and everyone’s' : 'Sign in to track stats'}</small></span></button>
       </div></div>`;
   };
   function icon(k) {
-    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"'), loadout: Glyphs.svg('boat', 1, 'class="ic"') };
+    const s = { cpu: Glyphs.svg('wheel', 1, 'class="ic"'), pass: Glyphs.svg('koi', 0, 'class="ic"'), net: Glyphs.svg('skybison', 1, 'class="ic"'), book: Glyphs.svg('lotus', 0, 'class="ic"'), chart: Glyphs.svg('jasmine', 1, 'class="ic"'), friends: Glyphs.svg('rose', 0, 'class="ic"'), loadout: Glyphs.svg('boat', 1, 'class="ic"'), store: Glyphs.svg('stone', 0, 'class="ic"') };
     return s[k];
   }
 
@@ -210,7 +284,7 @@
     if (me) { me.loadouts = list; me.activeLoadout = active; clearTimeout(saveLoT); saveLoT = setTimeout(() => Store.set('players', me.id, me).catch(() => toast('Couldn’t save loadout')), 500); }
     else { Store.LS.set('guestLoadouts', list); Store.LS.set('guestActiveLoadout', active); }
   }
-  const equipped = () => { const L = getLoadouts(); return L.list[L.active]; };
+  const equipped = () => { const L = getLoadouts(); const lo = L.list[L.active]; return { name: lo.name, fx: lo.fx.filter((t) => Eco.ownsTile(me, t)) }; };
   const loIcons = (fx, size = 22) => fx.length ? fx.map((t) => `<span style="display:inline-block;width:${size}px;height:${size}px">${Glyphs.svg(t, 0, `style="width:${size}px;height:${size}px"`)}</span>`).join('') : '<span class="tiny muted">No effect tiles (basic game)</span>';
   let loTab = null;
   screens.loadouts = () => {
@@ -231,6 +305,52 @@
     nm.addEventListener('change', () => { const L2 = getLoadouts(); L2.list[loTab].name = nm.value.trim() || 'Loadout ' + (loTab + 1); saveLoadouts(L2.list, L2.active); screens.loadouts(); });
   };
 
+  // ---------- store ----------
+  let storeTab = 'tiles';
+  screens.store = () => {
+    if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
+    ensureMe();
+    const tab = (k, l) => `<button class="${storeTab === k ? 'on' : ''}" data-act="storeTab" data-k="${k}">${l}</button>`;
+    let body = '';
+    if (storeTab === 'tiles') {
+      body = `<p class="muted tiny" style="margin:0">Effect tiles for your loadouts. Everyone starts with Stone and Boat.</p><div class="store-grid">${P.EFFECT_TYPES.slice().sort((a, b) => Eco.TILE_PRICE[a] - Eco.TILE_PRICE[b]).map((t) => { const own = Eco.ownsTile(me, t); return `<div class="item ${own ? 'owned' : ''}">${Glyphs.svg(t, 0, 'style="width:52px;height:52px"')}<div class="nm">${P.tname(t)}</div><div class="ds">${esc(Guide.INFO[t][1].split('. ')[0])}.</div>${own ? '<span class="tiny" style="color:#9fd18b">✓ Owned</span>' : `<button class="btn small primary" data-act="buyItem" data-kind="tiles" data-id="${t}">🪙 ${Eco.TILE_PRICE[t]}</button>`}</div>`; }).join('')}</div>`;
+    } else if (storeTab === 'avatars') {
+      body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${Eco.AVATAR_PRICE}</button>`}</div>`; }).join('')}</div>`;
+    } else if (storeTab === 'emotes') {
+      const av = amAvatar();
+      body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
+    } else {
+      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+    }
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
+      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}</div>${body}
+      <div class="note">Earn gold: computer games pay a little (more on Hard), online games pay a lot — even a loss earns some. Completing a ring adds a bonus.</div></div>`;
+  };
+
+  // ---------- emotes ----------
+  let lastEmoteSent = 0;
+  function showBubble(seat, id) {
+    const x = Eco.EMO[id]; if (!x) return;
+    const seatEl = document.querySelectorAll('#seats .seat')[seat]; if (!seatEl) return;
+    const r = seatEl.getBoundingClientRect();
+    const b = document.createElement('div'); b.className = 'bubble';
+    b.innerHTML = `<span class="e">${x.e}</span><span>${esc(x.t)}</span>`;
+    b.style.top = (r.bottom + 6) + 'px'; b.style.left = Math.max(8, Math.min(window.innerWidth - 220, r.left + 8)) + 'px';
+    document.body.appendChild(b); buzz(8);
+    setTimeout(() => { b.style.transition = 'opacity .3s'; b.style.opacity = '0'; setTimeout(() => b.remove(), 320); }, 2800);
+  }
+  async function sendEmote(id) {
+    if (!G || Date.now() - lastEmoteSent < 2500) return toast('Easy there — one emote every few seconds');
+    lastEmoteSent = Date.now();
+    const seat = G.my != null ? G.my : G.s.turn;
+    showBubble(seat, id);
+    if (G.mode === 'online') Store.patch('games', G.code, { emote: { seat, id, t: Date.now() } }).catch(() => {});
+    if (G.mode === 'ai' && Math.random() < 0.55) {
+      const replies = ['hi', 'nice', 'hmm', 'wow', 'gg']; const aiSeat = 1 - seat;
+      setTimeout(() => { if (G) showBubble(aiSeat, replies[Math.floor(Math.random() * replies.length)]); }, 1400);
+    }
+  }
+
   // ---------- setup ----------
   screens.setup = () => {
     const S = setup;
@@ -247,16 +367,17 @@
         ${S.mode === 'local' ? `<div class="seg" style="margin-top:10px"><button class="${S.fxTab === 0 ? 'on' : ''}" data-act="fxTab" data-v="0">${esc(myName())}</button><button class="${S.fxTab === 1 ? 'on' : ''}" data-act="fxTab" data-v="1">${esc(S.p2.name)}</button></div>` : ''}
         ${(S.mode !== 'local' || S.fxTab === 0) ? `<div class="row wrap" style="margin:10px 0">${getLoadouts().list.map((x, i) => `<button class="btn small ${JSON.stringify(x.fx.slice().sort()) === JSON.stringify(fxSel.slice().sort()) ? 'primary' : ''}" data-act="useLoadout" data-i="${i}">${esc(x.name)}</button>`).join('')}<button class="btn small ghost" data-act="go" data-to="loadouts">Edit loadouts ›</button></div>` : ''}
         <div class="row wrap" style="margin:6px 0 10px"><button class="btn small" data-act="fxPreset" data-v="none">Beginner (none)</button><button class="btn small" data-act="fxPreset" data-v="flowers">4 special flowers</button><button class="btn small" data-act="fxPreset" data-v="rand">Random 6</button></div>
-        ${fxGrid(fxSel)}
-        <div class="tiny muted" style="margin-top:6px">Changes here apply to this game only.</div>
+        ${fxGrid(fxSel, 'fx', S.mode === 'local' && S.fxTab === 1 ? (S.p2.prof || null) : me)}
+        <div class="tiny muted" style="margin-top:6px">Changes here apply to this game only. 🔒 tiles are unlocked in the Store.</div>
         ${S.mode === 'ai' ? `<div class="tiny muted" style="margin-top:8px">The computer uses: ${AI.AI_EFFECTS[S.level].map(P.tname).join(', ') || 'no effect tiles'}.</div>` : ''}
       </div>
       ${variationsCard()}
       <button class="btn primary" data-act="beginGame">Start game</button>
     </div>`;
   };
-  function fxGrid(sel, act = 'fx') {
-    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => `<button class="fx ${sel.includes(t) ? 'on' : ''}" data-act="${act}" data-t="${t}">${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`).join('')}</div>`;
+  function fxGrid(sel, act = 'fx', prof) {
+    if (prof === undefined) prof = me;
+    return `<div class="fx-grid">${P.EFFECT_TYPES.map((t) => { const own = Eco.ownsTile(prof, t); return `<button class="fx ${sel.includes(t) && own ? 'on' : ''} ${own ? '' : 'locked'}" data-act="${own ? act : 'lockedTile'}" data-t="${t}" ${own ? '' : `data-mine="${prof === me ? 1 : 0}"`}>${own ? '' : `<span class="price">🔒 ${Eco.TILE_PRICE[t]}</span>`}${Glyphs.svg(t, 0)}<span class="nm">${P.tname(t)}</span><span class="ty">${P.isSpecial(t) ? 'flower' : 'accent'}</span></button>`; }).join('')}</div>`;
   }
   function variationsCard() {
     const S = setup;
@@ -310,7 +431,7 @@
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma },
-      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].slice() }, guest: null, pids: [myPid()] };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
@@ -340,7 +461,7 @@
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
-    const guest = { pid, name: myName(), avatar: myAvatar(), fx: setup.fx[0].slice() };
+    const guest = { pid, name: myName(), avatar: myAvatar(), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
@@ -371,7 +492,7 @@
     fr.concat(rq).forEach(noteHue);
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Friends</h2><span style="width:42px"></span></div>
     <div class="screen" id="friends-screen">
-      ${Avatars.card({ name: myName(), avatar: myAvatar() || 'whitelotus', stats: me && me.stats }, esc, { noStats: !me })}
+      ${me ? Avatars.card(meCard(), esc) : Avatars.card({ name: myName(), avatar: myAvatar() || 'whitelotus' }, esc, { noStats: true })}
       <div class="card" style="text-align:center"><div class="muted tiny" style="text-transform:uppercase;letter-spacing:.1em">Your friend code</div><div class="code" style="font-size:34px">${esc(Soc().code || '……')}</div>
         <div class="row" style="justify-content:center"><button class="btn small" data-act="copyCode" data-code="${esc(Soc().code || '')}">Copy code</button></div>
         <div class="tiny muted" style="margin-top:8px">Give this to a friend. You both need to have the app open to connect.</div></div>
@@ -384,13 +505,14 @@
   // ---------- stats ----------
   screens.stats = async () => {
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Stats</h2><span style="width:42px"></span></div><div class="screen" id="statbody"><div class="muted">Loading…</div></div>`;
+    await loadAvatar();
     const list = await players();
     if (me) { const fresh = list.find((p) => p.id === me.id); if (fresh) me = fresh; }
     const st = me ? Object.assign(emptyStats(), me.stats || {}) : null;
     const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`;
     const pct = (s) => (s.games ? Math.round((100 * s.wins) / s.games) + '%' : '—');
     const body = document.getElementById('statbody'); if (!body) return;
-    body.innerHTML = (st ? `${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, noStats: true })}
+    body.innerHTML = (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -398,7 +520,7 @@
       <tr><td>Pass &amp; play</td><td class="n">${rec(st.local)}</td></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr></table></div>
       <div class="field"><label>Recent games</label><div class="log">${(st.recent || []).map((r) => `<div><span class="dot" style="background:${r.res === 'w' ? 'var(--ok)' : r.res === 'l' ? 'var(--red)' : 'var(--mute)'}"></span><b>${{ w: 'Won', l: 'Lost', d: 'Draw' }[r.res]}</b> vs ${esc(r.opp)} · ${r.turns} turns <span class="muted tiny">${new Date(r.t).toLocaleDateString()}</span></div>`).join('') || '<div class="muted">No games yet.</div>'}</div></div>`
       : `<div class="card muted">You’re playing as a guest. Create a player to track your stats.</div>`) +
-      `<div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">W–L–D</th><th class="n">Win%</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, p)).sort((a, b) => b.s.wins - a.s.wins || a.s.losses - b.s.losses).map((p, k) => `<tr><td>${k + 1}</td><td>${esc(p.name)}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td><td class="n">${pct(p.s)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`;
+      `<div class="note">⭐ Ranked rating comes from online games only. The top-rated player (after ${Eco.MIN_RANKED} ranked games) holds the 👑 Avatar title. A tie at the top starts an Avatar Trial match between the two.</div><div class="field"><label>Leaderboard</label><div class="card"><table class="lb"><tr><th>#</th><th>Player</th><th class="n">⭐ Rank</th><th class="n">W–L–D</th></tr>${list.map((p) => Object.assign({ s: Object.assign(emptyStats(), p.stats || {}) }, Eco.ensure(p))).sort((a, b) => (Eco.rankedGames(b) >= Eco.MIN_RANKED) - (Eco.rankedGames(a) >= Eco.MIN_RANKED) || b.rating - a.rating || b.s.wins - a.s.wins).map((p, k) => `<tr><td>${k + 1}</td><td>${p.id === avatarPid ? '👑 ' : ''}${esc(p.name)}</td><td class="n">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '<span class="tiny muted">' + Eco.rankedGames(p) + '/' + Eco.MIN_RANKED + '</span>'}</td><td class="n">${p.s.wins}–${p.s.losses}–${p.s.draws}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No players yet</td></tr>'}</table></div></div>`;
   };
 
   // ======================================================================
@@ -411,7 +533,7 @@
     const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
     const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, kind: 'human' };
     const seats = meFirst ? [human, other] : [other, human];
-    const fxMe = S.fx[0].slice(), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].slice();
+    const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
@@ -423,8 +545,10 @@
     const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
+    G.lastEmoteT = (d.emote && d.emote.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
+      if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
       if ((nd.ver || 0) > G.ver) {
         G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
         renderGame(); afterTurnChange();
@@ -448,7 +572,7 @@
   function gameScreen() {
     app.innerHTML = `<div class="game">
       <header class="g-top" id="seats"></header>
-      <div class="board-wrap"><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base()}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
+      <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(myBoard())}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
       <div class="status" id="status"></div>
       <div class="info" id="info"></div>
       <div class="tray" id="tray"></div>
@@ -554,7 +678,7 @@
       const pool = sel.first == null ? [...new Set(sel.moves.flatMap((m) => [m.a, m.b]))] : sel.moves.filter((m) => m.a === sel.first || m.b === sel.first).map((m) => (m.a === sel.first ? m.b : m.a));
       pool.forEach((i) => (o += ringAt(Board.cx(i), Board.cy(i))));
       if (sel.first != null) o += `<circle cx="${Board.cx(sel.first)}" cy="${Board.cy(sel.first)}" r="0.5" fill="none" stroke="#fff" stroke-width="0.1"/>`;
-    } else if (isHumanTurn() && !G.s.tp.mainDone && hintsOn() && G.ana && G.ana.sug) {
+    } else if (isHumanTurn() && !G.s.tp.mainDone && hintsOn() && G.ana && G.ana.sug && G.ana.s === G.s) {
       const a = G.ana.sug.a; let x, y;
       if (a.t === 'plant') { if (a.gate === 'center') { x = 0; y = 0; } else [x, y] = Board.GATE_POS[a.gate]; o += `<circle cx="${x}" cy="${y}" r="0.9" fill="none" stroke="#5fe0c8" stroke-width="0.12" class="dest"/>`; }
       else {
@@ -649,7 +773,7 @@
           sug = { a: main, place, gain: harmCount(s2, p, H) - base, breaks: oppBase - harmCount(s2, 1 - p, H), ring: !!P.findRing(s2, p, H) };
         }
       } catch (e) {}
-      g.ana = { win, danger, sug };
+      g.ana = { win, danger, sug, s };
       if (G === g && !g.sel) renderSel();
       if (G === g && !g.sel) renderInfo(null);
     }, 30);
@@ -684,7 +808,7 @@
     const el = document.getElementById('info'); if (!el) return;
     if (!type) {
       if (G && hintsOn() && isHumanTurn()) {
-        const a = G.ana, opp = esc(G.seats[1 - G.s.turn].name);
+        const a = G.ana && G.ana.s === G.s ? G.ana : null, opp = esc(G.seats[1 - G.s.turn].name);
         if (G.sel && G.sel.kind === 'tile') { el.innerHTML = `<span>💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring</span>`; return; }
         const sg = a && a.sug ? `<br>🧭 <b>Try:</b> ${sugText(a.sug)}` : '';
         const show = a && a.sug ? `<button class="btn small" data-act="showSug" style="flex:none;padding:6px 10px">Show</button>` : '';
@@ -911,8 +1035,10 @@
         if (seat.kind !== 'human' || !seat.pid) continue;
         const res = s.winner === 'draw' ? 'd' : s.winner === k ? 'w' : 'l';
         const mode = G.mode === 'ai' ? 'ai' : G.mode;
-        await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring);
+        const out = await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring, G.seats[1 - k].pid);
+        if (out && (G.mode !== 'local' || k === 0)) G.reward = out;
       }
+      if (G.mode === 'online') updateAvatar();
     }
     showResult();
   }
@@ -922,7 +1048,8 @@
     if (s.winner === 'draw') head = 'Draw';
     else if (G.mode === 'local') head = esc(G.seats[s.winner].name) + ' wins!';
     else head = s.winner === G.my ? 'You win!' : esc(G.seats[s.winner].name) + ' wins';
-    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:28px">${head}</h3><p class="muted">${s.winner === 'draw' ? 'The game reached the turn limit.' : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.'}</p></div>
+    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:28px">${head}</h3><p class="muted">${s.winner === 'draw' ? 'The game reached the turn limit.' : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.'}</p>
+      ${G.reward && (G.reward.gp || G.reward.ranked) ? `<div class="card" style="display:flex;justify-content:center;gap:18px;font-weight:900;margin-bottom:10px">${G.reward.gp ? `<span style="color:#ffd77a">+${G.reward.gp} gp</span>` : ''}${G.reward.ranked ? `<span>⭐ ${G.reward.rating} (${G.reward.delta >= 0 ? '+' : ''}${G.reward.delta})</span>` : ''}</div>` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold — play the computer or online to earn.</div>' : ''}</div>
       <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div>`);
   }
 
@@ -940,7 +1067,7 @@
     profileSheet: async () => {
       if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn" data-act="editProfile">Change display name</button><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
       const bio = await Auth.bioAvailable();
-      sheet(`<div style="margin-bottom:12px">${Avatars.card(Object.assign({}, me, { avatar: me.avatar || 'whitelotus' }), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
+      sheet(`<div style="margin-bottom:12px">${Avatars.card(meCard(), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
         <button class="btn primary" data-act="editProfile">Edit profile</button>
         ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on (send a test)' : '🔔 Turn on turn alerts'}</button>` : ''}
         <button class="btn" data-act="go" data-to="stats">Stats</button>
@@ -973,10 +1100,14 @@
       let pickedAv = myAvatar() || 'whitelotus';
       sheet(`<h3>${me ? 'Edit profile' : 'Display name'}</h3><form id="epf" class="menu">
         <div class="field"><label>Display name</label><input class="input" id="ep-name" maxlength="18" value="${esc(cur)}"></div>
-        <div class="field"><label>Avatar</label><div id="ep-av">${Avatars.picker(pickedAv)}</div></div>
+        ${me ? `<div class="field"><label>Nation</label><div class="nat-pick" id="ep-nat">${Object.entries(Eco.NATIONS).map(([k, n]) => `<button type="button" class="nat ${me.nation === k ? 'on' : ''}" data-nat="${k}">${Avatars.svg(n.icon, 36)}<b style="color:${n.color}">${n.name}</b></button>`).join('')}</div><div class="tiny muted">${me.nation ? 'Switching nations costs 300 gp.' : 'Pick your nation for free.'}</div></div>` : ''}
+        <div class="field"><label>Avatar</label><div id="ep-av">${Avatars.picker(pickedAv, avLock(me))}</div></div>
         <div class="tiny muted">${me ? 'Your stats, record, PIN and friend code stay the same. Friends see your new name and avatar next time you connect.' : 'Guests don’t keep stats.'}</div>
         <button class="btn primary" type="submit">Save</button></form>`);
       bindPicker(document.getElementById('ep-av'), (id) => (pickedAv = id));
+      let pickedNat = me ? me.nation : null;
+      const epn = document.getElementById('ep-nat');
+      if (epn) epn.addEventListener('click', (e) => { const b = e.target.closest('[data-nat]'); if (!b) return; pickedNat = b.dataset.nat; epn.querySelectorAll('.nat').forEach((x) => x.classList.toggle('on', x === b)); });
       document.getElementById('epf').addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('ep-name').value.trim().replace(/\s+/g, ' ');
@@ -985,6 +1116,15 @@
         if (name.toLowerCase() !== me.name.toLowerCase()) {
           const list = await players();
           if (list.some((p) => p.id !== me.id && p.name.toLowerCase() === name.toLowerCase())) return toast('That name is taken');
+        }
+        if (pickedNat && pickedNat !== me.nation) {
+          if (me.nation) {
+            ensureMe();
+            if (me.gp < 300) return toast('Switching nations costs 300 gp');
+            const ok = await choose('Switch to ' + Eco.NATIONS[pickedNat].name + '?', [{ label: 'Switch for 🪙 300', value: true, cls: 'primary' }]);
+            if (!ok) return; me.gp -= 300;
+          }
+          me.nation = pickedNat; Eco.ensure(me);
         }
         const prev = me.name;
         me.name = name; me.hue = hue; me.avatar = pickedAv; delete hues[prev]; delete avs[prev]; noteHue(me);
@@ -1021,7 +1161,9 @@
     },
     fxPreset: (d) => {
       const k = setup.mode === 'local' && document.querySelector('[data-act="fxTab"]') ? setup.fxTab : 0;
-      setup.fx[k] = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL) : P.EFFECT_TYPES.slice().sort(() => Math.random() - 0.5).slice(0, 6);
+      const prof = k === 1 ? (setup.p2.prof || null) : me;
+      const owned = P.EFFECT_TYPES.filter((t) => Eco.ownsTile(prof, t));
+      setup.fx[k] = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL).filter((t) => owned.includes(t)) : owned.sort(() => Math.random() - 0.5).slice(0, 6);
       rerenderSetup();
     },
     pickP2: async () => {
@@ -1033,7 +1175,7 @@
         document.getElementById('p2f').addEventListener('submit', (e) => { e.preventDefault(); setup.p2 = { name: document.getElementById('p2n').value.trim() || 'Player 2', pid: null }; closeSheet(); go('setup'); });
       } else {
         const p = await Store.get('players', v);
-        loginFlow(p, (pp) => { setup.p2 = { name: pp.name, pid: pp.id, avatar: pp.avatar }; const lo = Array.isArray(pp.loadouts) && pp.loadouts[pp.activeLoadout | 0]; if (lo) setup.fx[1] = (lo.fx || []).slice(0, 6); go('setup'); }, 'setup');
+        loginFlow(p, (pp) => { Eco.ensure(pp); setup.p2 = { name: pp.name, pid: pp.id, avatar: pp.avatar, prof: pp }; const lo = Array.isArray(pp.loadouts) && pp.loadouts[pp.activeLoadout | 0]; setup.fx[1] = lo ? (lo.fx || []).filter((t) => Eco.ownsTile(pp, t)).slice(0, 6) : []; go('setup'); }, 'setup');
       }
     },
     beginGame: () => startLocal(setup.mode),
@@ -1044,13 +1186,32 @@
     cancelOnline: async (d) => { if (G && G.waitingUnsub) G.waitingUnsub(); const g = await Store.get('games', d.code).catch(() => null); if (g && g.status === 'open') await Store.del('games', d.code).catch(() => {}); go('lobby'); },
     copyCode: async (d) => { try { await navigator.clipboard.writeText(d.code); toast('Copied'); } catch (e) { toast('Code: ' + d.code); } },
     trayTap: (d) => trayTap(d.t),
+    storeTab: (d) => { storeTab = d.k; screens.store(); },
+    buyItem: async (d) => {
+      const price = d.kind === 'tiles' ? Eco.TILE_PRICE[d.id] : d.kind === 'avatars' ? Eco.AVATAR_PRICE : d.kind === 'emotes' ? Eco.EMO[d.id].price : Eco.BOARDS[d.id].price;
+      const label = d.kind === 'tiles' ? P.tname(d.id) : d.kind === 'avatars' ? Avatars.label(d.id) + ' picture' : d.kind === 'emotes' ? '“' + Eco.EMO[d.id].t + '” emote' : Eco.BOARDS[d.id].name + ' board';
+      const y = window.scrollY;
+      if (await buy(d.kind, d.id, price, label)) { if (d.kind === 'boards') { me.board = d.id; await saveMe(); } screens.store(); window.scrollTo(0, y); }
+    },
+    equipAvatar: async (d) => { me.avatar = d.id; noteHue(me); await saveMe(); const y = window.scrollY; screens.store(); window.scrollTo(0, y); },
+    equipBoard: async (d) => { me.board = d.id; await saveMe(); const y = window.scrollY; screens.store(); window.scrollTo(0, y); },
+    lockedTile: async (d) => {
+      if (d.mine !== '1') return toast('Player 2 hasn’t unlocked that tile');
+      if (await buy('tiles', d.t, Eco.TILE_PRICE[d.t], P.tname(d.t))) { if (document.getElementById('lo-name')) screens.loadouts(); else rerenderSetup(); }
+    },
+    emotePicker: () => {
+      const av = amAvatar();
+      sheet(`<h3>Emotes</h3><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); return `<button class="emo ${un ? '' : 'locked'}" data-act="${un ? 'sendEmote' : 'lockedEmote'}" data-id="${x.id}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span></button>`; }).join('')}</div><div class="tiny muted" style="margin-top:8px">Locked emotes come from other nations, the Avatar title, or the Store.</div>`);
+    },
+    sendEmote: (d) => { closeSheet(); sendEmote(d.id); },
+    lockedEmote: (d) => { const x = Eco.EMO[d.id]; toast(x.kind === 'store' ? 'Unlock it in the Store' : x.kind === 'avatar' ? 'Only the Avatar can use this one' : 'A ' + Eco.NATIONS[x.kind].name + ' Nation emote (the Avatar gets them all)'); },
     loTab: (d) => { loTab = +d.i; screens.loadouts(); },
     loEquip: () => { const L = getLoadouts(); saveLoadouts(L.list, loTab); toast('Equipped ' + L.list[loTab].name); screens.loadouts(); },
     loFx: (d) => { const L = getLoadouts(); const arr = L.list[loTab].fx; const i = arr.indexOf(d.t); if (i >= 0) arr.splice(i, 1); else if (arr.length < 6) arr.push(d.t); else return toast('Up to 6 effect tiles'); saveLoadouts(L.list, L.active); const y = window.scrollY; screens.loadouts(); window.scrollTo(0, y); },
-    loPreset: (d) => { const L = getLoadouts(); L.list[loTab].fx = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL) : P.EFFECT_TYPES.slice().sort(() => Math.random() - 0.5).slice(0, 6); saveLoadouts(L.list, L.active); screens.loadouts(); },
+    loPreset: (d) => { const L = getLoadouts(); const owned = P.EFFECT_TYPES.filter((t) => Eco.ownsTile(me, t)); L.list[loTab].fx = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL).filter((t) => owned.includes(t)) : owned.sort(() => Math.random() - 0.5).slice(0, 6); saveLoadouts(L.list, L.active); screens.loadouts(); },
     useLoadout: (d) => { setup.fx[0] = getLoadouts().list[+d.i].fx.slice(); rerenderSetup(); },
     showSug: () => {
-      if (!G || !G.ana || !G.ana.sug) return;
+      if (!G || !G.ana || !G.ana.sug || G.ana.s !== G.s) return;
       const a = G.ana.sug.a;
       if (a.t === 'plant') G.sel = { kind: 'plant', type: a.type, moves: acts.filter((x) => x.t === 'plant' && x.type === a.type) };
       else { const k = srcOf(a); const ms = acts.filter((x) => x.t === 'move' && srcOf(x) === k && (x.mover || '') === (a.mover || '')); const tile = a.from.kind === 'gate' ? G.s.gates[a.from.g] : a.from.kind === 'center' ? G.s.center.tile : G.s.board[a.from.i].top; G.sel = { kind: 'tile', moves: ms, tileId: tile && tile.id }; }

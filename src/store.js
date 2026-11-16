@@ -61,6 +61,13 @@ const Store = (() => {
     if (kind === 'server') return fetch('api/d/' + col + '/' + id, { method: 'DELETE' });
     const c = localCol(col); delete c[id]; localSave(col, c);
   }
+  // merge a few fields into a doc (used for emotes so they never overwrite a move)
+  async function patch(col, id, data) {
+    if (viaP2P(col)) { const cur = P2P.get(id) || {}; const nd = Object.assign({}, cur, data); delete nd.id; return P2P.set(id, nd); }
+    if (kind === 'firebase') return FB.col(col).doc(id).set(data, { merge: true });
+    if (kind === 'artifact') return db.doc(col + '/' + id).update(data);
+    const cur = (await get(col, id)) || {}; return set(col, id, Object.assign(cur, data));
+  }
   // live watch of one doc
   function watch(col, id, cb) {
     if (viaP2P(col)) return P2P.watch(id, cb);
@@ -86,7 +93,7 @@ const Store = (() => {
     }
     return () => {};
   }
-  return { init, online, p2p, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
+  return { init, online, p2p, patch, list, get, set, del, watch, watchCol, LS, get kind() { return kind; }, get uid() { return uid; }, get user() { return user; } };
 })();
 
 /* Profiles: name + salted PIN hash, optional passkey (biometric) */

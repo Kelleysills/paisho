@@ -38,9 +38,9 @@ const Avatars = (() => {
   const random = () => LIST[Math.floor(Math.random() * LIST.length)].id;
   const elementOf = (id) => (byId[id] ? EL[byId[id].el] : null);
   const label = (id) => (byId[id] ? byId[id].label : '');
-  function picker(selected) {
+  function picker(selected, lockedPrice) {
     const groups = Object.keys(EL);
-    return `<div class="av-pick">${groups.map((g) => `<div class="av-row"><span class="av-el" style="color:${EL[g].c[0]}">${EL[g].name}</span>${LIST.filter((a) => a.el === g).map((a) => `<button type="button" class="av-opt ${a.id === selected ? 'on' : ''}" data-av="${a.id}" aria-label="${a.label}">${svg(a.id, 46)}</button>`).join('')}</div>`).join('')}</div>`;
+    return `<div class="av-pick">${groups.map((g) => `<div class="av-row"><span class="av-el" style="color:${EL[g].c[0]}">${EL[g].name}</span>${LIST.filter((a) => a.el === g).map((a) => { const lp = lockedPrice ? lockedPrice(a.id) : null; return `<button type="button" class="av-opt ${a.id === selected ? 'on' : ''} ${lp ? 'locked' : ''}" data-av="${a.id}" ${lp ? `data-price="${lp}"` : ''} aria-label="${a.label}">${svg(a.id, 46)}${lp ? `<span class="av-lock">🔒${lp}</span>` : ''}</button>`; }).join('')}</div>`).join('')}</div>`;
   }
   // profile card (stats optional)
   function card(p, esc, opts = {}) {
@@ -48,8 +48,11 @@ const Avatars = (() => {
     const e = EL[byId[id].el];
     const st = p.stats || {};
     const pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
-    return `<div class="pcard" style="--c1:${e.c[0]};--c2:${e.c[1]};--ink:${e.ink}">
-      <div class="pc-top">${svg(id, opts.big ? 84 : 64)}<div class="pc-id"><div class="pc-name">${esc(p.name)}</div><div class="pc-sub">${e.name} · ${byId[id].label}${opts.code ? ` · <span class="pc-code">${esc(opts.code)}</span>` : ''}</div></div></div>
+    const nat = p.nation && typeof Eco !== 'undefined' && Eco.NATIONS[p.nation] ? Eco.NATIONS[p.nation].name + ' Nation' : e.name + ' · ' + byId[id].label;
+    const econ = typeof p.gp === 'number' ? `<div class="pc-econ"><span>🪙 ${p.gp.toLocaleString()} gp</span>${typeof p.rating === 'number' ? `<span>⭐ ${p.rating} ranked</span>` : ''}</div>` : '';
+    return `<div class="pcard ${(opts.avatarTitle || p.isAvatar) ? 'is-avatar' : ''}" style="--c1:${e.c[0]};--c2:${e.c[1]};--ink:${e.ink}">
+      ${(opts.avatarTitle || p.isAvatar) ? '<div class="pc-crown">👑 THE AVATAR</div>' : ''}
+      <div class="pc-top">${svg(id, opts.big ? 84 : 64)}<div class="pc-id"><div class="pc-name">${esc(p.name)}</div><div class="pc-sub">${nat}${opts.code ? ` · <span class="pc-code">${esc(opts.code)}</span>` : ''}</div>${econ}</div></div>
       ${opts.noStats ? '' : `<div class="pc-stats"><div><b>${st.wins || 0}</b><span>Wins</span></div><div><b>${st.losses || 0}</b><span>Losses</span></div><div><b>${pct}</b><span>Win %</span></div><div><b>${st.rings || 0}</b><span>Rings</span></div><div><b>${st.best || 0}</b><span>Best streak</span></div></div>`}
     </div>`;
   }
