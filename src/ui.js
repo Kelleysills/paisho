@@ -218,13 +218,22 @@
   function rememberProfile(id) { const k = knownIds().filter((x) => x !== id); k.unshift(id); Store.LS.set('knownProfiles', k.slice(0, 12)); }
   const DISCLAIMER = `<div class="disclaimer">Unofficial, free fan project. Not affiliated with, endorsed by or sponsored by Nickelodeon, Paramount or Viacom. <i>Avatar: The Last Airbender</i> and related names are trademarks of their owners. Key Pai Sho rules by The Garden Gate Games. All art in this app is original.</div>`;
   const GOOGLE_G = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.7 1.2 9.2 3.6l6.9-6.9C35.9 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l8 6.2C12.6 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.7 28.5c-.5-1.4-.8-3-.8-4.5s.3-3.1.8-4.5l-8-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l8-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.4-4.1-13.3-9.7l-8 6.2C6.6 42.6 14.6 48 24 48z"/></svg>';
-  function finishSignIn(p) { Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = p; rememberProfile(p.id); Store.LS.set('session', p.id); go('home'); }
+  const GOOGLE_BONUS = 1500;
+  function finishSignIn(p) {
+    Soc().stop(); FireSocial.stop(); TurnAlerts.stop(); me = p; rememberProfile(p.id); Store.LS.set('session', p.id);
+    if (p.gUid && !p.gBonus) {
+      Eco.ensure(me); me.gp = (me.gp || 0) + GOOGLE_BONUS; me.gBonus = true;
+      Store.set('players', me.id, { gp: me.gp, gBonus: true }).catch(() => {});
+      setTimeout(() => toast('🪙 +' + GOOGLE_BONUS.toLocaleString() + ' gp — thanks for linking Google!'), 600);
+    }
+    go('home');
+  }
   // After Google sign-in: linked profile → straight in; otherwise ask new or returning.
   async function googleContinue(g) {
     let p = null;
     try { p = await FB.playerForGoogle(g.uid); } catch (e) { return toast('Couldn’t look up your account — check your connection'); }
     if (p) { toast('Welcome back, ' + p.name); return finishSignIn(p); }
-    const pick = await choose('Welcome to Pai Sho!', [{ label: 'I’m new — create a player', value: 'new', cls: 'primary' }, { label: 'I’m returning — I already have a player', value: 'ret' }], 'Are you new here, or have you played before? Returning players keep all their stats, gold and rank.');
+    const pick = await choose('Welcome to Pai Sho!', [{ label: 'I’m new — create a player', value: 'new', cls: 'primary' }, { label: 'I’m returning — I already have a player', value: 'ret' }], 'Are you new here, or have you played before? Returning players keep all their stats, gold and rank. Either way you get a 🪙 1,500 gp bonus for linking Google.');
     if (pick === 'new') return go('newProfile', { gUid: g.uid, gName: g.name });
     if (pick !== 'ret') { await FB.signOutGoogle(); return; }
     sheet(`<h3>Welcome back</h3><form id="gret" class="menu"><div class="field"><label>Your display name</label><input class="input" id="gr-name" maxlength="18" autocomplete="username" required></div><div class="tiny muted">Next you’ll enter your PIN. After that, Google signs you straight in.</div><button class="btn primary" type="submit">Next</button></form>`);
@@ -323,7 +332,7 @@
       if (!(await claimName(name, id))) return toast(TAKEN);
       const salt = Auth.rid(10);
       const p = Eco.ensure({ id, name, salt, pin: await Auth.hash(pin, salt), created: Date.now(), stats: emptyStats(), cred: null, avatar: pickedAv, nation: pickedNat, board: pickedNat });
-      if (gopt.gUid) p.gUid = gopt.gUid;
+      if (gopt.gUid) { p.gUid = gopt.gUid; p.gp = (p.gp || 0) + GOOGLE_BONUS; p.gBonus = true; setTimeout(() => toast('🪙 +' + GOOGLE_BONUS.toLocaleString() + ' gp Google sign-in bonus!'), 800); }
       if (bio && document.getElementById('np-bio').classList.contains('on')) {
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
@@ -794,10 +803,11 @@
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
     G.chat = d.chat ? Object.keys(d.chat).map((id) => ({ id, seat: d.chat[id].seat, text: String(d.chat[id].text || '').slice(0, 140), t: d.chat[id].t })).sort((a, b) => a.t - b.t) : []; G.chatReady = false;
-    G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0; G.lastSpamT = (d.spam && d.spam.t) || 0;
+    G.lastEmoteT = (d.emote && d.emote.t) || 0; G.lastNudgeT = (d.nudge && d.nudge.t) || 0; G.lastSpamT = (d.spam && d.spam.t) || 0; G.lastDoodleT = (d.doodle && d.doodle.t) || 0;
     G.unwatch = Store.watch('games', G.code, (nd) => {
       if (!G || G.mode !== 'online' || !nd || !nd.state) return;
       if (nd.nudge && nd.nudge.t > (G.lastNudgeT || 0)) { const fresh = G.lastNudgeT !== undefined; G.lastNudgeT = nd.nudge.t; if (fresh && nd.nudge.seat !== G.my) { toast('📣 Yip yip! ' + G.seats[nd.nudge.seat].name + ' is waiting for your move', 3500); buzz(60); } }
+      if (nd.doodle && nd.doodle.t > (G.lastDoodleT || 0)) { const fresh = G.lastDoodleT !== undefined; G.lastDoodleT = nd.doodle.t; if (fresh && nd.doodle.seat !== G.my) { try { Doodle.show(JSON.parse(nd.doodle.s), nd.doodle.seat); } catch (e) {} } }
       if (nd.spam && nd.spam.t > (G.lastSpamT || 0)) { const fresh = G.lastSpamT !== undefined; G.lastSpamT = nd.spam.t; if (fresh && nd.spam.seat !== G.my) showFx(nd.spam.el); }
       applyQueuedBends(nd);
       if (nd.chat) Object.keys(nd.chat).forEach((id) => { const m = nd.chat[id]; if (m && !(G.chat || []).some((x) => x.id === id)) addChat({ id, seat: m.seat, text: String(m.text || '').slice(0, 140), t: m.t }, G.chatReady && m.seat !== G.my); });
@@ -865,6 +875,7 @@
     Music.start();
     const svg = document.getElementById('board');
     svg.addEventListener('click', onBoardClick);
+    Doodle.attach(document.querySelector('.board-wrap'));
     renderGame();
     afterTurnChange();
   }
@@ -1379,6 +1390,78 @@
     renderGame();
     afterTurnChange();
   }
+  // ---------- S Pen doodles: drag a stylus over the board to draw; it shows for a few seconds, then fades ----------
+  const Doodle = (() => {
+    const IDLE_MS = 1200, SHOW_MS = 5000, MAX_PTS = 1500;
+    let wrap = null, cv = null, live = null, idleT = null, down = null, swallowClick = false;
+    const color = (seat) => (seat === 1 ? '#6fc6e8' : '#f2cf6e');
+    function canvas() {
+      if (cv && cv.isConnected) return cv;
+      cv = document.createElement('canvas'); cv.className = 'doodle';
+      wrap.appendChild(cv); size(); return cv;
+    }
+    function size() { if (!cv) return; const r = wrap.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; }
+    const shown = []; // {strokes, seat, until, fade}
+    function draw() {
+      const c = canvas(), x = c.getContext('2d'), w = c.width, h = c.height, now = Date.now();
+      x.clearRect(0, 0, w, h);
+      const items = shown.concat(live ? [{ strokes: live.strokes, seat: live.seat, until: Infinity }] : []);
+      items.forEach((it) => {
+        const a = it.until === Infinity ? 1 : Math.max(0, Math.min(1, (it.until - now) / 600));
+        x.globalAlpha = a; x.strokeStyle = color(it.seat); x.lineWidth = Math.max(3, w * 0.008); x.lineCap = x.lineJoin = 'round';
+        x.shadowColor = 'rgba(0,0,0,.55)'; x.shadowBlur = 4;
+        it.strokes.forEach((st) => { if (!st.length) return; x.beginPath(); x.moveTo(st[0][0] * w, st[0][1] * h); if (st.length === 1) x.lineTo(st[0][0] * w + 0.5, st[0][1] * h); st.forEach((p) => x.lineTo(p[0] * w, p[1] * h)); x.stroke(); });
+      });
+      x.globalAlpha = 1;
+      for (let i = shown.length - 1; i >= 0; i--) if (shown[i].until <= now) shown.splice(i, 1);
+      if (shown.length || live) requestAnimationFrame(draw);
+    }
+    function show(strokes, seat) {
+      if (!wrap || !wrap.isConnected) return;
+      shown.push({ strokes, seat, until: Date.now() + SHOW_MS }); requestAnimationFrame(draw); buzz(6);
+    }
+    const pt = (e) => { const r = wrap.getBoundingClientRect(); return [Math.round(((e.clientX - r.left) / r.width) * 1000) / 1000, Math.round(((e.clientY - r.top) / r.height) * 1000) / 1000]; };
+    const npts = () => (live ? live.strokes.reduce((n, s) => n + s.length, 0) : 0);
+    function finish() {
+      if (!live) return;
+      const d = live; live = null;
+      const strokes = d.strokes.filter((s) => s.length);
+      if (!strokes.length) return;
+      show(strokes, d.seat);
+      if (G && G.mode === 'online') Store.patch('games', G.code, { doodle: { seat: G.my, t: Date.now(), s: JSON.stringify(strokes) } }).catch(() => toast('Doodle not sent'));
+    }
+    function attach(w) {
+      wrap = w; if (!wrap) return; cv = null;
+      wrap.addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'pen' || !G) return;
+        down = { x: e.clientX, y: e.clientY, id: e.pointerId, drawing: false, first: pt(e) };
+      }, true);
+      wrap.addEventListener('pointermove', (e) => {
+        if (!down || e.pointerId !== down.id) return;
+        if (!down.drawing) {
+          if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10) return;
+          down.drawing = true; clearTimeout(idleT);
+          try { wrap.setPointerCapture(e.pointerId); } catch (err) {}
+          if (!live) live = { seat: G.my != null ? G.my : G.s.turn, strokes: [] };
+          live.strokes.push([down.first]); requestAnimationFrame(draw);
+        }
+        e.preventDefault();
+        if (npts() >= MAX_PTS) return;
+        const st = live.strokes[live.strokes.length - 1], p = pt(e), q = st[st.length - 1];
+        if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.004) st.push(p);
+      }, { capture: true, passive: false });
+      const up = (e) => {
+        if (!down || e.pointerId !== down.id) return;
+        if (down.drawing) { swallowClick = true; setTimeout(() => (swallowClick = false), 400); clearTimeout(idleT); idleT = setTimeout(finish, IDLE_MS); }
+        down = null;
+      };
+      wrap.addEventListener('pointerup', up, true); wrap.addEventListener('pointercancel', up, true);
+      wrap.addEventListener('click', (e) => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
+    }
+    window.addEventListener('resize', size);
+    return { attach, show, get lastT() { return 0; } };
+  })();
+
   function stopGameTimers() { if (G) { clearTimeout(G.boPulseT); G.boPulseT = null; } if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
   function afterTurnChange() {
     if (!G) return;

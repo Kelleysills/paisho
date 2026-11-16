@@ -75,7 +75,7 @@ h1,h2,h3,.disp{font-family:'Cinzel',serif;letter-spacing:.04em;margin:0}
 .seat .hc{flex:none;font-family:'Cinzel',serif;font-weight:700;color:var(--gold2);font-size:18px;text-align:center;line-height:1}
 .seat .hc small{display:block;font-family:'Nunito Sans';font-size:9px;color:var(--mute);letter-spacing:.08em}
 .board-wrap{position:relative;width:100%;aspect-ratio:1/1;max-height:62dvh;margin:auto;display:flex;justify-content:center}
-#board{width:100%;height:100%;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#board{width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
 .status{text-align:center;font-size:14px;padding:4px 12px;min-height:26px;color:var(--dim)}
 .status b{color:var(--gold2)}
 .status .timer{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:#5a1f1c;color:#fff;font-weight:800}
@@ -279,3 +279,5 @@ table.lb td.n{text-align:right;font-variant-numeric:tabular-nums}
 .or{display:flex;align-items:center;gap:10px;color:var(--muted,#a99);font-size:12px;margin:2px 0}
 .or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
 .name-hint{min-height:14px;margin-top:4px;opacity:.8}.name-hint.ok{color:#9fd18b}.name-hint.bad{color:#ff8a80}
+.doodle{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6}
+.board-wrap{touch-action:none}
