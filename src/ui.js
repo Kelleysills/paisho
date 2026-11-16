@@ -149,6 +149,7 @@
       const isMe = me && me.id === pid;
       const spam = isMe && G ? Math.min(60, G.spam || 0) : 0; // 5 XP each, capped at 300 XP a match
       out.xp = Math.round((Eco.xpFor(mode, res) + (mode === 'online' ? spam * 5 : 0)) * bst.xp);
+      out.xpBefore = p.xp || 0;
       const lvBefore = Eco.level(p.xp || 0), subBefore = (p.xp || 0) >= Eco.SUB_XP;
       p.xp = (p.xp || 0) + out.xp;
       const today = new Date().toISOString().slice(0, 10);
@@ -174,7 +175,7 @@
       st.v2 = true;
       st.recent = [{ t: Date.now(), mode, level, res, opp, turns }].concat(st.recent || []).slice(0, 20);
       p.gpPeak = Math.max(p.gpPeak || 0, p.gp || 0);
-      p.stats = st; await Store.set('players', pid, p);
+      p.stats = st; out.xpAfter = p.xp; await Store.set('players', pid, p);
       if (me && me.id === pid) me = p;
       return out;
     } catch (e) { console.warn(e); return null; }
@@ -463,7 +464,7 @@
       return `<div class="ach-track ${open ? 'open' : ''}"><button class="ach-th" data-act="achTrack" data-k="${t.k}"><span class="ai">${t.icon}</span><span class="am"><b>${top ? esc(top.name) : 'Unranked ' + esc(t.noun)}</b><span class="tiny muted">${next ? esc(next.desc) + ' · ' + val.toLocaleString() + '/' + next.goal.toLocaleString() : 'All tiers complete!'}</span><span class="bar"><i style="width:${pct}%"></i></span></span><span class="ac">${got}/${list.length}</span></button>
         ${open ? `<div class="tlist">${list.map(row).join('')}</div>` : ''}</div>`;
     }).join('');
-    return head + `<div class="field"><label>Milestones</label><div class="tlist">${main.map(row).join('')}</div></div><div class="field"><label>Ladders · tap one to see every tier</label>${tracks}</div>`;
+    return head + lvlBar(p.xp || 0) + `<div class="field"><label>Milestones</label><div class="tlist">${main.map(row).join('')}</div></div><div class="field"><label>Ladders · tap one to see every tier</label>${tracks}</div>`;
   }
   screens.achievements = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Achievements</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player to earn achievements.</div></div>`; return; }
@@ -724,7 +725,7 @@
     const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
-      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending },
+      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending, rules: S.rules || 'key' },
       host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
@@ -797,6 +798,12 @@
     if (me && sub) { Push.send(me.id, 'Pai Sho · test 2 of 2', 'This one came through the internet. Closed-app alerts work!', 'test-push'); add(null, 'Test 2 sent through the server (arrives in a few seconds)'); }
     show();
   }
+  function lvlBar(xp, from = null) {
+    const lv = Eco.level(xp), into = xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
+    const fromPct = from == null ? pct : Eco.level(from) < lv ? 0 : Math.round((100 * (from - (lv - 1) * 500)) / 500);
+    return `<div class="lvl"><div class="lvl-top"><b>Level ${lv}</b><span>${into}/500 XP · ${500 - into} to Level ${lv + 1}</span></div><div class="lvl-bar"><i style="width:${fromPct}%" data-to="${pct}"></i></div></div>`;
+  }
+  function animateBars() { setTimeout(() => document.querySelectorAll('.lvl-bar i[data-to]').forEach((el) => { el.style.width = el.dataset.to + '%'; }), 120); }
   function dailyOpen() {
     if (!me) return;
     const ds = Eco.dailyState(me), b = Eco.boost();
@@ -823,6 +830,20 @@
     toast(`🎁 +${gp} gp, +${xp} XP · ${ds.streak}-day streak!` + (Eco.level(me.xp) > lvBefore ? ` ⬆️ Level ${Eco.level(me.xp)}!` : ''), 3500);
     setTimeout(checkAch, 1200);
     if (document.querySelector('[data-act="startSetup"]')) screens.home();
+  }
+  let invPick = null;
+  function inviteSheet() {
+    const S = setup, d = invPick;
+    const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${String(S[k]) === String(v) ? 'on' : ''}" data-act="invOpt" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const tog = (k, t, sub) => `<div class="toggle"><div><b>${t}</b><div class="tiny muted">${sub}</div></div><span class="sw ${S[k] ? 'on' : ''}" data-act="invOpt" data-k="${k}"></span></div>`;
+    const skud = (S.rules || 'key') === 'skud';
+    sheet(`<h3>🎮 Invite ${esc(d.name)}</h3><p class="muted tiny" style="margin-top:0">Pick the game mode. They’ll play with these rules.</p>
+      <div class="field"><label>Rules</label>${seg('rules', [['key', 'Key Pai Sho'], ['skud', 'Skud Pai Sho']])}<div class="tiny muted" style="margin-top:4px">${skud ? 'Skud: tiles on the line crossings, flowers harmonize in a circle (R3→R4→R5→W3→W4→W5), clashing tiles can capture, harmony bonuses.' : 'Key: the classic rules from the booklet, with effect tiles and loadouts.'}</div></div>
+      ${skud ? '' : `<div class="field"><label>Harmonies needed for the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>`}
+      <div class="field"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
+      ${tog('bending', 'Elemental mode', 'Bending, sub-bending, show-offs and the Melon Lord')}
+      ${skud ? '' : tog('chance', 'Game of Chance', 'Key flowers are drawn at random') + tog('enigma', 'Effect Tile Enigma', 'Effect tiles stay hidden until played')}
+      <button class="btn primary" data-act="invSend" style="margin-top:8px">Send invite</button>`);
   }
   function invitesHTML() {
     if (Store.kind !== 'firebase' || !FireSocial.invites) return '';
@@ -880,7 +901,7 @@
       if (statsTab === 'ach') { body.innerHTML = tabs + achBody(); return; }
       body.innerHTML = tabs;
     }
-    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}
+    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -1702,19 +1723,30 @@
         if (out && (G.mode !== 'local' || k === 0)) G.reward = out;
       }
       if (G.mode === 'online') updateAvatar();
-      setTimeout(checkAch, 1500);
+      if (me) { const before = new Set(Object.keys(me.ach || {})); await checkAch(); G.newAch = Eco.ACH.filter((a) => (me.ach || {})[a.id] && !before.has(a.id)); }
     }
     showResult();
   }
   function showResult() {
-    const s = G.s;
+    const s = G.s, R = G.reward, H = P.harmonies(s);
     let head;
     if (s.winner === 'draw') head = 'Draw';
     else if (G.mode === 'local') head = esc(G.seats[s.winner].name) + ' wins!';
-    else head = s.winner === G.my ? 'You win!' : esc(G.seats[s.winner].name) + ' wins';
-    sheet(`<div style="text-align:center">${logoSvg(90)}<h3 style="font-size:28px">${head}</h3><p class="muted">${s.winner === 'draw' ? 'The game reached the turn limit.' : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.'}</p>
-      ${G.reward && (G.reward.gp || G.reward.ranked || G.reward.xp) ? `<div class="card" style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-weight:900;margin-bottom:10px">${G.reward.gp ? `<span style="color:#ffd77a">+${G.reward.gp} gp</span>` : ''}${G.reward.xp ? `<span style="color:#9fd1ff">+${G.reward.xp} XP</span>` : ''}${G.reward.ranked ? `<span>⭐ ${G.reward.rating} (${G.reward.delta >= 0 ? '+' : ''}${G.reward.delta})</span>` : ''}</div>${G.reward.boost && (G.reward.gp || G.reward.xp) ? `<div class="tiny" style="margin:-4px 0 10px;color:#ffd77a">${G.reward.boost.icon} ${G.reward.boost.name}: ${G.reward.boost.xp}× XP · ${G.reward.boost.gp}× gold</div>` : ''}${G.reward.melon ? '<div class="note" style="margin-bottom:10px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}${G.reward.subUnlocked ? '<div class="note" style="margin-bottom:10px">🌀 <b>Sub-bending unlocked!</b> Use it in Elemental mode games.</div>' : G.reward.levelUp ? '<div class="note" style="margin-bottom:10px">⬆️ Level up!</div>' : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold — play the computer or online to earn.</div>' : ''}</div>
-      <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div>`);
+    else head = s.winner === G.my ? 'You win! 🎉' : esc(G.seats[s.winner].name) + ' wins';
+    const why = s.winner === 'draw' ? (s.winReason === 'turn limit' ? 'The game reached the turn limit.' : 'It’s a tie.') : 'By ' + esc(s.winReason) + ' after ' + (s.turnNo - 1) + ' turns.';
+    const row = (k) => { const seat = G.seats[k], res = s.winner === 'draw' ? ['🤝', 'Draw', 'draw'] : s.winner === k ? ['🏆', 'Winner', 'win'] : ['🌧️', 'Lost', 'loss'];
+      return `<div class="res-row ${res[2]}"><span class="rr-i">${res[0]}</span><div class="rr-m"><b>${esc(seat.name)}${G.my === k ? ' (you)' : ''}</b><span class="tiny muted">${H.filter((h) => h.owners.includes(k)).length} harmonies · ${(s.removed || []).filter((t) => t.owner === k).length} tiles lost</span></div><span class="rr-r">${res[1]}</span></div>`; };
+    const rew = R && (R.gp || R.ranked || R.xp) ? `<div class="card res-rew">${R.gp ? `<span style="color:#ffd77a">🪙 +${R.gp} gp</span>` : ''}${R.xp ? `<span style="color:#9fd1ff">✨ +${R.xp} XP</span>` : ''}${R.ranked ? `<span>⭐ ${R.rating} (${R.delta >= 0 ? '+' : ''}${R.delta})</span>` : ''}</div>
+      ${R.boost && (R.gp || R.xp) ? `<div class="tiny" style="margin:-4px 0 8px;color:#ffd77a">${R.boost.icon} ${R.boost.name}: ${R.boost.xp}× XP · ${R.boost.gp}× gold</div>` : ''}
+      ${R.melon ? '<div class="note" style="margin-bottom:8px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}
+      ${R.subUnlocked ? '<div class="note" style="margin-bottom:8px">🌀 <b>Sub-bending unlocked!</b></div>' : R.levelUp ? `<div class="note" style="margin-bottom:8px">⬆️ <b>Level up!</b> You’re now Level ${Eco.level(R.xpAfter || 0)}.</div>` : ''}
+      ${R.xpAfter != null ? lvlBar(R.xpAfter, R.xpBefore) : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold. Play the computer or online to earn.</div>' : '';
+    const na = G.newAch || [];
+    const achH = na.length ? `<div class="field" style="text-align:left"><label>🏆 Achievements unlocked (${na.length})</label><div class="ach-chips">${na.slice(0, 8).map((a) => `<span class="chip">${a.icon || '🏆'} ${esc(a.name)} <b style="color:#ffd77a">+${a.gp}</b></span>`).join('')}${na.length > 8 ? `<span class="chip">+${na.length - 8} more</span>` : ''}</div></div>` : '';
+    sheet(`<div style="text-align:center">${logoSvg(70)}<h3 style="font-size:28px;margin:4px 0">${head}</h3><p class="muted" style="margin:0 0 10px">${why}</p>
+      <div class="res-rows">${row(0)}${row(1)}</div>${rew}${achH}
+      <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div></div>`);
+    animateBars();
   }
 
   // ---------- event delegation ----------
@@ -1960,7 +1992,9 @@
     acceptFriend: async (d) => { await Soc().accept(d.code); screens.friends(); },
     declineFriend: async (d) => { await Soc().decline(d.code); screens.friends(); },
     removeFriend: async (d) => { if (await confirmBox('Remove friend?', 'You can add them again with their code.', 'Remove', true)) { await Soc().remove(d.code); screens.friends(); } },
-    inviteFriend: async (d) => { const code = await createOnline(d.name || ''); if (code) { await Soc().invite(d.code, code); toast(d.on ? 'Invite sent' : 'Invite sent — they’ll get it next time they’re on'); } },
+    inviteFriend: (d) => { invPick = { code: d.code, name: d.name || 'your friend', on: !!d.on }; inviteSheet(); },
+    invOpt: (d) => { const S = setup; if (d.k === 'minH' || d.k === 'timer') S[d.k] = +d.v; else if (d.k === 'rules') S.rules = d.v; else S[d.k] = !S[d.k]; Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { [d.k]: S[d.k] })); inviteSheet(); },
+    invSend: async () => { const d = invPick; if (!d) return; closeSheet(); const code = await createOnline(d.name); if (code) { await Soc().invite(d.code, code); toast(d.on ? 'Invite sent' : 'Invite sent — they’ll get it next time they’re on'); } },
     leaveWaiting: () => { if (G && G.waitingUnsub) G.waitingUnsub(); G = null; toast('Game kept open — we’ll let you know when they join'); go('home'); },
     acceptInvite: async (d) => { FireSocial.dismissInvite(d.id); const g = await Store.get('games', d.game).catch(() => null); if (!g || g.status !== 'open') { toast('That game isn’t open anymore'); if (document.getElementById('friends-screen')) screens.friends(); return; } joinGame(d.game); },
     declineInvite: async (d) => { await FireSocial.dismissInvite(d.id); toast('Invite declined'); if (document.getElementById('friends-screen')) screens.friends(); },
