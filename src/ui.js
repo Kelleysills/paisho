@@ -1230,7 +1230,7 @@
     if (G.sel && G.sel.kind === 'tile') return pre + 'tap a gold dot to move';
     if (tp.mustLotus) return pre + 'your Lotus must leave the centre';
     if (tp.extra) return pre + (tp.extra.kind === 'orchid' ? 'Orchid bonus: move one more tile (or End turn)' : 'Sky Bison bonus: the carried tile may move again');
-    if (tp.mainDone) return pre + 'place an accent or use an ability, or End turn';
+    if (tp.mainDone) { const more = P.legalActions(s).some((x) => x.t !== 'end'); return pre + (more ? 'place an accent or use an ability, or ' : 'happy with it? Undo, or ') + (G.mode === 'online' ? '<b>Send move</b>' : '<b>End turn</b>'); }
     if (!acts.some((a) => a.t === 'move' || a.t === 'plant')) return pre + 'no moves available — tap End turn to pass';
     return pre + 'plant a flower or move a tile';
   }
@@ -1356,7 +1356,7 @@
     if (!end) return;
     const canEnd = isHumanTurn() && acts.some((a) => a.t === 'end');
     end.disabled = !canEnd || s.winner !== null;
-    end.textContent = !s.tp.mainDone && canEnd ? 'Pass' : 'End turn';
+    end.textContent = !s.tp.mainDone && canEnd ? 'Pass' : G.mode === 'online' ? 'Send move ✓' : 'End turn';
     end.classList.toggle('glow', canEnd && s.tp.mainDone);
     if (s.winner !== null) { end.disabled = false; end.textContent = 'Result'; end.classList.remove('glow'); }
     undo.disabled = !canUndo();
@@ -1531,6 +1531,7 @@
   }
 
   // ---------- actions & turn flow ----------
+  const autoSend = () => Store.LS.get('autoSend', false) === true;
   function canUndo() {
     if (!G || !G.history.length || G.s.winner !== null || G.busy) return false;
     if (G.mode === 'online') return isHumanTurn() && G.history.length > 0;
@@ -1546,7 +1547,7 @@
     if (a.t === 'end' || a.t === 'forfeit') return turnEnded();
     renderGame();
     // auto-end when nothing optional is left
-    if (G.s.tp.mainDone) {
+    if (G.s.tp.mainDone && (autoSend() || G.tutorial)) {
       const left = P.legalActions(G.s).filter((x) => x.t !== 'end');
       if (!left.length) { G.busy = true; setTimeout(() => { G.busy = false; if (G && G.s.tp.mainDone && G.s.winner === null) doAction({ t: 'end' }); }, 450); }
     }
@@ -1971,6 +1972,7 @@
       G.sel = null; renderGame(); afterTurnChange();
     },
     musicToggle: (d, e, el) => { const on = !Music.enabled(); Music.setEnabled(on); el.classList.toggle('on', on); },
+    toggleAutoSend: () => { Store.LS.set('autoSend', !autoSend()); closeSheet(); toast(autoSend() ? 'Moves send automatically when nothing else is left' : 'You’ll confirm each move with Send move'); renderGame(); },
     toggleHints: () => { setup.hints = !hintsOn(); Store.LS.set('setup', Object.assign(Store.LS.get('setup', {}), { hints: setup.hints })); closeSheet(); toast('Hints ' + (setup.hints ? 'on' : 'off')); if (setup.hints) analyse(); renderGame(); },
     toggleH: () => { G.showH = !G.showH; renderBoard(); renderBar(); },
     endTurn: () => { if (G.s.winner !== null) return showResult(); if (G.busy) return; doAction({ t: 'end' }); },
@@ -1979,6 +1981,7 @@
         <div class="card" style="padding:10px 14px"><div class="toggle" style="padding:4px 0"><div><b>🎵 Background music</b><div class="tiny muted">Original guzheng &amp; flute, made live</div></div><span class="sw ${Music.enabled() ? 'on' : ''}" data-act="musicToggle"></span></div>
           <input type="range" min="0" max="100" value="${Math.round(Music.volume * 100)}" id="musicVol" style="width:100%;accent-color:#e6b54a" aria-label="Music volume"></div>
         <button class="btn" data-act="toggleHints">Hints: ${hintsOn() ? 'On' : 'Off'}</button>
+        <button class="btn" data-act="toggleAutoSend">Auto-send moves: ${autoSend() ? 'On' : 'Off'}</button>
         <button class="btn" data-act="guideInGame">How to play</button>
         <button class="btn" data-act="showLog">Move log</button>
         ${G.s.winner === null ? '<button class="btn danger" data-act="resign">Resign</button>' : ''}
