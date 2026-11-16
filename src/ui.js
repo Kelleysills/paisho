@@ -358,6 +358,7 @@
     if (me && nameChecked !== me.id) { nameChecked = me.id; if (Store.kind === 'firebase') claimName(me.name, me.id).catch(() => {}); Eco.ensure(me); if (me._mig) { delete me._mig; saveMe(); } }
     ensureMe();
     setTimeout(checkAch, 800);
+    if (me && !Eco.dailyState(me).claimed && Store.LS.get('dailyShown') !== me.id + Eco.dayKey()) { Store.LS.set('dailyShown', me.id + Eco.dayKey()); setTimeout(() => { if (document.querySelector('[data-act="startSetup"]') && !document.querySelector('.sheet')) dailyOpen(); }, 700); }
     noteHue(me);
     if (!screens.home._av) { screens.home._av = true; loadAvatar().then(() => { if (document.querySelector('[data-act="startSetup"]')) screens.home(); }); }
     startSocial();
@@ -366,6 +367,7 @@
     app.innerHTML = `<div class="screen">
       <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span>${me ? `<button class="gp-pill" data-act="go" data-to="store">${gpFmt(me.gp)}</button>` : ''}<button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
       <div class="title" style="padding:0">${logoSvg(84)}<h1 style="font-size:28px">Pai Sho</h1></div>
+      ${me && !Eco.dailyState(me).claimed ? `<button class="daily-card" data-act="dailyOpen"><span class="dc-i">🎁</span><span class="dc-t"><b>Daily reward ready</b><small>Day ${Eco.dailyState(me).streak} streak · +${Eco.dailyReward(Eco.dailyState(me).streak).gp} gp, +${Eco.dailyReward(Eco.dailyState(me).streak).xp} XP</small></span><span class="dc-b">Claim</span></button>` : ''}
       ${(() => { const b = Eco.boost(); return b.name ? `<div class="event-banner ${b.xp >= 100 ? 'big' : ''}">${b.icon} <b>${b.name}!</b> ${b.xp}× XP · ${b.gp}× gold on every game today</div>` : ''; })()}
       ${me ? `<button style="text-align:left;padding:0" data-act="profileSheet">${Avatars.card(meCard(), esc)}</button>` : `<div class="sub muted" style="text-align:center;letter-spacing:.2em;text-transform:uppercase;font-size:13px">Guest mode</div>`}
       <div class="menu">
@@ -794,6 +796,33 @@
     show();
     if (me && sub) { Push.send(me.id, 'Pai Sho · test 2 of 2', 'This one came through the internet. Closed-app alerts work!', 'test-push'); add(null, 'Test 2 sent through the server (arrives in a few seconds)'); }
     show();
+  }
+  function dailyOpen() {
+    if (!me) return;
+    const ds = Eco.dailyState(me), b = Eco.boost();
+    const start = Math.max(1, ds.streak - (ds.streak - 1) % 7), days = Array.from({ length: 7 }, (_, k) => start + k);
+    const cell = (d) => { const r = Eco.dailyReward(d), past = d < ds.streak || (ds.claimed && d === ds.streak), cur = !ds.claimed && d === ds.streak; return `<div class="dd ${past ? 'got' : ''} ${cur ? 'now' : ''} ${r.seven ? 'big' : ''}"><div class="dn">Day ${d}</div><div class="dg">🪙 ${r.gp}</div><div class="dx">${r.xp} XP</div>${past ? '<div class="dk">✓</div>' : ''}</div>`; };
+    const r = Eco.dailyReward(ds.streak), mult = b.name ? ` <span class="tiny" style="color:#ffd77a">${b.icon} ${b.name}: ${b.gp}× gold, ${b.xp}× XP</span>` : '';
+    sheet(`<div style="text-align:center"><div style="font-size:44px">🎁</div><h3 style="margin:4px 0">Daily reward</h3>
+      <p class="muted" style="margin:0 0 10px">${ds.claimed ? `Come back tomorrow for Day ${ds.next}!` : ds.lost ? `Your ${ds.lost}-day streak ended, so you’re starting fresh. Come back every day to build it up!` : `Day ${ds.streak} of your streak. Rewards grow every day you come back.`}</p>
+      <div class="daily-grid">${days.map(cell).join('')}</div>
+      <p class="tiny muted">Every 7th day pays double. Rewards keep growing until Day 30. Miss a day and the streak restarts.</p>
+      ${ds.claimed ? '<button class="btn" data-act="closeSheet">OK</button>' : `<button class="btn primary" data-act="dailyClaim">Claim +${r.gp} gp, +${r.xp} XP</button>${mult}`}</div>`);
+  }
+  async function dailyClaim() {
+    if (!me) return;
+    const ds = Eco.dailyState(me); if (ds.claimed) return closeSheet();
+    const b = Eco.boost(), r = Eco.dailyReward(ds.streak);
+    const gp = Math.round(r.gp * b.gp), xp = Math.round(r.xp * b.xp);
+    Eco.ensure(me);
+    const lvBefore = Eco.level(me.xp || 0);
+    me.gp += gp; me.xp = (me.xp || 0) + xp; me.gpPeak = Math.max(me.gpPeak || 0, me.gp);
+    me.daily = { last: Eco.dayKey(), streak: ds.streak, best: Math.max((me.daily && me.daily.best) || 0, ds.streak) };
+    await saveMe();
+    closeSheet(); buzz(20);
+    toast(`🎁 +${gp} gp, +${xp} XP · ${ds.streak}-day streak!` + (Eco.level(me.xp) > lvBefore ? ` ⬆️ Level ${Eco.level(me.xp)}!` : ''), 3500);
+    setTimeout(checkAch, 1200);
+    if (document.querySelector('[data-act="startSetup"]')) screens.home();
   }
   function invitesHTML() {
     if (Store.kind !== 'firebase' || !FireSocial.invites) return '';
@@ -1722,6 +1751,8 @@
     tutHome: () => { closeSheet(); Music.stop(); G = null; go('home'); },
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
+    dailyOpen: () => dailyOpen(),
+    dailyClaim: () => dailyClaim(),
     viewPlayer: (d, e) => { if (e && e.target.closest('[data-act="addFriendPid"]') && e.target.closest('[data-act="addFriendPid"]') !== e.target.closest('[data-act]')) return; viewPlayer(d); },
     addFriendPid: async (d, e) => {
       if (e) e.stopPropagation();

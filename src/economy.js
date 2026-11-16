@@ -81,6 +81,12 @@ const Eco = (() => {
   function ensure(p) {
     if (!p) return p;
     if (typeof p.gp !== 'number') p.gp = START_GP;
+    if (!p.xpFix1) { // credit XP for games played before XP existed
+      const S = p.stats || {}, A = S.ai || {}, row = (a, t) => (a ? a[0] * t[0] + a[1] * t[1] + a[2] * t[2] : 0);
+      const base = row(S.online, XP.online) + row(A.easy, XP.ai) + row(A.medium, XP.ai) + row(A.hard, XP.ai);
+      if (base > (p.xp || 0)) p.xp = base;
+      p.xpFix1 = true; p._mig = true;
+    }
     if (p.stats && !p.stats.v2) { // computer games no longer count toward overall wins/losses
       const S = p.stats, add = (a) => (a || [0, 0, 0]);
       const on = add(S.online), lo = add(S.local);
@@ -222,11 +228,24 @@ const Eco = (() => {
     });
   });
   const ACH_MAIN = ACH.filter((a) => !a.track);
+  // ---- daily sign-in rewards: streak grows each consecutive day, resets if a day is missed ----
+  const dayKey = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function dailyReward(day) {
+    const n = Math.min(day, 30), seven = day % 7 === 0;
+    const gp = Math.min(850, 100 + 25 * (n - 1)) * (seven ? 2 : 1), xp = Math.min(300, 25 + 10 * (n - 1)) * (seven ? 2 : 1);
+    return { gp, xp, seven };
+  }
+  function dailyState(p, now = new Date()) {
+    const d = p.daily || {}, today = dayKey(now), y = new Date(now); y.setDate(y.getDate() - 1);
+    if (d.last === today) return { claimed: true, streak: d.streak || 1, next: (d.streak || 1) + 1 };
+    const streak = d.last === dayKey(y) ? (d.streak || 0) + 1 : 1;
+    return { claimed: false, streak, next: streak, lost: !!d.last && d.last !== dayKey(y) && (d.streak || 0) > 1 ? d.streak : 0 };
+  }
   // reward events (player's local date): Avatar Day beats weekends
   function boost(d = new Date()) {
     if (d.getMonth() === 3 && d.getDate() === 28) return { xp: 100, gp: 5, name: 'Avatar Day', icon: '🎉' };
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { boost, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();
