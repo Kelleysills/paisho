@@ -463,7 +463,7 @@ const PaiSho = (() => {
       applyBend(s, a.by != null ? a.by : p, a);
     } else if (a.t === 'sub') {
       applySub(s, a.by != null ? a.by : p, a);
-      if (a.kind === 'metal') { if (desc) s.log.push({ p, turn: s.turnNo, text: desc }); return endTurn(s, ''); }
+      if (a.kind === 'metal' && (a.by == null || a.by === s.turn)) { if (desc) s.log.push({ p, turn: s.turnNo, text: desc }); return endTurn(s, ''); }
     } else if (a.t === 'avatarState') {
       applyAvatarState(s, a.by != null ? a.by : p, !!a.accept);
     } else if (a.t === 'melon') {
@@ -582,15 +582,22 @@ const PaiSho = (() => {
     s.lastMove = { to: a.el === 'air' ? a.to : a.target };
     s.lastBend = { p, el: a.el, at: a.el === 'air' ? a.to : a.target, paid, t: s.turnNo };
   }
-  const PRACTICE_USES = 3, PRACTICE_COOLDOWN = 4; // 3 uses, wait 2 of your own turns between them
+  const PRACTICE_USES = 3;
+  // after any sub-bending, wait until the opponent has finished 2 turns that started after it
+  // (if it was used during their turn, that turn doesn't count)
+  function subReadyAt(s, p) {
+    const u = s.bend && s.bend.subT ? s.bend.subT[p] : null;
+    if (u == null) return 0;
+    const U = typeof u === 'object' ? u.t : u, theirs = typeof u === 'object' ? u.opp : false;
+    return theirs ? U + 5 : U + 4;
+  }
   function subAvailable(s, p) {
     if (!s.bend || s.winner !== null) return [];
     const pw = powersOf(s, p), used = s.bend.subs[p];
     if (!pw.subs || !pw.subs.length) return [];
+    if (s.turnNo < subReadyAt(s, p)) return [];
     if (s.opts.subPractice) {
       if (used.length >= PRACTICE_USES) return [];
-      const last = (s.bend.subT || [])[p];
-      if (last != null && s.turnNo - last < PRACTICE_COOLDOWN) return [];
       return pw.subs.slice(); // the Avatar picks any of the four each time; everyone else repeats their own
     }
     const limit = pw.avatar ? 2 : 1;
@@ -663,7 +670,12 @@ const PaiSho = (() => {
     return { oppLost, ownLost, amt: Math.max(0, (oppLost > 0 ? 75 * oppLost : 50 * tiles) - 25 * ownLost) };
   }
   function avatarTarget(s, p) { return !s.opts.subPractice && !!powersOf(s, 1 - p).avatar; }
-  function practiceCooldown(s, p) { if (!s.opts.subPractice || !s.bend) return 0; const last = (s.bend.subT || [])[p]; return last == null ? 0 : Math.max(0, Math.ceil((PRACTICE_COOLDOWN - (s.turnNo - last)) / 2)); }
+  // how many more opponent turns until sub-bending is ready again
+  function practiceCooldown(s, p) {
+    if (!s.bend) return 0; const r = subReadyAt(s, p); if (!r || s.turnNo >= r) return 0;
+    const first = r - 3; let n = 0; for (let t = Math.max(s.turnNo, first); t < r; t++) if ((t - first) % 2 === 0) n++;
+    return n;
+  }
   function snapForAvatar(s, p, kind) {
     if (!avatarTarget(s, p)) return;
     s.avCounter = { by: p, target: 1 - p, kind, t: s.turnNo, snap: clone({ board: s.board, removed: s.removed, hands: s.hands, gates: s.gates, center: s.center, skip: s.bend.skip, flight: s.bend.flight, ledger: (s.ledger || []).length }) };
@@ -682,7 +694,7 @@ const PaiSho = (() => {
     }
     if (!subAvailable(s, p).includes(a.kind)) throw new Error('Not available');
     if (a.kind === 'metal') {
-      if (s.turn !== p || s.tp.mainDone) throw new Error('Metalbending is your move for the turn');
+
       snapForAvatar(s, p, 'metal');
       const before = harmonyKeys(s);
       const r = runMetal(s, p, a.ops || (a.a != null ? [{ op: 'swap', a: a.a, b: a.b }] : []));
@@ -690,7 +702,7 @@ const PaiSho = (() => {
       s.ledger = s.ledger || [];
       if (g.amt > 0) s.ledger.push({ id: 'm' + s.turnNo + '_' + p, from: 1 - p, to: p, amt: g.amt, why: 'metal' });
       s.lastMetal = Object.assign({ p, tiles: r.tiles, lost: r.lostFlowers.length }, g);
-      s.tp.mainDone = true;
+      if (s.turn === p) s.tp.mainDone = true; // on your own turn it's your move and ends the turn
     } else if (a.kind === 'lightning') {
       snapForAvatar(s, p, 'lightning');
       s.bend.skip[1 - p]++;
@@ -708,7 +720,7 @@ const PaiSho = (() => {
       s.bend.flight[p] = { until: s.turn === p ? s.turnNo + 1 : s.turnNo, gust: 1 };
     }
     s.bend.subs[p].push(a.kind);
-    s.bend.subT = s.bend.subT || [null, null]; s.bend.subT[p] = s.turnNo;
+    s.bend.subT = s.bend.subT || [null, null]; s.bend.subT[p] = { t: s.turnNo, opp: s.turn !== p };
     s.lastBend = { p, sub: a.kind, t: s.turnNo };
   }
   // the Avatar answers a sub-bending used on them: enter the Avatar State (undo it, costs 300 gp) or let it be
@@ -855,7 +867,7 @@ const PaiSho = (() => {
     return '';
   }
 
-  return { practiceCooldown, PRACTICE_USES, metalMoveDests, gustDests, flightOn, gustAvailable, runMetal, harmonyKeys, metalGold, melonLeft, MELON_MAX,
+  return { subReadyAt, practiceCooldown, PRACTICE_USES, metalMoveDests, gustDests, flightOn, gustAvailable, runMetal, harmonyKeys, metalGold, melonLeft, MELON_MAX,
     N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
     KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
     SUB_OF, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,

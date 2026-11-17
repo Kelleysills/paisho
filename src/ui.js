@@ -586,7 +586,7 @@
     closeSheet();
     const s = G.s, seat = bendSeat();
     if (kind === 'lightning' || kind === 'flight') return doBend({ t: 'sub', kind });
-    if (kind === 'metal') { if (!isHumanTurn()) return toast('Metalbending is used on your turn'); if (G.s.tp.mainDone) return toast('Use Metalbending instead of your move'); G.sel = null; G.metal = { seat, real: G.s, ops: [], mode: null, pick: null }; G.s = P.clone(G.s); renderGame(); return; }
+    if (kind === 'metal') { G.sel = null; G.metal = { seat, real: G.s, ops: [], mode: null, pick: null }; G.s = P.clone(G.s); renderGame(); return; }
     if (kind === 'blood') { const ms = P.bloodMoves(s, seat); if (!ms.length) return toast('They have nothing to move'); G.sel = { kind: 'blood', moves: ms, from: null }; renderBoard(); return toast('🩸 Tap one of their tiles, then where it goes'); }
   }
   async function doBend(a) {
@@ -608,7 +608,7 @@
     if (a.t === 'sub' && a.kind === 'metal' && G.s.lastMetal) { const L = G.s.lastMetal; toast(`⚙️ Metalbent${L.oppLost ? ` · broke ${L.oppLost} of their harmonies` : ''}${L.ownLost ? ` · broke ${L.ownLost} of yours` : ''}${L.lost ? ` · ${L.lost} flower${L.lost > 1 ? 's' : ''} lost to the wrong garden` : ''}${G.mode === 'online' && L.amt ? ` · +${L.amt} gp` : ''}`, 4000); }
     if (a.t === 'sub' && a.kind === 'gust' && G.s.lastBend && G.s.lastBend.lost) toast('🌬️ Blown into the wrong garden: that flower is lost!');
     const lb = G.s.lastBend; if (lb && lb.paid) toast(`It cost you your ${P.tname(lb.paid)}`);
-    if (a.t === 'sub' && a.kind === 'metal') { G.history = []; if (G.mode === 'online') pushOnline(); renderGame(); afterTurnChange(); return true; }
+    if (a.t === 'sub' && a.kind === 'metal' && G.s.turn !== a.by) { G.history = []; if (G.mode === 'online') pushOnline(); renderGame(); afterTurnChange(); return true; }
     if (G.mode === 'online') pushOnline();
     renderGame();
     if (a.t === 'sub' && a.kind === 'flight') analyse();
@@ -1584,8 +1584,9 @@
     });
     else o += `<span class="bb spent"><span class="i">${pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon}</span><small>bend used</small></span>`;
     const prac = s.opts.subPractice, left = prac ? P.PRACTICE_USES - s.bend.subs[seat].length : 0;
-    if (!G.metal) P.subAvailable(s, seat).forEach((k) => { const off = k === 'metal' && !isHumanTurn(); o += `<button class="bb sub" data-act="subGo" data-k="${k}" ${off ? 'disabled' : ''}><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>${off ? 'on your turn' : prac ? left + ' left' : 'free · once'}</small></span></button>`; });
-    if (prac && !P.subAvailable(s, seat).length && left > 0 && pw.nation) o += `<span class="bb spent"><span class="i">${Eco.SUBS[{ earth: 'metal', fire: 'lightning', water: 'blood', air: 'flight' }[pw.nation]].icon}</span><small>ready in ${P.practiceCooldown(s, seat)} turn${P.practiceCooldown(s, seat) === 1 ? '' : 's'}</small></span>`;
+    if (!G.metal) P.subAvailable(s, seat).forEach((k) => { o += `<button class="bb sub" data-act="subGo" data-k="${k}"><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>${prac ? left + ' left' : 'free · once'}</small></span></button>`; });
+    const cd = P.practiceCooldown(s, seat), moreSubs = prac ? left > 0 : (pw.subs || []).length > s.bend.subs[seat].length && s.bend.subs[seat].length < (pw.avatar ? 2 : 1);
+    if (!P.subAvailable(s, seat).length && cd > 0 && moreSubs) o += `<span class="bb spent"><span class="i">⏳</span><small>sub-bend after ${cd} more of their turn${cd === 1 ? '' : 's'}</small></span>`;
     if (P.gustAvailable(s, seat)) o += `<button class="bb sub ${G.sel && G.sel.kind === 'gust' ? 'sel' : ''}" data-act="gustGo"><span class="i">🌬️</span><span><b>Gust</b><small>push a tile ≤7</small></span></button>`;
     if (P.flightOn(s, seat) && !isHumanTurn()) o += `<span class="bb spent"><span class="i">🪽</span><small>${G.draftLive ? 'watching live' : 'flying'}</small></span>`;
     o += '<span class="bb-sep"></span>';
@@ -1609,7 +1610,7 @@
     el.innerHTML = `<div class="mp-top"><b>⚙️ Metalbending</b><span>${left} of 2 left${M.ops.length ? ` · steals ~${est.amt} gp${G.mode !== 'online' ? ' (online only)' : ''}` : ''}</span></div>
       <div class="mp-row">${b('swap', '⇄', 'Swap 2', 2)}${b('move', '➜', 'Move', 1)}${b('smash', '💥', 'Smash', 1)}
       <button class="mb go" data-act="metalDone" ${M.ops.length ? '' : 'disabled'}>✓<small>Done</small></button><button class="mb" data-act="metalCancel">✕<small>Cancel</small></button></div>
-      <div class="tiny muted">${M.mode === 'swap' ? (M.pick == null ? 'Tap the first tile to swap' : 'Tap the tile to swap it with') : M.mode === 'move' ? (M.pick == null ? 'Tap a tile to lift' : 'Tap where it lands (up to 7 squares, any direction)') : M.mode === 'smash' ? 'Tap a tile to smash it out of the game' : 'Pick what to do. Flowers left in the wrong garden are lost by their owner. Ends your turn.'}${lost ? ` · ⚠️ ${lost} flower${lost > 1 ? 's' : ''} in the wrong garden will be lost` : ''}</div>`;
+      <div class="tiny muted">${M.mode === 'swap' ? (M.pick == null ? 'Tap the first tile to swap' : 'Tap the tile to swap it with') : M.mode === 'move' ? (M.pick == null ? 'Tap a tile to lift' : 'Tap where it lands (up to 7 squares, any direction)') : M.mode === 'smash' ? 'Tap a tile to smash it out of the game' : 'Pick what to do. Flowers left in the wrong garden are lost by their owner.' + (isHumanTurn() ? ' Ends your turn.' : ' Lands on their board right now.')}${lost ? ` · ⚠️ ${lost} flower${lost > 1 ? 's' : ''} in the wrong garden will be lost` : ''}</div>`;
   }
   function metalPreview() {
     const M = G.metal; let t = P.clone(M.real), lost = 0;
