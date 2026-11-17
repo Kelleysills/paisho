@@ -148,6 +148,7 @@ const Eco = (() => {
       S.v2 = true; p._mig = true;
     }
     p.owned = p.owned || {};
+    p.owned.fig = p.owned.fig || [];
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];

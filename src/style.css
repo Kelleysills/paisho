@@ -387,3 +387,30 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .info-body{display:block}
 .info-body .info-row{display:flex}
 .info-body .btn{position:static;float:right;margin:4px 0 0 8px}
+
+/* characters */
+.pc-fig{display:inline-block;flex:none;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 50% 40%,#5a3e2a,#2a1b12);border:2px solid var(--c1,#e6b54a)}
+.pc-fig svg,.fig-disc svg{width:100%;height:100%;display:block}
+.seat .fig-disc{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 50% 40%,#5a3e2a,#2a1b12);flex:none}
+.seat .fig-disc>svg:first-child{border-radius:50%}
+.seat .fig-disc.glow{box-shadow:0 0 12px 3px #bfe8ff}
+.fig-stage{display:flex;flex-direction:column;align-items:center;gap:6px;margin:10px 0;padding:10px;border-radius:14px;background:radial-gradient(circle at 50% 60%,#4a3322,#1c130d 75%);border:1px solid var(--line)}
+.fig-stage svg{width:140px;height:auto}
+.fig-hero{display:flex;justify-content:center;align-items:flex-end;gap:12px;padding:8px;border-radius:16px;background:radial-gradient(circle at 50% 60%,#4a3322,#1c130d 72%);border:1px solid var(--line);margin-bottom:10px}
+.fig-big svg{width:170px;height:auto;display:block}
+.fig-pt{text-align:center;color:var(--dim);font-size:11px}.fig-pt svg{width:72px;height:72px;border-radius:50%;background:#2a1b12;border:2px solid var(--gold);display:block}
+.fig-tabs{display:flex;gap:6px;margin-bottom:6px}
+.fig-tabs button{flex:1;padding:8px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--dim)}
+.fig-tabs button.on{background:var(--gold);color:#2a1a0c;border-color:var(--gold)}
+.row-h{margin:10px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.fopts{display:flex;flex-wrap:wrap;gap:6px}
+.fopts button{padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:13px}
+.fopts button.on,.fcard.on{border-color:var(--gold);box-shadow:0 0 0 2px #e6b54a55;background:var(--panel2)}
+.fopts .fsw{width:34px;height:34px;border-radius:50%;padding:0}
+.fopts .price,.fcard .price{display:block;font-size:10px;color:var(--gold)}
+.price.free{color:#8fd18f}.price.own{color:var(--dim)}
+.fcards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.fcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 4px 8px;color:var(--ink);font-size:12px}
+.fcard svg{width:100%;height:auto;display:block}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.fopts .fsw::before,.fopts .fsw::after{display:none}

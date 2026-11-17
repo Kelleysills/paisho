@@ -13,6 +13,7 @@
   let avatarPid = null;
   const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid), lvl: Eco.level(me.xp || 0), xp: me.xp || 0 });
   const APP_V = 20261117; // bump when the rules engine changes so outdated opponents get flagged
+  const myFig = () => (me ? Figure.of(me, Eco.level(me.xp || 0)) : null);
   const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
   const saveMe = () => (me ? (delete me._mig, Store.set('players', me.id, me)).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
   // pull counters from the server so a stale copy in memory never overwrites an admin fix or another device
@@ -228,7 +229,7 @@
   async function createTrial(a, b) {
     const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
     const fxOf = (p) => { const lo = Array.isArray(p.loadouts) && p.loadouts[p.activeLoadout | 0]; return lo ? (lo.fx || []).filter((t) => Eco.ownsTile(p, t)).slice(0, 6) : []; };
-    const host = { pid: a.id, name: a.name, avatar: a.avatar || null, fx: fxOf(a) }, guest = { pid: b.id, name: b.name, avatar: b.avatar || null, fx: fxOf(b) };
+    const host = { pid: a.id, name: a.name, avatar: a.avatar || null, fig: Figure.of(a, Eco.level(a.xp || 0)), fx: fxOf(a) }, guest = { pid: b.id, name: b.name, avatar: b.avatar || null, fig: Figure.of(b, Eco.level(b.xp || 0)), fx: fxOf(b) };
     const s = P.newGame({ effects: [guest.fx, host.fx], minHarmonies: 4 });
     await Store.set('games', code, { code, status: 'playing', trial: true, created: Date.now(), updated: Date.now(), ver: 1, state: JSON.stringify(s), opts: { minH: 4, timer: 0, chance: false, enigma: false }, host, guest, pids: [a.id, b.id] });
     if (Store.kind === 'firebase') for (const p of [a, b]) FB.col('invites').add({ to: p.id, from: 'system', fromCode: 'AVATAR', fromName: '👑 Avatar Trial', game: code, t: Date.now() }).catch(() => {});
@@ -434,6 +435,7 @@
     app.innerHTML = `<div class="screen">
       <div class="row"><button class="pill" data-act="profileSheet">${av(nm)}${esc(nm)}</button><span class="spacer"></span>${me ? `<button class="gp-pill" data-act="go" data-to="store">${gpFmt(me.gp)}</button>` : ''}<button class="iconbtn" data-act="go" data-to="guide" aria-label="Rules">?</button></div>
       <div class="title" style="padding:0">${logoSvg(84)}<h1 style="font-size:28px">Pai Sho</h1></div>
+      ${me && !me.fig ? `<button class="daily-card" data-act="go" data-to="character"><span class="dc-i">🧍</span><span class="dc-t"><b>Create your character</b><small>Pick your look, hair and outfit</small></span></button>` : ''}
       ${me && !Eco.dailyState(me).claimed ? `<button class="daily-card" data-act="dailyOpen"><span class="dc-i">🎁</span><span class="dc-t"><b>Daily reward ready</b><small>Day ${Eco.dailyState(me).streak} streak · +${Eco.dailyReward(Eco.dailyState(me).streak).gp} gp, +${Eco.dailyReward(Eco.dailyState(me).streak).xp} XP</small></span><span class="dc-b">Claim</span></button>` : ''}
       ${(() => { const b = Eco.boost(); return b.name ? `<div class="event-banner ${b.xp >= 100 ? 'big' : ''}">${b.icon} <b>${b.name}!</b> ${b.xp}× XP · ${b.gp}× gold on every game today</div>` : ''; })()}
       ${me ? `<button style="text-align:left;padding:0" data-act="profileSheet">${Avatars.card(meCard(), esc)}</button>` : `<div class="sub muted" style="text-align:center;letter-spacing:.2em;text-transform:uppercase;font-size:13px">Guest mode</div>`}
@@ -508,7 +510,7 @@
       if (!FireSocial.active) await FireSocial.start({ pid: me.id, name: me.name, avatar: me.avatar }).catch(() => {});
       fbtn = `<button class="btn" data-act="dmOpen" data-pid="${esc(p.id)}" data-name="${esc(p.name)}">💬 Message ${esc(p.name)}</button>` + (FireSocial.isFriend && FireSocial.isFriend(p.id) ? '<div class="tiny" style="text-align:center;color:#9fd18b;margin:6px 0">✓ Friends</div>' : FireSocial.requests().some((r) => r.from === p.id) ? `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">Accept friend request</button>` : `<button class="btn primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add friend</button>`);
     } else if (!me) fbtn = '<div class="tiny muted" style="text-align:center">Create a player to add friends.</div>';
-    sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}${fbtn}
+    sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}${figStage(card)}${fbtn}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       ${styleCard(p, false)}
@@ -543,6 +545,43 @@
 
   // ---------- store ----------
   let storeTab = 'tiles';
+  function figStage(p, edit) {
+    if (!p.fig) return edit && me && p.id === me.id ? `<button class="btn" data-act="go" data-to="character" style="margin:8px 0">🧍 Create your character</button>` : '';
+    return `<div class="fig-stage">${Figure.svg(Figure.of(p, p.lvl || Eco.level(p.xp || 0)))}${edit ? '<button class="btn small" data-act="go" data-to="character">✏️ Edit</button>' : ''}</div>`;
+  }
+  let figTab = 'Outfit', figAv = false;
+  screens.character = () => {
+    if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Character</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to make a character.</div></div>`; return; }
+    ensureMe();
+    if (!me.fig) { me.fig = Figure.starter(me.nation, me.id.length + (me.name || '').length); saveMe(); }
+    const f = me.fig, lvl = Eco.level(me.xp || 0), cfg = Figure.of(me, lvl);
+    const price = (kind, id) => { const pr = Figure.priceOf(kind, id, me.nation); return Figure.owns(me, kind, id) ? (pr ? '<span class="price own">owned</span>' : '<span class="price free">free</span>') : `<span class="price">🪙 ${pr.toLocaleString()}</span>`; };
+    const on = (k, v) => (f[k] === v ? 'on' : '');
+    const sw = (k, v, c) => `<button class="fsw ${on(k, v)}" style="background:${c}" data-act="figSet" data-k="${k}" data-v="${v}"></button>`;
+    const btn = (k, v, label) => `<button class="${on(k, v)}" data-act="figSet" data-k="${k}" data-v="${v}">${label}</button>`;
+    let pane = '';
+    if (figTab === 'Body') pane = `<div class="row-h">Build</div><div class="fopts">${btn('build', 'masc', 'Build A')}${btn('build', 'femme', 'Build B')}</div>
+      <div class="row-h">Skin</div><div class="fopts">${Object.entries(Figure.SKIN).map(([k, c]) => sw('skin', k, c)).join('')}</div>
+      <div class="row-h">Eyes</div><div class="fopts">${Object.entries(Figure.EYES).map(([k, c]) => sw('eyes', k, c)).join('')}</div>
+      <div class="row-h">Expression</div><div class="fopts">${btn('mood', 'calm', '😐 Calm')}${btn('mood', 'kind', '🙂 Kind')}${btn('mood', 'fierce', '😠 Fierce')}</div>
+      <p class="tiny muted">Your nation is set in Edit profile.</p>`;
+    if (figTab === 'Hair') pane = `<div class="row-h">Style</div><div class="fopts">${Object.entries(Figure.HAIRSTYLES).map(([k, h]) => `<button class="${on('hair', k)}" data-act="figSet" data-k="hair" data-v="${k}">${h.name}${price('hair', k)}</button>`).join('')}</div>
+      <div class="row-h">Color</div><div class="fopts">${Object.entries(Figure.HAIR).map(([k, c]) => sw('hairColor', k, c)).join('')}</div>
+      ${me.nation === 'air' ? `<p class="tiny muted">🌀 ${lvl >= 5 ? 'You’re an Airbending Master: your arrows show on bare skin.' : `Your arrow markings unlock at level 5 (you’re level ${lvl}).`}</p>` : ''}`;
+    if (figTab === 'Outfit') {
+      const card = ([k, o]) => `<button class="fcard ${on('outfit', k)}" data-act="figSet" data-k="outfit" data-v="${k}">${Figure.svg(Object.assign({}, cfg, { outfit: k }))}<b>${o.name}</b>${price('outfit', k)}</button>`;
+      const all = Object.entries(Figure.OUTFITS);
+      pane = `<div class="fcards">${all.filter(([, o]) => o.n === me.nation).map(card).join('')}</div><div class="row-h">Other nations</div><div class="fcards">${all.filter(([, o]) => o.n !== me.nation).map(card).join('')}</div>`;
+    }
+    if (figTab === 'Extras') pane = `<div class="row-h">Accessory</div><div class="fopts">${Object.entries(Figure.ACCESSORIES).map(([k, a]) => `<button class="${on('acc', k)}" data-act="figSet" data-k="acc" data-v="${k}">${a.name}${price('acc', k)}</button>`).join('')}</div>
+      ${amAvatar() ? `<label class="toggle-row"><input type="checkbox" ${figAv ? 'checked' : ''} data-act="figAv"> Preview Avatar State</label>` : ''}`;
+    const tabs = ['Body', 'Hair', 'Outfit', 'Extras'].map((t) => `<button class="${figTab === t ? 'on' : ''}" data-act="figTab" data-k="${t}">${t}</button>`).join('');
+    const sc = document.querySelector('.screen'), y = sc && document.getElementById('fig-pane') ? sc.scrollTop : 0;
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Character</h2><button class="gp-pill" data-act="go" data-to="store">${gpFmt(me.gp)}</button></div>
+      <div class="screen"><div class="fig-hero"><div class="fig-big">${Figure.svg(cfg, { avatarState: figAv })}</div><div class="fig-pt">${Figure.svg(cfg, { portrait: true, avatarState: figAv })}<small>seat icon</small></div></div>
+      <div class="store-tabs fig-tabs">${tabs}</div><div id="fig-pane">${pane}</div></div>`;
+    if (y) document.querySelector('.screen').scrollTop = y;
+  };
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
     ensureMe();
@@ -559,7 +598,7 @@
       body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
-      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}</div>${body}
+      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
       <div class="note">Earn gold: computer games pay a little (more on Hard), online games pay a lot — even a loss earns some. Completing a ring adds a bonus.</div></div>`;
   };
 
@@ -807,7 +846,7 @@
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, rules: 'key' },
-      host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
+      host: { pid: myPid(), name: myName(), avatar: myAvatar(), fig: myFig(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase') doc.uids = [FB.uid];
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
@@ -841,7 +880,7 @@
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
-    const guest = { pid, name: myName(), avatar: myAvatar(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
+    const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
@@ -885,7 +924,9 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17a', items: [
+  const NEWS = { v: '2026-11-17b', items: [
+    ['🧍', 'Characters', 'Build your own character: body, skin, eyes, hair and outfits. Unlock more clothes, hairstyles and accessories in the store. It shows on your profile and in your game seat.'],
+    ['🌀', 'Airbending Masters', 'Air Nomads earn their arrow markings at level 5. Avatars glow in Avatar State.'],
     ['⚙️', 'New Metalbending', 'Your whole turn: swap two tiles, or move/smash up to two. Steals gold from your opponent.'],
     ['🪽', 'New Flight', 'Watch your opponent’s turn live and blow one of their tiles across the board with a Gust.'],
     ['✨', 'Avatar State', 'The Avatar can undo any sub-bending used on them for 300 gp.'],
@@ -1060,7 +1101,7 @@
       if (statsTab === 'ach') { body.innerHTML = tabs + achBody(); return; }
       body.innerHTML = tabs;
     }
-    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}${styleCard(me)}${boardsCard(me)}
+    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${figStage(meCard(), true)}${lvlBar(me.xp || 0)}${styleCard(me)}${boardsCard(me)}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -1078,8 +1119,8 @@
     const S = setup;
     Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma, hints: S.hints, bending: S.bending, subPractice: S.subPractice });
     let meFirst = S.first === 'me' || (S.first === 'rand' && Math.random() < 0.5);
-    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
-    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, kind: 'human' };
+    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), fig: myFig(), kind: 'human' };
+    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, fig: S.p2.prof ? Figure.of(S.p2.prof, Eco.level(S.p2.prof.xp || 0)) : null, kind: 'human' };
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
@@ -1093,7 +1134,7 @@
     const s = P.newGame({});
     TUT.tiles.forEach(([i, type, owner, id]) => { s.board[i] = { top: { id, owner, type }, under: null }; s.hands[owner][type]--; });
     s.nextId = 200;
-    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
+    const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), fig: myFig(), kind: 'human' };
     G = { mode: 'ai', tutorial: { step: 'intro', n: 0 }, s, seats: [human, { name: 'Pai Sho Coach', kind: 'ai', level: 'easy' }], my: 0, history: [], sel: null, showH: true, opts: { timer: 0 }, recorded: true };
     gameScreen();
   }
@@ -1138,7 +1179,7 @@
     if (lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; }
     const pid = myPid();
     const my = d.guest && d.guest.pid === pid ? 0 : 1;
-    const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, kind: my === 1 ? 'human' : 'remote' }];
+    const seats = [{ name: d.guest.name, pid: d.guest.pid, avatar: d.guest.avatar, fig: d.guest.fig || null, kind: my === 0 ? 'human' : 'remote' }, { name: d.host.name, pid: d.host.pid, avatar: d.host.avatar, fig: d.host.fig || null, kind: my === 1 ? 'human' : 'remote' }];
     if (Store.p2p()) P2P.resume(d.id || d.code, my === 1);
     G = { mode: 'online', code: d.id || d.code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats, my, history: [], sel: null, showH: true, opts: { timer: d.opts.timer, enigma: d.opts.enigma, chance: d.opts.chance }, recorded: false };
     G.chat = d.chat ? Object.keys(d.chat).map((id) => ({ id, seat: d.chat[id].seat, text: String(d.chat[id].text || '').slice(0, 140), t: d.chat[id].t })).sort((a, b) => a.t - b.t) : []; G.chatReady = false;
@@ -1435,10 +1476,11 @@
     const U = usual && Eco.STYLES[usual], txt = !usual ? C.name : usual === cur ? C.name + ' ✓' : `${C.name} · usually ${U.icon}`;
     return `<span class="sty-blip" style="--c:${C.color}" title="${esc(usual && usual !== cur ? `${STY_ADJ[cur]} than usual — ` : '')}${esc(C.name + ': ' + C.desc)}">${C.icon} ${txt}</span>`;
   }
+  function avGlow(k) { const s = G.s, lb = s.lastBend; return !!((lb && lb.sub === 'avatarState' && lb.p === k && s.turnNo - lb.t <= 2) || (s.avCounter && s.avCounter.target === k)); }
   function renderSeats() {
     const H = P.harmonies(G.s);
     const el = document.getElementById('seats'); if (!el) return;
-    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"${G.seats[k].pid && !String(G.seats[k].pid).startsWith('g-') ? ` data-act="viewPlayer" data-pid="${esc(G.seats[k].pid)}"` : ''}>${G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
+    el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"${G.seats[k].pid && !String(G.seats[k].pid).startsWith('g-') ? ` data-act="viewPlayer" data-pid="${esc(G.seats[k].pid)}"` : ''}>${G.seats[k].fig ? `<span class="disc fig-disc ${avGlow(k) ? 'glow' : ''}" style="position:relative">${Figure.svg(G.seats[k].fig, { portrait: true, avatarState: avGlow(k) })}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
       <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span>${liveStyle(k)}</div>
       <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
   }
@@ -2110,7 +2152,8 @@
       if (!me) return sheet(`<h3>Guest</h3><p class="muted">Guests don’t get stats.</p><div class="menu"><button class="btn" data-act="editProfile">Change display name</button><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`);
       const bio = await Auth.bioAvailable();
       sheet(`<div style="margin-bottom:12px">${Avatars.card(meCard(), esc, { big: true, code: Soc().code ? Soc().code : '' })}</div><div class="menu">
-        <button class="btn primary" data-act="editProfile">Edit profile</button>
+        <button class="btn primary" data-act="go" data-to="character">🧍 Edit character</button>
+        <button class="btn" data-act="editProfile">Edit profile</button>
         ${Store.kind === 'firebase' ? `<button class="btn" data-act="alertsToggle">${TurnAlerts.enabled() ? '🔔 Turn alerts are on · run a test' : '🔔 Turn on turn alerts'}</button>` : ''}
         <button class="btn" data-act="go" data-to="stats">Stats</button>
         ${bio ? `<button class="btn" data-act="bioToggle">${me.cred ? 'Turn off biometric unlock' : 'Turn on biometric unlock'}</button>` : '<div class="tiny muted">Biometric unlock isn’t available in this browser — your PIN works everywhere.</div>'}
@@ -2327,6 +2370,17 @@
     loFx: (d) => { const L = getLoadouts(); const arr = L.list[loTab].fx; const i = arr.indexOf(d.t); if (i >= 0) arr.splice(i, 1); else if (arr.length < 6) arr.push(d.t); else return toast('Up to 6 effect tiles'); saveLoadouts(L.list, L.active); const y = window.scrollY; screens.loadouts(); window.scrollTo(0, y); },
     loPreset: (d) => { const L = getLoadouts(); const owned = P.EFFECT_TYPES.filter((t) => Eco.ownsTile(me, t)); L.list[loTab].fx = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL).filter((t) => owned.includes(t)) : owned.sort(() => Math.random() - 0.5).slice(0, 6); saveLoadouts(L.list, L.active); screens.loadouts(); },
     useLoadout: (d) => { setup.fx[0] = getLoadouts().list[+d.i].fx.slice(); rerenderSetup(); },
+    figTab: (d) => { figTab = d.k; screens.character(); },
+    figAv: (d, e, el) => { figAv = el.checked; screens.character(); },
+    figSet: async (d) => {
+      if (!me || !me.fig) return;
+      const kind = d.k === 'outfit' ? 'outfit' : d.k === 'hair' ? 'hair' : d.k === 'acc' ? 'acc' : null;
+      if (kind && !Figure.owns(me, kind, d.v)) {
+        const pr = Figure.priceOf(kind, d.v, me.nation), nm = kind === 'outfit' ? Figure.OUTFITS[d.v].name : kind === 'hair' ? Figure.HAIRSTYLES[d.v].name + ' hair' : Figure.ACCESSORIES[d.v].name;
+        if (!(await buy('fig', kind + ':' + d.v, pr, nm))) return;
+      }
+      me.fig[d.k] = d.v; saveMe(); screens.character();
+    },
     infoTab: (d) => { G.infoTab = d.k; G.infoPinned = true; renderInfo(null); },
     showSug: () => {
       if (!G || !G.ana || !G.ana.sug || G.ana.s !== G.s) return;
