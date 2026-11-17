@@ -380,3 +380,10 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .info-body .info-txt{flex:1;min-width:0}
 .info-row{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0}
 .info-body .btn{position:sticky;top:30px}
+
+/* bend bar: one row, side-scrolls; never overlapped by the info box */
+.bendbar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;position:relative;z-index:2}
+.info-swap{float:right;position:sticky;top:0;z-index:1;margin:0 0 4px 8px;padding:3px 10px;border-radius:99px;border:1px solid var(--gold);background:var(--panel2);color:var(--gold2);font-size:12px;white-space:nowrap}
+.info-body{display:block}
+.info-body .info-row{display:flex}
+.info-body .btn{position:static;float:right;margin:4px 0 0 8px}

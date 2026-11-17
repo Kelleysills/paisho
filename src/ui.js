@@ -1543,7 +1543,7 @@
     else if (hints) {
       const a = G.ana && G.ana.s === G.s ? G.ana : null, opp = esc(G.seats[1 - G.s.turn].name);
       const sg = a && a.sug ? `<br>🧭 <b>Try:</b> ${sugText(a.sug)}` : '';
-      if (a && a.sug) show = `<button class="btn small" data-act="showSug" style="flex:none;padding:6px 10px">Show</button>`;
+      if (a && a.sug) show = `<button class="info-swap" data-act="showSug">👁 Show</button>`;
       if (G.sel && G.sel.kind === 'tile') sug = `💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring` + sg;
       else if (a && a.win) sug = `⭐ <b>You can close a ring this turn!</b>${sg}`;
       else if (a && a.danger) sug = `⚠️ <b>${opp} is one move from a ring</b> — block it.${sg}`;
@@ -1562,8 +1562,9 @@
     const has = { sug: !!sug, desc: !!desc };
     let tab = G && G.infoTab && has[G.infoTab] ? G.infoTab : has.sug ? 'sug' : has.desc ? 'desc' : null;
     if (G) G.infoTab = tab;
-    const toggle = has.sug && has.desc ? `<div class="info-tabs"><button class="${tab === 'desc' ? 'on' : ''}" data-act="infoTab" data-k="desc">📖 Tile</button><button class="${tab === 'sug' ? 'on' : ''}" data-act="infoTab" data-k="sug">🧭 Move</button></div>` : '';
-    const body = tab === 'sug' ? `<span class="info-txt">${sug}</span>${show}` : tab === 'desc' ? `<span class="info-row">${desc}</span>` : `<span class="info-txt">Tap any tile for its rules. Gold lines are harmonies.</span>`;
+    const other = tab === 'sug' ? 'desc' : 'sug';
+    const toggle = has.sug && has.desc ? `<button class="info-swap" data-act="infoTab" data-k="${other}">${other === 'sug' ? '🧭 Suggested move' : '📖 Tile info'} ⇄</button>` : '';
+    const body = tab === 'sug' ? `${show}<span class="info-txt">${sug}</span>` : tab === 'desc' ? `<span class="info-row">${desc}</span>` : `<span class="info-txt">Tap any tile for its rules. Gold lines are harmonies.</span>`;
     el.innerHTML = `${toggle}<div class="info-body">${body}</div>`;
     el.scrollTop = 0;
   }
