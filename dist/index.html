@@ -4933,6 +4933,8 @@ const Guide = (() => {
       iOwn = G.my === owner;
     } else if (hostBoard === 'blackout') owner = 'me';
     if (owner === null) return { theme: hostBoard, blackout: false };
+    // Spirit Walkers have infinite wisdom: Seismic Sense can't darken their board
+    if (!iOwn && me && Eco.ownsBoard(me, 'spiritWalker')) return { theme: 'blackoutOwner', blackout: false, walker: true };
     if (!elemental) return { theme: iOwn ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
     // Elemental: the owner plays on their seismic board (lighter view) while the opponent plays in the dark
     return { theme: G.mode === 'online' ? (iOwn ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iOwn : 'local' };
@@ -4953,6 +4955,7 @@ const Guide = (() => {
   }
   function gameScreen() {
     G.boardInfo = gameBoardInfo();
+    if (G.boardInfo.walker && !G.walkerToast) { G.walkerToast = 1; setTimeout(() => toast('🌈 Spirit Walker: Seismic Sense has no power over you.', 3500), 800); }
     app.innerHTML = `<div class="game">
       <header class="g-top" id="seats"></header>
       <div class="board-wrap"><button class="emote-btn" data-act="emotePicker" aria-label="Emotes">😊</button><button class="emote-btn chat-btn" id="chat-btn" data-act="chatOpen" aria-label="Chat">💬</button><button class="emote-btn bend-btn" id="bend-btn" data-act="bendMenu" aria-label="Bending" style="display:none"></button><svg id="board" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(G.boardInfo.theme)}<g id="l-hl"></g><g id="l-harm"></g><g id="l-tiles"></g><g id="l-dest"></g></svg></div>
