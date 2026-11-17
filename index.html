@@ -1678,7 +1678,8 @@ const Eco = (() => {
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
-    spirit: { name: 'Spirit World', price: null, unlock: 'spirit', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
+    spiritWalker: { name: 'Spirit Walker', price: null, unlock: 'walker', exclusive: true, desc: 'Pure spirit energy. Only for an Avatar who became a past life, and it costs every coin you have.', wood: ['#cdeeff', '#9fd6f7'], light: '#ffffff', dark: '#000000', rim: '#f2fbff', gate: '#10131d', gateEdge: '#ffffff', bg: '#05060c', grid: '#ffffff', gridOp: 0.5, lines: '#ffffff', spectral: true },
+    spirit: { name: 'Spirit World', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
     blackoutOwner: { name: 'Blackout (owner view)', hidden: true, price: null, unlock: 'melon100', wood: ['#141414', '#111111'], light: '#242424', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
     glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
@@ -3117,16 +3118,28 @@ const Board = (() => {
       o += `<polygon points="0,0 0,-9 9,0" fill="none" stroke="#bbb" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.25 0.2"/><polygon points="0,0 0,9 -9,0" fill="none" stroke="#bbb" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.25 0.2"/>`;
       for (let r = 1; r <= 9; r += 2) o += `<circle r="${r}" fill="none" stroke="#fff" stroke-opacity="${0.05 + 0.02 * r}" stroke-width="0.03"/>`;
     }
+    if (T.spectral) {
+      // Spirit Walker: lines glow with a soft, pulsing smudge of the whole spectrum
+      const RB = 'rb' + n, SG = 'sg' + n;
+      o += `<defs><linearGradient id="${RB}" gradientUnits="userSpaceOnUse" x1="-9" y1="-9" x2="9" y2="9" spreadMethod="reflect"><stop offset="0" stop-color="#ff5f6d"/><stop offset=".17" stop-color="#ffc371"/><stop offset=".34" stop-color="#f9f871"/><stop offset=".5" stop-color="#7cf7a0"/><stop offset=".67" stop-color="#5ee7ff"/><stop offset=".84" stop-color="#8f7bff"/><stop offset="1" stop-color="#ff7ae6"/><animateTransform attributeName="gradientTransform" type="translate" values="0 0;18 18;0 0" dur="9s" repeatCount="indefinite"/></linearGradient>
+        <filter id="${SG}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.09" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+      o += `<g filter="url(#${SG})" stroke="url(#${RB})" stroke-linecap="round"><animate attributeName="opacity" values=".55;1;.55" dur="3.2s" repeatCount="indefinite"/>`;
+      for (let k = -9; k <= 9; k++) o += `<line x1="${k}" y1="-9.5" x2="${k}" y2="9.5" stroke-width="0.04" stroke-opacity=".45"/><line y1="${k}" x1="-9.5" y2="${k}" x2="9.5" stroke-width="0.04" stroke-opacity=".45"/>`;
+      o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke-width="0.07"/><line x1="9" y1="-9" x2="-9" y2="9" stroke-width="0.07"/><polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke-width="0.12"/>`;
+      for (let r = 2; r <= 8; r += 3) o += `<circle r="${r}" fill="none" stroke-width="0.04" stroke-opacity=".6"/>`;
+      o += `</g>`;
+    } else
     for (let k = -9; k <= 9; k++) o += `<line x1="${k}" y1="-9.5" x2="${k}" y2="9.5" stroke="${GC}" stroke-opacity="${GO}" stroke-width="0.035"/><line y1="${k}" x1="-9.5" y2="${k}" x2="9.5" stroke="${GC}" stroke-opacity="${GO}" stroke-width="0.035"/>`;
-    o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/><line x1="9" y1="-9" x2="-9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/>`;
-    o += `<polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke="${LC}" stroke-opacity=".55" stroke-width="0.07"/>`;
+    if (!T.spectral) o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/><line x1="9" y1="-9" x2="-9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/>`;
+    if (!T.spectral) o += `<polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke="${LC}" stroke-opacity=".55" stroke-width="0.07"/>`;
     // gates
     GATE_POS.forEach(([x, y], g) => {
       o += `<rect x="${x - 1}" y="${y - 1}" width="2" height="2" fill="${T.gate}" stroke="${T.gateEdge}" stroke-width="0.08" rx="0.15"/>`;
       o += `<circle cx="${x}" cy="${y}" r="0.7" fill="none" stroke="${T.gateEdge}" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.2 0.15"/>`;
     });
-    o += `</g><circle r="9" fill="none" stroke="${T.lightHatch ? '#fff' : '#2a1a10'}" stroke-width="0.1"/>`;
-    o += `<circle r="0.09" fill="${T.lightHatch ? '#fff' : '#2a1a10'}"/>`;
+    o += `</g><circle r="9" fill="none" stroke="${T.lightHatch || T.spectral ? '#fff' : '#2a1a10'}" stroke-width="0.1"/>`;
+    o += `<circle r="0.09" fill="${T.lightHatch ? '#fff' : T.spectral ? '#7cf7a0' : '#2a1a10'}"/>`;
+    if (T.spectral) o += `<defs><filter id="swHarm" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="0.12" flood-color="#ffd24a" flood-opacity="1"/><feDropShadow dx="0" dy="0" stdDeviation="0.3" flood-color="#ffb300" flood-opacity=".8"/></filter></defs>`;
     return o;
   }
   return { base, cx, cy, GATE_POS };
@@ -4194,7 +4207,7 @@ const Guide = (() => {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([k, b]) => !b.hidden && (!b.exclusive || me.pastLife || Eco.ownsBoard(me, k))).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Opponents play in the dark in Elemental games you host'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
@@ -4525,7 +4538,8 @@ const Guide = (() => {
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17d', items: [
+  const NEWS = { v: '2026-11-17e', items: [
+    ['🌈', 'Host’s board', 'In online games, both players now play on the host’s board. Show it off.'],
     ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
     ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
     ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
@@ -4557,7 +4571,7 @@ const Guide = (() => {
       <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
   }
   function boardsCard(p) {
-    const all = Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden);
+    const all = Object.entries(Eco.BOARDS).filter(([k, b]) => !b.hidden && (!b.exclusive || p.pastLife || Eco.ownsBoard(p, k)));
     const own = all.filter(([k]) => Eco.ownsBoard(p, k)), special = all.filter(([, b]) => b.unlock);
     const sw = (k, b, locked) => `<div class="bd-sw ${locked ? 'locked' : ''} ${b.unlock ? 'ach' : ''}" title="${esc(b.name)}"><svg viewBox="-10 -10 20 20" width="44" height="44"><circle r="9.5" fill="${b.bg}" stroke="${b.rim}" stroke-width="0.8"/><circle r="8.5" fill="${b.wood[0]}"/><polygon points="0,0 0,-8.5 -8.5,0" fill="${b.light}"/><polygon points="0,0 0,8.5 8.5,0" fill="${b.light}"/><polygon points="0,0 0,-8.5 8.5,0" fill="${b.dark}"/><polygon points="0,0 0,8.5 -8.5,0" fill="${b.dark}"/>${b.lightHatch ? '<circle r="5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/><circle r="2.5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/>' : ''}</svg><span>${locked ? '🔒 ' : b.unlock ? '🏆 ' : ''}${esc(b.name)}</span></div>`;
     const ach = special.map(([k, b]) => { const got = Eco.ownsBoard(p, k); const prog = b.unlock === 'melon100' ? ` · 🍈 ${Math.min(100, p.melonUses || 0)}/100 Melon Lords` : b.unlock === 'spirit' ? ' · Enter the Spirit Realm after your final reincarnation. Your harmonies need two blockers to break.' : ''; return `<div class="trow" style="align-items:center${got ? '' : ';opacity:.7'}">${sw(k, b, !got)}<div><b>${esc(b.name)}</b><br><span class="tiny">${got ? 'Unlocked! ✓' : 'Locked'}${prog}</span></div></div>`; }).join('');
@@ -4883,7 +4897,7 @@ const Guide = (() => {
     const elemental = !!G.s.bend;
     let hostBoard = myBoard(), iAmHost = true;
     if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
-    if (hostBoard !== 'blackout') return { theme: G.mode === 'online' ? myBoard() : hostBoard, blackout: false };
+    if (hostBoard !== 'blackout') return { theme: hostBoard, blackout: false };
     if (!elemental) return { theme: iAmHost ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
     // Elemental: the owner plays on their seismic board (lighter view) while the opponent plays in the dark
     return { theme: G.mode === 'online' ? (iAmHost ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iAmHost : 'local' };
@@ -5008,7 +5022,7 @@ const Guide = (() => {
       const H = P.harmonies(s);
       H.forEach(({ a, b, owners }) => {
         const col = owners.length > 1 ? '#ffffff' : owners[0] === 0 ? 'var(--p0)' : 'var(--p1)';
-        hh += `<line class="harm" x1="${Board.cx(a)}" y1="${Board.cy(a)}" x2="${Board.cx(b)}" y2="${Board.cy(b)}" stroke="${col}" ${owners.length > 1 ? 'stroke-dasharray="0.3 0.2"' : ''}/>`;
+        hh += `<line class="harm" ${G.boardInfo && (Eco.BOARDS[G.boardInfo.theme] || {}).spectral ? 'filter="url(#swHarm)"' : ''} x1="${Board.cx(a)}" y1="${Board.cy(a)}" x2="${Board.cx(b)}" y2="${Board.cy(b)}" stroke="${col}" ${owners.length > 1 ? 'stroke-dasharray="0.3 0.2"' : ''}/>`;
       });
       if (s.winRing) hh += `<polygon class="ring" points="${s.winRing.map((i) => Board.cx(i) + ',' + Board.cy(i)).join(' ')}"/>`;
     }
@@ -6025,6 +6039,16 @@ const Guide = (() => {
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
     reincarnate: () => reincarnate(),
+    buyWalker: async () => {
+      if (!me || !me.pastLife) return toast('Only an Avatar who became a past life can walk this path');
+      if (Eco.ownsBoard(me, 'spiritWalker')) return;
+      await syncCounters();
+      const all = me.gp || 0;
+      const ok = await choose('Become a Spirit Walker?', [{ label: `🪙 Give up all ${gpFmt(all)}`, value: true, cls: 'primary' }], `To prove you’re in tune with the Spirit Realm, you give up every worldly thing: all of your gold (${gpFmt(all)}), no more and no less. You keep the Spirit Walker board forever.`);
+      if (!ok) return;
+      ensureMe(); me.gp = 0; me.owned.boards = [...new Set(me.owned.boards.concat(['spiritWalker']))]; me.board = 'spiritWalker';
+      await saveMe(); toast('🌈 You are a Spirit Walker.', 4000); screens.store();
+    },
     spectate: (d) => spectate(d.code),
     spiritHint: () => spiritHint(),
     spiritEl: (d) => {

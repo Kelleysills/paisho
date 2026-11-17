@@ -23,16 +23,28 @@ const Board = (() => {
       o += `<polygon points="0,0 0,-9 9,0" fill="none" stroke="#bbb" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.25 0.2"/><polygon points="0,0 0,9 -9,0" fill="none" stroke="#bbb" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.25 0.2"/>`;
       for (let r = 1; r <= 9; r += 2) o += `<circle r="${r}" fill="none" stroke="#fff" stroke-opacity="${0.05 + 0.02 * r}" stroke-width="0.03"/>`;
     }
+    if (T.spectral) {
+      // Spirit Walker: lines glow with a soft, pulsing smudge of the whole spectrum
+      const RB = 'rb' + n, SG = 'sg' + n;
+      o += `<defs><linearGradient id="${RB}" gradientUnits="userSpaceOnUse" x1="-9" y1="-9" x2="9" y2="9" spreadMethod="reflect"><stop offset="0" stop-color="#ff5f6d"/><stop offset=".17" stop-color="#ffc371"/><stop offset=".34" stop-color="#f9f871"/><stop offset=".5" stop-color="#7cf7a0"/><stop offset=".67" stop-color="#5ee7ff"/><stop offset=".84" stop-color="#8f7bff"/><stop offset="1" stop-color="#ff7ae6"/><animateTransform attributeName="gradientTransform" type="translate" values="0 0;18 18;0 0" dur="9s" repeatCount="indefinite"/></linearGradient>
+        <filter id="${SG}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.09" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+      o += `<g filter="url(#${SG})" stroke="url(#${RB})" stroke-linecap="round"><animate attributeName="opacity" values=".55;1;.55" dur="3.2s" repeatCount="indefinite"/>`;
+      for (let k = -9; k <= 9; k++) o += `<line x1="${k}" y1="-9.5" x2="${k}" y2="9.5" stroke-width="0.04" stroke-opacity=".45"/><line y1="${k}" x1="-9.5" y2="${k}" x2="9.5" stroke-width="0.04" stroke-opacity=".45"/>`;
+      o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke-width="0.07"/><line x1="9" y1="-9" x2="-9" y2="9" stroke-width="0.07"/><polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke-width="0.12"/>`;
+      for (let r = 2; r <= 8; r += 3) o += `<circle r="${r}" fill="none" stroke-width="0.04" stroke-opacity=".6"/>`;
+      o += `</g>`;
+    } else
     for (let k = -9; k <= 9; k++) o += `<line x1="${k}" y1="-9.5" x2="${k}" y2="9.5" stroke="${GC}" stroke-opacity="${GO}" stroke-width="0.035"/><line y1="${k}" x1="-9.5" y2="${k}" x2="9.5" stroke="${GC}" stroke-opacity="${GO}" stroke-width="0.035"/>`;
-    o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/><line x1="9" y1="-9" x2="-9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/>`;
-    o += `<polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke="${LC}" stroke-opacity=".55" stroke-width="0.07"/>`;
+    if (!T.spectral) o += `<line x1="-9" y1="-9" x2="9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/><line x1="9" y1="-9" x2="-9" y2="9" stroke="${LC}" stroke-opacity=".25" stroke-width="0.04"/>`;
+    if (!T.spectral) o += `<polygon points="0,-9 9,0 0,9 -9,0" fill="none" stroke="${LC}" stroke-opacity=".55" stroke-width="0.07"/>`;
     // gates
     GATE_POS.forEach(([x, y], g) => {
       o += `<rect x="${x - 1}" y="${y - 1}" width="2" height="2" fill="${T.gate}" stroke="${T.gateEdge}" stroke-width="0.08" rx="0.15"/>`;
       o += `<circle cx="${x}" cy="${y}" r="0.7" fill="none" stroke="${T.gateEdge}" stroke-opacity=".5" stroke-width="0.05" stroke-dasharray="0.2 0.15"/>`;
     });
-    o += `</g><circle r="9" fill="none" stroke="${T.lightHatch ? '#fff' : '#2a1a10'}" stroke-width="0.1"/>`;
-    o += `<circle r="0.09" fill="${T.lightHatch ? '#fff' : '#2a1a10'}"/>`;
+    o += `</g><circle r="9" fill="none" stroke="${T.lightHatch || T.spectral ? '#fff' : '#2a1a10'}" stroke-width="0.1"/>`;
+    o += `<circle r="0.09" fill="${T.lightHatch ? '#fff' : T.spectral ? '#7cf7a0' : '#2a1a10'}"/>`;
+    if (T.spectral) o += `<defs><filter id="swHarm" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="0.12" flood-color="#ffd24a" flood-opacity="1"/><feDropShadow dx="0" dy="0" stdDeviation="0.3" flood-color="#ffb300" flood-opacity=".8"/></filter></defs>`;
     return o;
   }
   return { base, cx, cy, GATE_POS };

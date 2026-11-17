@@ -943,7 +943,7 @@
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([k, b]) => !b.hidden && (!b.exclusive || me.pastLife || Eco.ownsBoard(me, k))).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Opponents play in the dark in Elemental games you host'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
@@ -1274,7 +1274,8 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17d', items: [
+  const NEWS = { v: '2026-11-17e', items: [
+    ['🌈', 'Host’s board', 'In online games, both players now play on the host’s board. Show it off.'],
     ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
     ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
     ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
@@ -1306,7 +1307,7 @@
       <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
   }
   function boardsCard(p) {
-    const all = Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden);
+    const all = Object.entries(Eco.BOARDS).filter(([k, b]) => !b.hidden && (!b.exclusive || p.pastLife || Eco.ownsBoard(p, k)));
     const own = all.filter(([k]) => Eco.ownsBoard(p, k)), special = all.filter(([, b]) => b.unlock);
     const sw = (k, b, locked) => `<div class="bd-sw ${locked ? 'locked' : ''} ${b.unlock ? 'ach' : ''}" title="${esc(b.name)}"><svg viewBox="-10 -10 20 20" width="44" height="44"><circle r="9.5" fill="${b.bg}" stroke="${b.rim}" stroke-width="0.8"/><circle r="8.5" fill="${b.wood[0]}"/><polygon points="0,0 0,-8.5 -8.5,0" fill="${b.light}"/><polygon points="0,0 0,8.5 8.5,0" fill="${b.light}"/><polygon points="0,0 0,-8.5 8.5,0" fill="${b.dark}"/><polygon points="0,0 0,8.5 -8.5,0" fill="${b.dark}"/>${b.lightHatch ? '<circle r="5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/><circle r="2.5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/>' : ''}</svg><span>${locked ? '🔒 ' : b.unlock ? '🏆 ' : ''}${esc(b.name)}</span></div>`;
     const ach = special.map(([k, b]) => { const got = Eco.ownsBoard(p, k); const prog = b.unlock === 'melon100' ? ` · 🍈 ${Math.min(100, p.melonUses || 0)}/100 Melon Lords` : b.unlock === 'spirit' ? ' · Enter the Spirit Realm after your final reincarnation. Your harmonies need two blockers to break.' : ''; return `<div class="trow" style="align-items:center${got ? '' : ';opacity:.7'}">${sw(k, b, !got)}<div><b>${esc(b.name)}</b><br><span class="tiny">${got ? 'Unlocked! ✓' : 'Locked'}${prog}</span></div></div>`; }).join('');
@@ -1632,7 +1633,7 @@
     const elemental = !!G.s.bend;
     let hostBoard = myBoard(), iAmHost = true;
     if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
-    if (hostBoard !== 'blackout') return { theme: G.mode === 'online' ? myBoard() : hostBoard, blackout: false };
+    if (hostBoard !== 'blackout') return { theme: hostBoard, blackout: false };
     if (!elemental) return { theme: iAmHost ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
     // Elemental: the owner plays on their seismic board (lighter view) while the opponent plays in the dark
     return { theme: G.mode === 'online' ? (iAmHost ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iAmHost : 'local' };
@@ -1757,7 +1758,7 @@
       const H = P.harmonies(s);
       H.forEach(({ a, b, owners }) => {
         const col = owners.length > 1 ? '#ffffff' : owners[0] === 0 ? 'var(--p0)' : 'var(--p1)';
-        hh += `<line class="harm" x1="${Board.cx(a)}" y1="${Board.cy(a)}" x2="${Board.cx(b)}" y2="${Board.cy(b)}" stroke="${col}" ${owners.length > 1 ? 'stroke-dasharray="0.3 0.2"' : ''}/>`;
+        hh += `<line class="harm" ${G.boardInfo && (Eco.BOARDS[G.boardInfo.theme] || {}).spectral ? 'filter="url(#swHarm)"' : ''} x1="${Board.cx(a)}" y1="${Board.cy(a)}" x2="${Board.cx(b)}" y2="${Board.cy(b)}" stroke="${col}" ${owners.length > 1 ? 'stroke-dasharray="0.3 0.2"' : ''}/>`;
       });
       if (s.winRing) hh += `<polygon class="ring" points="${s.winRing.map((i) => Board.cx(i) + ',' + Board.cy(i)).join(' ')}"/>`;
     }
@@ -2774,6 +2775,16 @@
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
     reincarnate: () => reincarnate(),
+    buyWalker: async () => {
+      if (!me || !me.pastLife) return toast('Only an Avatar who became a past life can walk this path');
+      if (Eco.ownsBoard(me, 'spiritWalker')) return;
+      await syncCounters();
+      const all = me.gp || 0;
+      const ok = await choose('Become a Spirit Walker?', [{ label: `🪙 Give up all ${gpFmt(all)}`, value: true, cls: 'primary' }], `To prove you’re in tune with the Spirit Realm, you give up every worldly thing: all of your gold (${gpFmt(all)}), no more and no less. You keep the Spirit Walker board forever.`);
+      if (!ok) return;
+      ensureMe(); me.gp = 0; me.owned.boards = [...new Set(me.owned.boards.concat(['spiritWalker']))]; me.board = 'spiritWalker';
+      await saveMe(); toast('🌈 You are a Spirit Walker.', 4000); screens.store();
+    },
     spectate: (d) => spectate(d.code),
     spiritHint: () => spiritHint(),
     spiritEl: (d) => {
