@@ -930,6 +930,30 @@
     await Store.patch('games', D.code, { status: 'done', winner: D.opp, quit: true, updated: Date.now() }).catch(() => {});
     duelFinish(D.opp, true);
   }
+  // animated board previews for the store (Seismic shows its darkness + pulses, Spirit Walker its glow)
+  function boardPreview(k) {
+    const T = Eco.BOARDS[k] || {}, n = Math.random().toString(36).slice(2, 7);
+    const pos = [[4, 6, 'rose', 0], [4, 11, 'jasmine', 0], [11, 12, 'lily', 1], [12, 5, 'jade', 1], [8, 14, 'chrysanthemum', 0]].map(([r, c, t, o]) => ({ x: c - 8.5, y: r - 8.5, t, o }));
+    let o = Board.base(k);
+    if (T.spectral || k === 'spiritWalker') o += `<line class="harm" filter="url(#swHarm)" x1="${pos[0].x}" y1="${pos[0].y}" x2="${pos[1].x}" y2="${pos[1].y}" stroke="var(--p0)"/>`;
+    else o += `<line class="harm" x1="${pos[0].x}" y1="${pos[0].y}" x2="${pos[1].x}" y2="${pos[1].y}" stroke="var(--p0)"/>`;
+    o += pos.map((p) => `<g transform="translate(${p.x},${p.y}) scale(0.9)">${Glyphs.tile(p.t, p.o)}</g>`).join('');
+    if (k === 'blackout' || k === 'blackoutOwner') {
+      // dark most of the time; every few seconds the board flashes back with a strong ripple, while faint "sense" ripples mark the tiles in the dark
+      const kt = 'keyTimes="0;0.62;0.68;0.9;0.96;1"';
+      o += `<circle r="9.5" fill="#000" opacity="1"><animate attributeName="opacity" values="1;1;0;0;1;1" ${kt} dur="6s" repeatCount="indefinite"/></circle>`;
+      o += pos.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="0.3" fill="none" stroke="#e8e8e8" stroke-width="0.06"><animate attributeName="r" values="0.3;1.8" dur="1.4s" begin="${(i * 0.37).toFixed(2)}s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.8;0" dur="1.4s" begin="${(i * 0.37).toFixed(2)}s" repeatCount="indefinite"/></circle>`).join('');
+      o += `<circle r="1" fill="none" stroke="#fff" stroke-width="0.12" opacity="0"><animate attributeName="r" values="1;1;12;12" keyTimes="0;0.62;0.8;1" dur="6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0;1;0;0" keyTimes="0;0.61;0.63;0.8;1" dur="6s" repeatCount="indefinite"/></circle>`;
+    }
+    return `<svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${o}</svg>`;
+  }
+  function boardPreviewSheet(k) {
+    const b = Eco.BOARDS[k]; if (!b) return;
+    const own = me && Eco.ownsBoard(me, k);
+    sheet(`<h3 style="text-align:center;margin-top:0">${esc(b.name)}</h3><div class="bprev-big">${boardPreview(k)}</div>
+      <p class="tiny muted" style="text-align:center">${k === 'blackout' ? 'Seismic Sense: in Elemental games you host, your opponent plays in the dark. They only feel faint tremors where tiles are, and the board flashes back every few seconds.' : b.desc ? esc(b.desc) : b.unlock ? '' : 'Board theme. In online games, everyone plays on the host’s board.'}</p>
+      <div class="menu">${own ? (me.board === k ? '<div class="tiny" style="text-align:center;color:#9fd18b">✓ In use</div>' : `<button class="btn primary" data-act="equipBoard" data-id="${k}">Use this board</button>`) : ''}<button class="btn" data-act="closeSheet">Close</button></div>`);
+  }
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
     ensureMe();
@@ -943,7 +967,7 @@
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Opponents play in the dark in Elemental games you host'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Opponents play in the dark in Elemental games you host'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
@@ -2775,6 +2799,7 @@
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
     reincarnate: () => reincarnate(),
+    boardPreview: (d) => boardPreviewSheet(d.id),
     buyWalker: async () => {
       if (!me || !me.pastLife) return toast('Only an Avatar who became a past life can walk this path');
       if (Eco.ownsBoard(me, 'spiritWalker')) return;

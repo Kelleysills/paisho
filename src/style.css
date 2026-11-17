@@ -473,3 +473,8 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .fighter.ulting .fig-in{filter:drop-shadow(0 0 14px var(--uc)) drop-shadow(0 0 6px var(--uc))}
 .fighter.frozen{filter:saturate(.3) drop-shadow(0 0 8px #c0182a)}
 .fig-stage.av{background:radial-gradient(circle at 50% 55%,#2b4a5a,#0f1a22 75%)}
+
+.bprev-btn{position:relative;padding:0;border:0;background:none;display:block;width:100%;cursor:pointer}
+.bprev-btn .board-thumb{display:block}
+.bprev-hint{position:absolute;right:2px;bottom:2px;font-size:10px;padding:2px 6px;border-radius:99px;background:#000a;color:#fff}
+.bprev-big svg{width:100%;max-width:340px;height:auto;display:block;margin:0 auto}
