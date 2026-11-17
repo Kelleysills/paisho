@@ -104,12 +104,14 @@ const PaiSho = (() => {
       (o.effects[p] || []).slice(0, 6).forEach((t) => { if (EFFECT_TYPES.includes(t)) h[t] = 1; });
       return h;
     });
-    return {
+    const st = {
       v: 1, board: new Array(N * N).fill(null), gates: [null, null, null, null], center: null,
       hands, turn: 0, turnNo: 1, nextId: 1, winner: null, winReason: '', removed: [],
       tp: freshTP(), opts: o, log: [], lastMove: null,
       bend: o.bending ? { used: [false, false], subs: [[], []], skip: [0, 0], flight: [false, false] } : null, rubble: null,
     };
+    if (o.seismic === 0 || o.seismic === 1) st.seismic = o.seismic;
+    return st;
   }
   function freshTP() { return { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false }; }
   const clone = (s) => JSON.parse(JSON.stringify(s));
@@ -461,6 +463,7 @@ const PaiSho = (() => {
       if (!s.bend) throw new Error('Elemental mode only');
       s.melon = s.melon || { used: [0, 0], blind: null, bonus: [false, false] };
       if (melonLeft(s, by) <= 0) throw new Error('No Melon Lords left');
+      if (s.seismic === 1 - by) throw new Error('Seismic sense');
       if (s.melon.blind !== null && s.melon.blind !== undefined) throw new Error('Already blinded');
       s.melon.used[by] = (+s.melon.used[by] || 0) + 1; s.melon.blind = 1 - by;
     } else if (a.t === 'forfeit') {

@@ -542,7 +542,7 @@
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes change how the board looks for you. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><svg class="board-thumb" viewBox="-9.7 -9.7 19.4 19.4">${Board.base(k)}</svg><div class="nm">${b.name}</div>${b.unlock ? '<div class="ds">Opponents play in the dark in Elemental games you host</div>' : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}</div>${body}
@@ -588,20 +588,22 @@
     a.by = bendSeat(); G.sel = null;
     // during the opponent's turn online: queue it; their phone applies it instantly
     if (G.mode === 'online' && !isHumanTurn()) {
-      try { P.apply(G.s, a); } catch (e) { toast('That bend isn’t possible'); renderBoard(); return; }
+      let s3; try { s3 = P.apply(G.s, a); } catch (e) { toast(a.t === 'melon' ? 'No Melon Lords left this match' : 'That bend isn’t possible'); renderBoard(); return false; }
+      if (a.t === 'melon') G.s = s3; // count it locally right away so it can't be spammed before their phone applies it
       const id = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await Store.patch('games', G.code, { bq: { [id]: a } }).catch(() => toast('Couldn’t send — check your connection'));
       if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1; G.trkB = (G.trkB || 0) + 1;
-      toast('Bending sent — it lands on their board now'); renderBoard(); return;
+      toast('Bending sent — it lands on their board now'); renderBoard(); return true;
     }
     let s2;
-    try { s2 = P.apply(G.s, a); } catch (e) { toast(e.message === 'No effect tile to give up' ? 'You need an effect tile to give up' : 'That bend isn’t possible'); renderBoard(); return; }
+    try { s2 = P.apply(G.s, a); } catch (e) { toast(e.message === 'No effect tile to give up' ? 'You need an effect tile to give up' : a.t === 'melon' ? 'No Melon Lords left this match' : 'That bend isn’t possible'); renderBoard(); return false; }
     track(G.s, s2, a, a.by); G.history.push(G.s); G.s = s2; if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
     if (a.t === 'bend') showFx(a.el); else if (a.t === 'melon') showFx('melon'); else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air' }[a.kind]);
     const lb = G.s.lastBend; if (lb && lb.paid) toast(`It cost you your ${P.tname(lb.paid)}`);
     if (G.mode === 'online') pushOnline();
     renderGame();
     if (a.t === 'sub' && a.kind === 'flight') analyse();
+    return true;
   }
   // the player whose turn it is applies bends the opponent queued
   function applyQueuedBends(nd) {
@@ -650,12 +652,19 @@
     else if (G.mode === 'local') showTextBubble(seat, text);
     // 🍈 the Melon Lord
     const s = G.s;
-    if (s.bend && MELON.test(text) && P.melonLeft(s, seat) > 0 && !(s.melon && s.melon.blind != null) && s.winner === null) {
+    if (s.bend && MELON.test(text) && s.winner === null) {
+      if (P.melonLeft(s, seat) <= 0 || (G.melonCalls || 0) >= P.MELON_MAX) return toast('No Melon Lords left this match');
+      if (s.melon && s.melon.blind != null) return toast('They’re already blinded — wait for their next turn');
+      if (s.seismic === 1 - seat) return toast('🪨 ' + G.seats[1 - seat].name + ' has seismic sense from the Blackout board. The Melon Lord can’t blind them!');
       const target = 1 - seat;
       if (G.seats[target].kind === 'ai') { s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] }; }
-      doBend({ t: 'melon' });
-      if (me) { me.melonUses = (me.melonUses || 0) + 1; saveMe(); if (me.melonUses === 100) setTimeout(checkAch, 1500); }
-      toast('🍈 MELON LORD! ' + G.seats[target].name + ' is blinded for their next move');
+      if ((G.melonCalls || 0) >= P.MELON_MAX) return toast('No Melon Lords left this match');
+      Promise.resolve(doBend({ t: 'melon' })).then((ok) => {
+        if (!ok || !G) return;
+        G.melonCalls = (G.melonCalls || 0) + 1;
+        if (me) { me.melonUses = (me.melonUses || 0) + 1; saveMe(); if (me.melonUses === 100) setTimeout(checkAch, 1500); }
+        toast('🍈 MELON LORD! ' + G.seats[target].name + ' is blinded for their next move');
+      });
     }
   }
 
@@ -815,7 +824,7 @@
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }] });
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -1044,7 +1053,7 @@
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
-    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe] });
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
@@ -1147,7 +1156,7 @@
     let hostBoard = myBoard(), iAmHost = true;
     if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
     if (hostBoard !== 'blackout') return { theme: G.mode === 'online' ? myBoard() : hostBoard, blackout: false };
-    if (!elemental) return { theme: 'blackout', blackout: false };
+    if (!elemental) return { theme: iAmHost ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
     return { theme: iAmHost && G.mode === 'online' ? 'classic' : G.mode === 'online' ? 'classic' : 'classic', blackout: G.mode === 'online' ? !iAmHost : 'local' };
   }
   function blackoutActive() {
@@ -1537,7 +1546,8 @@
     P.subAvailable(s, seat).forEach((k) => (o += `<button class="bb sub" data-act="subGo" data-k="${k}"><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>free · once</small></span></button>`));
     o += '<span class="bb-sep"></span>';
     els.forEach((el) => (o += `<button class="bb spam" data-act="spamGo" data-el="${el}"><span class="i">${Eco.BEND[el].icon}</span><small>${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</small></button>`));
-    if (P.melonLeft(s, seat) > 0) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord ×${P.melonLeft(s, seat)}</small></button>`;
+    const ml = s.seismic === 1 - seat ? 0 : Math.min(P.melonLeft(s, seat), P.MELON_MAX - (G.melonCalls || 0));
+    if (ml > 0) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord ×${ml}</small></button>`;
     o += `<button class="bb spam" data-act="bendMenu"><span class="i">ⓘ</span><small>Details</small></button>`;
     bar.style.display = 'flex'; bar.innerHTML = o;
   }
