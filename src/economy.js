@@ -180,10 +180,10 @@ const Eco = (() => {
   // ---- XP, sub-bending, achievements ----
   const SUB_LEVEL = 10, SUB_XP = (SUB_LEVEL - 1) * 500; // level(xp) = 1 + floor(xp/500) → Level 10 = 4,500 XP
   const SUBS = {
-    metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Swap any two tiles on the board.' },
+    metal: { name: 'Metalbending', el: 'earth', icon: '⚙️', desc: 'Your move for the turn: swap two tiles, or move/smash up to two. Steals gold from your opponent.' },
     lightning: { name: 'Lightning', el: 'fire', icon: '⚡', desc: 'Your opponent skips their next turn.' },
     blood: { name: 'Bloodbending', el: 'water', icon: '🩸', desc: 'Make your opponent’s next move for them.' },
-    flight: { name: 'Flight', el: 'air', icon: '🪽', desc: 'See their whole hand and their likely next move.' },
+    flight: { name: 'Flight', el: 'air', icon: '🪽', desc: 'See their hand, watch their next turn live, and blow one tile up to 7 squares with a gust.' },
   };
   const SUB_OF = { earth: 'metal', fire: 'lightning', water: 'blood', air: 'flight' };
   const BEND = {

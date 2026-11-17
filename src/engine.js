@@ -99,6 +99,7 @@ const PaiSho = (() => {
   function melonLeft(s, p) { const u = s.melon ? s.melon.used[p] : 0; return Math.max(0, MELON_MAX - (u === true ? 1 : +u || 0)); }
   function newGame(opts = {}) {
     const o = Object.assign({ minHarmonies: 4, effects: [[], []], chance: false, maxTurns: 400 }, opts);
+    if (o.subPractice) { o.bending = true; o.powers = [0, 1].map((p) => { const pw = (o.powers && o.powers[p]) || {}; return { nation: pw.nation || null, avatar: false, subs: pw.nation ? [SUB_OF[pw.nation]] : [] }; }); }
     const hands = [0, 1].map((p) => {
       const h = {}; KEY_TYPES.forEach((t) => (h[t] = 3));
       (o.effects[p] || []).slice(0, 6).forEach((t) => { if (EFFECT_TYPES.includes(t)) h[t] = 1; });
@@ -389,6 +390,10 @@ const PaiSho = (() => {
   }
   function apply(s0, a) {
     const s = clone(s0); const p = s.turn; const tp = s.tp;
+    if (s.avCounter && a.t !== 'avatarState') {
+      const actor = a.by != null ? a.by : s.turn;
+      if (actor === s.avCounter.target) { if (s.bend && s.bend.skip[actor] > 0 && s.turn === actor) throw new Error('Decide on the Avatar State first'); s.avCounter = null; }
+    }
     const desc = describe(s0, a);
     if (a.t === 'plant') {
       if (s.hands[p][a.type] <= 0) throw new Error('No tile');
@@ -458,6 +463,9 @@ const PaiSho = (() => {
       applyBend(s, a.by != null ? a.by : p, a);
     } else if (a.t === 'sub') {
       applySub(s, a.by != null ? a.by : p, a);
+      if (a.kind === 'metal') { if (desc) s.log.push({ p, turn: s.turnNo, text: desc }); return endTurn(s, ''); }
+    } else if (a.t === 'avatarState') {
+      applyAvatarState(s, a.by != null ? a.by : p, !!a.accept);
     } else if (a.t === 'melon') {
       const by = a.by != null ? a.by : p;
       if (!s.bend) throw new Error('Elemental mode only');
@@ -512,12 +520,13 @@ const PaiSho = (() => {
     s.turn = 1 - p; s.turnNo++;
     s.tp = freshTP();
     if (s.rubble) { for (const k of Object.keys(s.rubble)) { if (--s.rubble[k] <= 0) delete s.rubble[k]; } if (!Object.keys(s.rubble).length) s.rubble = null; }
-    if (s.winner === null && s.bend && s.bend.skip[s.turn] > 0) {
+    if (s.winner === null && s.bend && s.bend.skip[s.turn] > 0 && !(s.avCounter && s.avCounter.target === s.turn)) {
       s.bend.skip[s.turn]--;
       s.log.push({ p: s.turn, turn: s.turnNo, text: 'is stunned and skips a turn' });
       s.turn = 1 - s.turn; s.turnNo++;
     }
     if (s.center && s.center.owner === s.turn) s.tp.mustLotus = true;
+    if (s.bend) [0, 1].forEach((q) => { const f = s.bend.flight[q]; if (f && f !== true && s.turnNo > f.until) s.bend.flight[q] = false; });
     return s;
   }
 
@@ -573,10 +582,17 @@ const PaiSho = (() => {
     s.lastMove = { to: a.el === 'air' ? a.to : a.target };
     s.lastBend = { p, el: a.el, at: a.el === 'air' ? a.to : a.target, paid, t: s.turnNo };
   }
+  const PRACTICE_USES = 3, PRACTICE_COOLDOWN = 4; // 3 uses, wait 2 of your own turns between them
   function subAvailable(s, p) {
     if (!s.bend || s.winner !== null) return [];
     const pw = powersOf(s, p), used = s.bend.subs[p];
     if (!pw.subs || !pw.subs.length) return [];
+    if (s.opts.subPractice) {
+      if (used.length >= PRACTICE_USES) return [];
+      const last = (s.bend.subT || [])[p];
+      if (last != null && s.turnNo - last < PRACTICE_COOLDOWN) return [];
+      return pw.subs.slice(0, 1);
+    }
     const limit = pw.avatar ? 2 : 1;
     if (used.length >= limit) return [];
     return pw.subs.filter((k) => !used.includes(k));
@@ -589,28 +605,134 @@ const PaiSho = (() => {
     const tiles = []; for (let i = 0; i < N * N; i++) if (s.board[i] && !protectedByBadger(s, i)) tiles.push(i);
     return tiles;
   }
+  const REACH = 7;
+  // Metalbending lifts a tile up to 7 squares in any of 8 directions (over other tiles) onto an empty square
+  function metalMoveDests(s, i) {
+    if (!s.board[i] || protectedByBadger(s, i)) return [];
+    const out = [];
+    for (const [dr, dc] of ALL8) { let j = i; for (let k = 0; k < REACH; k++) { j = step(j, dr, dc); if (j < 0 || !onBoard[j]) break; if (isGateSq(s, j) || s.board[j]) continue; out.push(j); } }
+    return out;
+  }
+  // A gust pushes a tile up to 7 squares in a straight line until something is in the way
+  function gustDests(s, i) {
+    if (!s.board[i] || protectedByBadger(s, i)) return [];
+    const out = [];
+    for (const [dr, dc] of ALL8) { let j = i; for (let k = 0; k < REACH; k++) { j = step(j, dr, dc); if (j < 0 || !onBoard[j] || isGateSq(s, j) || s.board[j]) break; out.push(j); } }
+    return out;
+  }
+  // flowers knocked into the wrong garden are lost by their owner
+  function purgeWrong(s, squares) {
+    const lost = [];
+    for (const i of squares) { const c = s.board[i]; if (c && isKey(c.top.type) && !colorOK(s, c.top, i)) { lost.push(c.top); s.removed.push(c.top); s.board[i] = c.under ? { top: c.under, under: null } : null; } }
+    return lost;
+  }
+  const flightOn = (s, p) => !!(s.bend && s.bend.flight[p] && (s.bend.flight[p] === true || s.turnNo <= s.bend.flight[p].until));
+  const gustAvailable = (s, p) => flightOn(s, p) && s.bend.flight[p].gust > 0 && s.turn === 1 - p && s.winner === null;
+  const SLOT = { swap: 2, move: 1, smash: 1 };
+  function harmonyKeys(s) {
+    return harmonies(s).map((h) => { const A = topAt(s, h.a), B = topAt(s, h.b); return { k: [A.id, B.id].sort((x, y) => x - y).join('-'), owners: h.owners }; });
+  }
+  // validate + run Metalbending ops on s (mutates). Returns { tiles, lostFlowers }
+  function runMetal(s, p, ops) {
+    if (!Array.isArray(ops) || !ops.length) throw new Error('No metalbending');
+    if (ops.reduce((n, o) => n + (SLOT[o.op] || 9), 0) > 2) throw new Error('Too many');
+    const touched = new Set(), squares = [];
+    for (const o of ops) {
+      if (o.op === 'swap') {
+        const A = s.board[o.a], B = s.board[o.b];
+        if (!A || !B || o.a === o.b || protectedByBadger(s, o.a) || protectedByBadger(s, o.b)) throw new Error('Bad swap');
+        touched.add(A.top.id); touched.add(B.top.id);
+        s.board[o.a] = B; s.board[o.b] = A; squares.push(o.a, o.b);
+      } else if (o.op === 'move') {
+        if (!metalMoveDests(s, o.from).includes(o.to)) throw new Error('Bad move');
+        touched.add(s.board[o.from].top.id);
+        s.board[o.to] = s.board[o.from]; s.board[o.from] = null; squares.push(o.to);
+      } else if (o.op === 'smash') {
+        const c = s.board[o.at]; if (!c || protectedByBadger(s, o.at)) throw new Error('Bad smash');
+        touched.add(c.top.id); s.removed.push(c.top);
+        s.board[o.at] = c.under ? { top: c.under, under: null } : null; squares.push(o.at);
+      } else throw new Error('Bad op');
+    }
+    const lostFlowers = purgeWrong(s, [...new Set(squares)]);
+    return { tiles: touched.size, lostFlowers };
+  }
+  // what a Metalbending pays (stolen from the opponent)
+  function metalGold(before, after, p, tiles) {
+    const now = new Set(after.map((h) => h.k)), gone = before.filter((h) => !now.has(h.k));
+    const oppLost = gone.filter((h) => h.owners.includes(1 - p)).length, ownLost = gone.filter((h) => h.owners.includes(p)).length;
+    return { oppLost, ownLost, amt: Math.max(0, (oppLost > 0 ? 75 * oppLost : 50 * tiles) - 25 * ownLost) };
+  }
+  function avatarTarget(s, p) { return !s.opts.subPractice && !!powersOf(s, 1 - p).avatar; }
+  function practiceCooldown(s, p) { if (!s.opts.subPractice || !s.bend) return 0; const last = (s.bend.subT || [])[p]; return last == null ? 0 : Math.max(0, Math.ceil((PRACTICE_COOLDOWN - (s.turnNo - last)) / 2)); }
+  function snapForAvatar(s, p, kind) {
+    if (!avatarTarget(s, p)) return;
+    s.avCounter = { by: p, target: 1 - p, kind, t: s.turnNo, snap: clone({ board: s.board, removed: s.removed, hands: s.hands, gates: s.gates, center: s.center, skip: s.bend.skip, flight: s.bend.flight, ledger: (s.ledger || []).length }) };
+  }
   function applySub(s, p, a) {
+    if (a.kind === 'gust') {
+      if (!gustAvailable(s, p)) throw new Error('No gust');
+      if (!gustDests(s, a.target).includes(a.to)) throw new Error('Bad gust');
+      snapForAvatar(s, p, 'gust');
+      s.board[a.to] = s.board[a.target]; s.board[a.target] = null;
+      const lost = purgeWrong(s, [a.to]);
+      s.bend.flight[p].gust--;
+      s.lastBend = { p, sub: 'gust', at: a.to, lost: lost.length, t: s.turnNo };
+      s.lastMove = { to: a.to };
+      return;
+    }
     if (!subAvailable(s, p).includes(a.kind)) throw new Error('Not available');
     if (a.kind === 'metal') {
-      const A = s.board[a.a], B = s.board[a.b];
-      if (!A || !B || a.a === a.b || protectedByBadger(s, a.a) || protectedByBadger(s, a.b)) throw new Error('Bad swap');
-      if (!colorOK(s, A.top, a.b) || !colorOK(s, B.top, a.a)) throw new Error('Cannot land');
-      s.board[a.a] = B; s.board[a.b] = A;
+      if (s.turn !== p || s.tp.mainDone) throw new Error('Metalbending is your move for the turn');
+      snapForAvatar(s, p, 'metal');
+      const before = harmonyKeys(s);
+      const r = runMetal(s, p, a.ops || (a.a != null ? [{ op: 'swap', a: a.a, b: a.b }] : []));
+      const g = metalGold(before, harmonyKeys(s), p, r.tiles);
+      s.ledger = s.ledger || [];
+      if (g.amt > 0) s.ledger.push({ id: 'm' + s.turnNo + '_' + p, from: 1 - p, to: p, amt: g.amt, why: 'metal' });
+      s.lastMetal = Object.assign({ p, tiles: r.tiles, lost: r.lostFlowers.length }, g);
+      s.tp.mainDone = true;
     } else if (a.kind === 'lightning') {
+      snapForAvatar(s, p, 'lightning');
       s.bend.skip[1 - p]++;
     } else if (a.kind === 'blood') {
       const ok = bloodMoves(s, p).some((m) => JSON.stringify(m) === JSON.stringify(a.move));
       if (!ok) throw new Error('Bad puppet move');
+      snapForAvatar(s, p, 'blood');
       const keepTp = s.tp, keepTurn = s.turn;
       s.turn = 1 - p; s.tp = freshTP();
       const t = apply(s, a.move);
       Object.assign(s, t); s.turn = keepTurn; s.tp = keepTp; s.log.pop();
       s.bend.skip[1 - p]++;
     } else if (a.kind === 'flight') {
-      s.bend.flight[p] = true;
+      snapForAvatar(s, p, 'flight');
+      s.bend.flight[p] = { until: s.turn === p ? s.turnNo + 1 : s.turnNo, gust: 1 };
     }
     s.bend.subs[p].push(a.kind);
+    s.bend.subT = s.bend.subT || [null, null]; s.bend.subT[p] = s.turnNo;
     s.lastBend = { p, sub: a.kind, t: s.turnNo };
+  }
+  // the Avatar answers a sub-bending used on them: enter the Avatar State (undo it, costs 300 gp) or let it be
+  function applyAvatarState(s, by, accept) {
+    const C = s.avCounter;
+    if (!C || C.target !== by) throw new Error('Nothing to counter');
+    if (accept) {
+      const S = C.snap;
+      s.board = S.board; s.removed = S.removed; s.hands = S.hands; s.gates = S.gates; s.center = S.center;
+      s.bend.skip = S.skip; s.bend.flight = S.flight;
+      s.ledger = (s.ledger || []).slice(0, S.ledger);
+      s.ledger.push({ id: 'av' + s.turnNo + '_' + by, from: by, to: null, amt: 300, why: 'avatarState' });
+      s.lastMetal = null;
+      s.lastBend = { p: by, sub: 'avatarState', t: s.turnNo };
+      s.avCounter = null;
+      return;
+    }
+    s.avCounter = null;
+    // they let it happen: a pending stun (lightning/blood) takes effect now
+    if (s.turn === by && s.bend.skip[by] > 0) {
+      s.bend.skip[by]--;
+      s.log.push({ p: by, turn: s.turnNo, text: 'is stunned and skips a turn' });
+      s.turn = 1 - by; s.turnNo++; s.tp = freshTP();
+    }
   }
 
   // ---------- harmonies ----------
@@ -726,11 +848,14 @@ const PaiSho = (() => {
     if (a.t === 'koi') return `Koi swapped ${sqName(a.a)} ↔ ${sqName(a.b)}`;
     if (a.t === 'bend') { const t = s.board[a.target] && s.board[a.target].top; return { fire: 'burned', water: 'washed out', earth: 'smashed', air: 'swept' }[a.el] + ` ${t ? 'the ' + tname(t.type) : 'a tile'} at ${sqName(a.target)} with ${a.el}bending`; }
     if (a.t === 'melon') return 'called on the MELON LORD — the opponent is blinded! 🍈';
+    if (a.t === 'sub' && a.kind === 'metal') { const ops = a.ops || [{ op: 'swap' }]; return 'metalbent: ' + ops.map((o) => ({ swap: 'swapped two tiles', move: 'moved a tile', smash: 'smashed a tile' })[o.op]).join(' and '); }
+    if (a.t === 'sub' && a.kind === 'gust') return 'sent a gust of wind 🌬️';
+    if (a.t === 'avatarState') return a.accept ? 'entered the AVATAR STATE and undid it! ✨' : '';
     if (a.t === 'sub') return { metal: 'metalbent two tiles into each other’s places', lightning: 'struck with lightning — the opponent skips a turn', blood: 'took control of the opponent’s turn', flight: 'took flight and can see the opponent’s plans' }[a.kind];
     return '';
   }
 
-  return { melonLeft, MELON_MAX,
+  return { practiceCooldown, PRACTICE_USES, metalMoveDests, gustDests, flightOn, gustAvailable, runMetal, harmonyKeys, metalGold, melonLeft, MELON_MAX,
     N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
     KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
     SUB_OF, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,

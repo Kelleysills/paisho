@@ -341,3 +341,10 @@ body input,body textarea,body [contenteditable="true"]{-webkit-user-select:text;
 .sty-legend{margin-top:10px}.sty-legend summary{cursor:pointer;font-size:13px;font-weight:700;color:#f2cf6e}
 .sty-blip{display:inline-block;margin-top:2px;font-size:10px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .sty-blip{white-space:normal;line-height:1.25}
+
+.metal-panel{margin:6px 10px;padding:10px 12px;border-radius:16px;background:linear-gradient(135deg,rgba(192,200,208,.18),rgba(90,100,110,.18));border:1px solid rgba(192,200,208,.45)}
+.metal-panel .mp-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;font-size:13px}.metal-panel .mp-top span{font-size:12px;opacity:.8}
+.metal-panel .mp-row{display:flex;gap:6px;margin-bottom:6px}
+.metal-panel .mb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:inherit;font:inherit;font-size:18px}
+.metal-panel .mb small{font-size:10px;opacity:.85}.metal-panel .mb.on{background:#c0c8d0;color:#1a1a1a;border-color:#fff}.metal-panel .mb.go{background:rgba(242,207,110,.25);border-color:#f2cf6e}
+.metal-panel .mb:disabled{opacity:.35}

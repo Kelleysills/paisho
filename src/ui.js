@@ -143,6 +143,12 @@
     try {
       const p = await Store.get('players', pid); if (!p) return null;
       Eco.ensure(p);
+      if (G && G.s && G.s.opts.subPractice) { // practice: small flat reward, no record, no rank
+        const lv0 = Eco.level(p.xp || 0);
+        p.gp = (p.gp || 0) + 30; p.xp = (p.xp || 0) + 10; p.gpPeak = Math.max(p.gpPeak || 0, p.gp);
+        await Store.set('players', pid, p); if (me && me.id === pid) me = p;
+        return { gp: 30, xp: 10, practice: true, xpBefore: p.xp - 10, xpAfter: p.xp, levelUp: Eco.level(p.xp) > lv0, delta: 0 };
+      }
       const bst = Eco.boost();
       const out = { gp: Math.round(Eco.earnings(mode, level, res, ring) * bst.gp), delta: 0, rating: p.rating, boost: bst.name ? bst : null };
       p.gp += out.gp;
@@ -580,12 +586,12 @@
     closeSheet();
     const s = G.s, seat = bendSeat();
     if (kind === 'lightning' || kind === 'flight') return doBend({ t: 'sub', kind });
-    if (kind === 'metal') { G.sel = { kind: 'metal', tiles: P.metalPairs(s), first: null }; renderBoard(); return toast('⚙️ Tap two tiles to swap'); }
+    if (kind === 'metal') { if (!isHumanTurn()) return toast('Metalbending is used on your turn'); if (G.s.tp.mainDone) return toast('Use Metalbending instead of your move'); G.sel = null; G.metal = { seat, real: G.s, ops: [], mode: null, pick: null }; G.s = P.clone(G.s); renderGame(); return; }
     if (kind === 'blood') { const ms = P.bloodMoves(s, seat); if (!ms.length) return toast('They have nothing to move'); G.sel = { kind: 'blood', moves: ms, from: null }; renderBoard(); return toast('🩸 Tap one of their tiles, then where it goes'); }
   }
   async function doBend(a) {
     if (!G) return;
-    a.by = bendSeat(); G.sel = null;
+    if (a.t !== 'avatarState' || a.by == null) a.by = bendSeat(); G.sel = null;
     // during the opponent's turn online: queue it; their phone applies it instantly
     if (G.mode === 'online' && !isHumanTurn()) {
       let s3; try { s3 = P.apply(G.s, a); } catch (e) { toast(a.t === 'melon' ? 'No Melon Lords left this match' : 'That bend isn’t possible'); renderBoard(); return false; }
@@ -598,8 +604,11 @@
     let s2;
     try { s2 = P.apply(G.s, a); } catch (e) { toast(e.message === 'No effect tile to give up' ? 'You need an effect tile to give up' : a.t === 'melon' ? 'No Melon Lords left this match' : 'That bend isn’t possible'); renderBoard(); return false; }
     track(G.s, s2, a, a.by); G.history.push(G.s); G.s = s2; if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
-    if (a.t === 'bend') showFx(a.el); else if (a.t === 'melon') showFx('melon'); else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air' }[a.kind]);
+    if (a.t === 'bend') showFx(a.el); else if (a.t === 'melon') showFx('melon'); else if (a.t === 'avatarState') { if (a.accept) showFx('air'); } else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air', gust: 'air' }[a.kind]);
+    if (a.t === 'sub' && a.kind === 'metal' && G.s.lastMetal) { const L = G.s.lastMetal; toast(`⚙️ Metalbent${L.oppLost ? ` · broke ${L.oppLost} of their harmonies` : ''}${L.ownLost ? ` · broke ${L.ownLost} of yours` : ''}${L.lost ? ` · ${L.lost} flower${L.lost > 1 ? 's' : ''} lost to the wrong garden` : ''}${G.mode === 'online' && L.amt ? ` · +${L.amt} gp` : ''}`, 4000); }
+    if (a.t === 'sub' && a.kind === 'gust' && G.s.lastBend && G.s.lastBend.lost) toast('🌬️ Blown into the wrong garden: that flower is lost!');
     const lb = G.s.lastBend; if (lb && lb.paid) toast(`It cost you your ${P.tname(lb.paid)}`);
+    if (a.t === 'sub' && a.kind === 'metal') { G.history = []; if (G.mode === 'online') pushOnline(); renderGame(); afterTurnChange(); return true; }
     if (G.mode === 'online') pushOnline();
     renderGame();
     if (a.t === 'sub' && a.kind === 'flight') analyse();
@@ -743,6 +752,7 @@
       <div class="field" style="margin-top:10px"><label>Harmonies needed in the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>
       <div class="field" style="margin-top:10px"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
       <div class="toggle"><div><b>🌀 Elemental mode</b><div class="tiny muted">Bending: each player can burn, wash, smash or sweep one tile per game, at any time</div></div><span class="sw ${S.bending ? 'on' : ''}" data-act="swSet" data-k="bending"></span></div>
+      <div class="toggle"><div><b>🎓 Sub-bending practice</b><div class="tiny muted">Everyone gets their nation’s sub-bending, 3 uses with a 2-turn cooldown. Just 10 XP and 30 gp, and it doesn’t count toward your record or rank.</div></div><span class="sw ${S.subPractice ? 'on' : ''}" data-act="swSet" data-k="subPractice"></span></div>
       <div class="toggle"><div><b>Hints &amp; tips</b><div class="tiny muted">Show which moves make harmonies, warnings and tips</div></div><span class="sw ${S.hints !== false ? 'on' : ''}" data-act="swSet" data-k="hints"></span></div>
       <div class="toggle"><div><b>Game of chance</b><div class="tiny muted">Key flowers are drawn at random when planting</div></div><span class="sw ${S.chance ? 'on' : ''}" data-act="swSet" data-k="chance"></span></div>
       <div class="toggle"><div><b>Effect tile enigma</b><div class="tiny muted">Hide your opponent’s effect tiles until played</div></div><span class="sw ${S.enigma ? 'on' : ''}" data-act="swSet" data-k="enigma"></span></div></div>`;
@@ -788,7 +798,7 @@
     const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
     const S = setup;
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
-      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending, rules: 'key' },
+      opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, rules: 'key' },
       host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
     if (Store.kind === 'firebase') doc.uids = [FB.uid];
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
@@ -824,7 +834,7 @@
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null });
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -867,7 +877,11 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-16d', items: [
+  const NEWS = { v: '2026-11-17a', items: [
+    ['⚙️', 'New Metalbending', 'Your whole turn: swap two tiles, or move/smash up to two. Steals gold from your opponent.'],
+    ['🪽', 'New Flight', 'Watch your opponent’s turn live and blow one of their tiles across the board with a Gust.'],
+    ['✨', 'Avatar State', 'The Avatar can undo any sub-bending used on them for 300 gp.'],
+    ['🎓', 'Sub-bending practice', 'A new mode: everyone can sub-bend, whatever their level. Small rewards, no record.'],
     ['🎭', 'Play styles', 'Stats now show how you play: Gardener, Aggressor, Guardian, Trickster or Balanced, worked out from your moves.'],
     ['👀', 'Live style tags', 'During a match, a tag under each name shows how they’re playing right now, like “More defensive than usual”.'],
     ['⚡', 'Fastest wins', 'Your record for the fewest moves to win, online and against the computer.'],
@@ -938,6 +952,7 @@
       ${skud ? '' : `<div class="field"><label>Harmonies needed for the ring</label>${seg('minH', [[3, '3'], [4, '4'], [6, '6'], [10, '10']])}</div>`}
       <div class="field"><label>Turn timer</label>${seg('timer', [[0, 'Off'], [30, '30s'], [60, '60s'], [120, '2m']])}</div>
       ${tog('bending', 'Elemental mode', 'Bending, sub-bending, show-offs and the Melon Lord')}
+      ${tog('subPractice', 'Sub-bending practice', 'Everyone gets their nation’s sub-bending (3 uses, 2-turn cooldown). 10 XP and 30 gp, no record or rank.')}
       ${skud ? '' : tog('chance', 'Game of Chance', 'Key flowers are drawn at random') + tog('enigma', 'Effect Tile Enigma', 'Effect tiles stay hidden until played')}
       <button class="btn primary" data-act="invSend" style="margin-top:8px">Send invite</button>`);
   }
@@ -1046,14 +1061,14 @@
   // ======================================================================
   function startLocal(mode) {
     const S = setup;
-    Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma, hints: S.hints, bending: S.bending });
+    Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma, hints: S.hints, bending: S.bending, subPractice: S.subPractice });
     let meFirst = S.first === 'me' || (S.first === 'rand' && Math.random() < 0.5);
     const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), kind: 'human' };
     const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, kind: 'human' };
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
-    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null });
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
@@ -1122,12 +1137,27 @@
       if (nd.chat) Object.keys(nd.chat).forEach((id) => { const m = nd.chat[id]; if (m && !(G.chat || []).some((x) => x.id === id)) addChat({ id, seat: m.seat, text: String(m.text || '').slice(0, 140), t: m.t }, G.chatReady && m.seat !== G.my); });
       G.chatReady = true;
       if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
+      // 🪽 Flight: the opponent came back to the match
+      if (nd.here && nd.here[1 - G.my]) { const t = nd.here[1 - G.my]; if (G.hereT !== undefined && t > G.hereT + 20000 && P.flightOn(G.s, G.my)) { toast('👀 ' + G.seats[1 - G.my].name + ' is back in the match. Your Flight is watching!', 4000); buzz(20); } G.hereT = Math.max(G.hereT || 0, t); }
       if ((nd.ver || 0) > G.ver) {
-        G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null;
+        G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null; G.draftLive = false;
         renderGame(); afterTurnChange(); applyQueuedBends(nd);
+      } else if (nd.draft && nd.draft.t > (G.draftT || 0) && !isHumanTurn() && P.flightOn(G.s, G.my)) {
+        // 🪽 Flight: watch their turn live
+        G.draftT = nd.draft.t;
+        try { const ds = JSON.parse(nd.draft.s); if (ds.turnNo === G.s.turnNo && ds.turn === G.s.turn) { if (!G.draftLive) toast('🪽 Watching ' + G.seats[1 - G.my].name + '’s turn live'); G.draftLive = true; G.s = ds; if (!G.metal) renderGame(); } } catch (e) {}
       }
     });
     gameScreen();
+    const here = () => G && G.mode === 'online' && Store.patch('games', G.code, { here: { [G.my]: Date.now() } }).catch(() => {});
+    here(); G.hereTimer = setInterval(() => { if (!G || G.mode !== 'online') return clearInterval(G && G.hereTimer); if (!document.hidden) here(); }, 45000);
+    if (G.s.bend && P.flightOn(G.s, 1 - G.my) && G.seats[1 - G.my].pid) Push.send(G.seats[1 - G.my].pid, '🪽 ' + G.seats[G.my].name + ' is back in your game', 'Your Flight lets you watch their turn live (game ' + G.code + ')', 'fl-' + G.code);
+  }
+  // 🪽 if the opponent has Flight on, stream my turn as I play it
+  function sendDraft() {
+    if (!G || G.mode !== 'online' || !G.s.bend || !isHumanTurn() || !P.flightOn(G.s, 1 - G.my)) return;
+    const d = P.clone(G.s); d.log = d.log.slice(-20);
+    Store.patch('games', G.code, { draft: { s: JSON.stringify(d), t: Date.now() } }).catch(() => {});
   }
   async function pushOnline() {
     const s = P.clone(G.s); s.log = s.log.slice(-60);
@@ -1314,6 +1344,13 @@
       [...new Set(sel.moves.map((m) => m.target))].forEach((i) => (o += ringAt(Board.cx(i), Board.cy(i))));
     } else if (sel && sel.kind === 'stone') {
       sel.spots.forEach((i) => (o += dotAt(Board.cx(i), Board.cy(i))));
+    } else if (!sel && G.metal && G.metal.mode) {
+      const M = G.metal, col = M.mode === 'smash' ? '#ff6b5a' : '#c0c8d0';
+      metalTargets().forEach((i) => (o += M.mode === 'move' && M.pick != null ? dotAt(Board.cx(i), Board.cy(i)) : `<circle cx="${Board.cx(i)}" cy="${Board.cy(i)}" r="0.5" fill="none" stroke="${col}" stroke-width="0.11" class="dest"/>`));
+      if (M.pick != null) o += `<circle cx="${Board.cx(M.pick)}" cy="${Board.cy(M.pick)}" r="0.52" fill="none" stroke="#fff" stroke-width="0.12"/>`;
+    } else if (sel && sel.kind === 'gust') {
+      (sel.target == null ? sel.tiles : sel.dests).forEach((i) => (o += sel.target == null ? `<circle cx="${Board.cx(i)}" cy="${Board.cy(i)}" r="0.5" fill="none" stroke="#e8f6ff" stroke-width="0.1" class="dest"/>` : dotAt(Board.cx(i), Board.cy(i))));
+      if (sel.target != null) o += `<circle cx="${Board.cx(sel.target)}" cy="${Board.cy(sel.target)}" r="0.52" fill="none" stroke="#fff" stroke-width="0.12"/>`;
     } else if (sel && (sel.kind === 'bend' || sel.kind === 'metal')) {
       const pool = sel.kind === 'metal' && sel.first != null ? sel.tiles.filter((i) => i !== sel.first) : sel.targets || sel.tiles;
       const col = sel.kind === 'metal' ? '#c0c8d0' : { fire: '#ff7a3d', water: '#5fb2ea', earth: '#a8d070', air: '#f4f4f4' }[sel.el];
@@ -1543,14 +1580,61 @@
       o += `<button class="bb main ${sel === el ? 'sel' : ''}" data-act="bendGo" data-el="${el}" ${ok ? '' : 'disabled'}><span class="i">${Eco.BEND[el].icon}</span><span><b>${Eco.BEND[el].verb}</b><small>${free ? 'free now' : cost ? 'costs ' + P.tname(cost.type) : 'need a tile'}</small></span></button>`;
     });
     else o += `<span class="bb spent"><span class="i">${pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon}</span><small>bend used</small></span>`;
-    P.subAvailable(s, seat).forEach((k) => (o += `<button class="bb sub" data-act="subGo" data-k="${k}"><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>free · once</small></span></button>`));
+    const prac = s.opts.subPractice, left = prac ? P.PRACTICE_USES - s.bend.subs[seat].length : 0;
+    if (!G.metal) P.subAvailable(s, seat).forEach((k) => { const off = k === 'metal' && !isHumanTurn(); o += `<button class="bb sub" data-act="subGo" data-k="${k}" ${off ? 'disabled' : ''}><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>${off ? 'on your turn' : prac ? left + ' left' : 'free · once'}</small></span></button>`; });
+    if (prac && !P.subAvailable(s, seat).length && left > 0 && pw.nation) o += `<span class="bb spent"><span class="i">${Eco.SUBS[{ earth: 'metal', fire: 'lightning', water: 'blood', air: 'flight' }[pw.nation]].icon}</span><small>ready in ${P.practiceCooldown(s, seat)} turn${P.practiceCooldown(s, seat) === 1 ? '' : 's'}</small></span>`;
+    if (P.gustAvailable(s, seat)) o += `<button class="bb sub ${G.sel && G.sel.kind === 'gust' ? 'sel' : ''}" data-act="gustGo"><span class="i">🌬️</span><span><b>Gust</b><small>push a tile ≤7</small></span></button>`;
+    if (P.flightOn(s, seat) && !isHumanTurn()) o += `<span class="bb spent"><span class="i">🪽</span><small>${G.draftLive ? 'watching live' : 'flying'}</small></span>`;
     o += '<span class="bb-sep"></span>';
     els.forEach((el) => (o += `<button class="bb spam" data-act="spamGo" data-el="${el}"><span class="i">${Eco.BEND[el].icon}</span><small>${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</small></button>`));
     const ml = s.seismic === 1 - seat ? 0 : Math.min(P.melonLeft(s, seat), P.MELON_MAX - (G.melonCalls || 0));
     if (ml > 0) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord ×${ml}</small></button>`;
     o += `<button class="bb spam" data-act="bendMenu"><span class="i">ⓘ</span><small>Details</small></button>`;
     bar.style.display = 'flex'; bar.innerHTML = o;
+    renderMetalPanel();
   }
+  // ---------- Metalbending: up to 2 slots (swap = 2, move = 1, smash = 1) ----------
+  function renderMetalPanel() {
+    let el = document.getElementById('metal-panel');
+    const M = G && G.metal;
+    if (!M) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'metal-panel'; el.className = 'metal-panel'; const bb = document.getElementById('bendbar'); bb && bb.parentNode.insertBefore(el, bb); }
+    const used = M.ops.reduce((n, o) => n + (o.op === 'swap' ? 2 : 1), 0), left = 2 - used;
+    const est = P.metalGold(P.harmonyKeys(M.real), P.harmonyKeys(G.s), M.seat, new Set(M.ops.flatMap((o) => o.op === 'swap' ? [o.a, o.b] : [o.from != null ? o.from : o.at])).size);
+    const lost = M.lost || 0;
+    const b = (op, ic, t, need) => `<button class="mb ${M.mode === op ? 'on' : ''}" data-act="metalMode" data-k="${op}" ${left < need ? 'disabled' : ''}>${ic}<small>${t}</small></button>`;
+    el.innerHTML = `<div class="mp-top"><b>⚙️ Metalbending</b><span>${left} of 2 left${M.ops.length ? ` · steals ~${est.amt} gp${G.mode !== 'online' ? ' (online only)' : ''}` : ''}</span></div>
+      <div class="mp-row">${b('swap', '⇄', 'Swap 2', 2)}${b('move', '➜', 'Move', 1)}${b('smash', '💥', 'Smash', 1)}
+      <button class="mb go" data-act="metalDone" ${M.ops.length ? '' : 'disabled'}>✓<small>Done</small></button><button class="mb" data-act="metalCancel">✕<small>Cancel</small></button></div>
+      <div class="tiny muted">${M.mode === 'swap' ? (M.pick == null ? 'Tap the first tile to swap' : 'Tap the tile to swap it with') : M.mode === 'move' ? (M.pick == null ? 'Tap a tile to lift' : 'Tap where it lands (up to 7 squares, any direction)') : M.mode === 'smash' ? 'Tap a tile to smash it out of the game' : 'Pick what to do. Flowers left in the wrong garden are lost by their owner. Ends your turn.'}${lost ? ` · ⚠️ ${lost} flower${lost > 1 ? 's' : ''} in the wrong garden will be lost` : ''}</div>`;
+  }
+  function metalPreview() {
+    const M = G.metal; let t = P.clone(M.real), lost = 0;
+    try { if (M.ops.length) { const r = P.runMetal(t, M.seat, M.ops); lost = r.lostFlowers.length; } } catch (e) { M.ops.pop(); t = P.clone(M.real); if (M.ops.length) P.runMetal(t, M.seat, M.ops); toast('Can’t do that'); }
+    M.lost = lost; G.s = t;
+  }
+  function metalTargets() {
+    const M = G.metal, s = G.s; if (!M.mode) return [];
+    if (M.mode === 'move' && M.pick != null) return P.metalMoveDests(s, M.pick);
+    return P.metalPairs(s).filter((i) => i !== M.pick);
+  }
+  function metalTap(i) {
+    const M = G.metal; if (!M || !M.mode) return;
+    if (!metalTargets().includes(i)) { if (M.pick != null) { M.pick = null; renderBoard(); renderMetalPanel(); } return; }
+    if (M.mode === 'smash') M.ops.push({ op: 'smash', at: i });
+    else if (M.pick == null) { M.pick = i; renderBoard(); renderMetalPanel(); return; }
+    else if (M.mode === 'swap') M.ops.push({ op: 'swap', a: M.pick, b: i });
+    else M.ops.push({ op: 'move', from: M.pick, to: i });
+    M.pick = null; M.mode = null; metalPreview();
+    const used = M.ops.reduce((n, o) => n + (o.op === 'swap' ? 2 : 1), 0);
+    if (used >= 2) return metalSend();
+    renderGame();
+  }
+  function metalSend() {
+    const M = G.metal; G.s = M.real; G.metal = null;
+    doBend({ t: 'sub', kind: 'metal', ops: M.ops }).then(() => renderGame());
+  }
+  function metalCancel() { if (!G.metal) return; G.s = G.metal.real; G.metal = null; renderGame(); }
   function renderBendBtn() {
     renderBendBar();
     const b = document.getElementById('bend-btn'); if (!b) return;
@@ -1558,7 +1642,47 @@
     b.textContent = pw.avatar ? '☯️' : Eco.BEND[pw.nation].icon;
     b.classList.toggle('spent', !!s.bend.used[bendSeat()] && !P.subAvailable(s, bendSeat()).length);
   }
-  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); if (G.tutorial) tutUpdate(); }
+  function renderGame() { computeActs(); renderBoard(); renderSeats(); renderStatus(); renderTray(); renderBar(); renderBendBtn(); if (!G.sel) renderInfo(null); if (G.tutorial) tutUpdate(); settleLedger(); avatarPrompt(); }
+  // ---------- gold that moves during a match (Metalbending steals, Avatar State costs) ----------
+  function settleLedger() {
+    if (!G || !me || G.mode !== 'online' || G.metal) return;
+    const L = G.s.ledger || [], all = Store.LS.get('ledger', {}), done = all[G.code] || {};
+    let change = 0; const notes = [];
+    L.forEach((e) => {
+      if (done[e.id] != null) return;
+      let d = 0;
+      if (e.to === G.my) d = e.amt; else if (e.from === G.my) d = -e.amt;
+      done[e.id] = d; change += d;
+      if (d > 0) notes.push(`⚙️ +${d} gp stolen from ${G.seats[1 - G.my].name}`);
+      else if (d < 0) notes.push(e.why === 'avatarState' ? `✨ Avatar State: −${-d} gp` : `⚙️ ${G.seats[1 - G.my].name} metalbent you: −${-d} gp`);
+    });
+    // entries undone by an Avatar State give the gold back
+    const ids = new Set(L.map((e) => e.id));
+    Object.keys(done).forEach((id) => { if (!ids.has(id) && done[id]) { change -= done[id]; notes.push(done[id] > 0 ? `✨ Avatar State undid your steal: −${done[id]} gp` : `✨ Avatar State got your ${-done[id]} gp back`); done[id] = 0; } });
+    all[G.code] = done; Store.LS.set('ledger', all);
+    if (!change) return;
+    Eco.ensure(me); me.gp = Math.max(0, me.gp + change); saveMe();
+    notes.forEach((n, k) => setTimeout(() => toast(n, 3500), 400 + k * 1600));
+  }
+  function avatarPrompt() {
+    const C = G && G.s.avCounter; if (!C || G.s.winner !== null) return;
+    const mine = G.mode === 'local' ? G.seats[C.target].kind === 'human' : C.target === G.my;
+    if (!mine || G.seats[C.target].kind !== 'human') return;
+    const key = G.code + ':' + C.t + ':' + C.kind; if (G.avAsked === key || document.querySelector('.sheet')) return;
+    G.avAsked = key;
+    const nm = G.seats[C.by].name, what = { metal: 'Metalbending', lightning: 'Lightning', blood: 'Bloodbending', flight: 'Flight', gust: 'a Gust of wind' }[C.kind];
+    const gp = me ? (me.gp || 0) : 0, can = G.mode !== 'online' || gp >= 300;
+    sheet(`<div style="text-align:center"><div style="font-size:46px">✨</div><h3 style="margin:2px 0">${esc(nm)} used ${what} on you!</h3>
+      <p class="muted">As the Avatar you can enter the <b>Avatar State</b> to undo it completely.${G.mode === 'online' ? ` It costs <b>300 gp</b> (you have ${gp.toLocaleString()}).` : ''}</p>
+      <div class="menu"><button class="btn primary" data-act="avState" data-v="1" ${can ? '' : 'disabled'}>Enter the Avatar State${G.mode === 'online' ? ' (−300 gp)' : ''}</button><button class="btn" data-act="avState" data-v="0">Let it happen</button></div>
+      ${can ? '' : '<div class="tiny muted">You need 300 gp to enter the Avatar State.</div>'}</div>`);
+  }
+  function avatarStateAnswer(accept) {
+    closeSheet();
+    const C = G && G.s.avCounter; if (!C) return;
+    if (accept && G.mode === 'online' && (!me || (me.gp || 0) < 300)) return toast('You need 300 gp');
+    doBend({ t: 'avatarState', accept, by: C.target }).then((ok) => { if (ok && accept) toast('✨ AVATAR STATE! It’s undone.', 3500); if (G) { renderGame(); if (G.s.turn !== C.target || !accept) afterTurnChange(); } });
+  }
 
   // ---------- input ----------
   function boardPoint(e) {
@@ -1602,6 +1726,12 @@
       }
       if (tile) { G.sel = { kind: 'blindPick', key, mine: tile.owner === s.turn, x: p[0], y: p[1] }; return renderSel(); }
       return;
+    }
+    if (G.metal && tg.i >= 0) return metalTap(tg.i);
+    if (sel && sel.kind === 'gust') {
+      if (sel.target == null) { if (sel.tiles.includes(tg.i)) { const d = P.gustDests(s, tg.i); if (!d.length) return toast('Nowhere for the wind to push that tile'); sel.target = tg.i; sel.dests = d; return renderBoard(); } }
+      else if (sel.dests.includes(tg.i)) return doBend({ t: 'sub', kind: 'gust', target: sel.target, to: tg.i });
+      G.sel = null; renderBoard(); return;
     }
     if (sel && ['bend', 'sweep', 'metal', 'blood'].includes(sel.kind)) {
       if (sel.kind === 'bend' && sel.targets.includes(tg.i)) {
@@ -1732,6 +1862,7 @@
     } catch (e) { G.history.pop(); toast('That move isn’t allowed'); console.warn(e); return; }
     G.sel = null; buzz(10);
     if (a.t === 'end' || a.t === 'forfeit') return turnEnded();
+    sendDraft();
     renderGame();
     // auto-end when nothing optional is left
     if (G.s.tp.mainDone && (autoSend() || G.tutorial)) {
@@ -1817,7 +1948,8 @@
     return { attach, show, get lastT() { return 0; } };
   })();
 
-  function stopGameTimers() { if (G) { clearTimeout(G.boPulseT); G.boPulseT = null; } if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
+  function stopGameTimers() {
+    if (G && G.hereTimer) { clearInterval(G.hereTimer); G.hereTimer = null; } if (G) { clearTimeout(G.boPulseT); G.boPulseT = null; } if (G && G.tick) { clearInterval(G.tick); G.tick = null; } if (G && G.waitingUnsub) { G.waitingUnsub(); G.waitingUnsub = null; } }
   function afterTurnChange() {
     if (!G) return;
     if (G.tick) { clearInterval(G.tick); G.tick = null; }
@@ -1891,7 +2023,7 @@
         const out = await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring, G.seats[1 - k].pid, trk, myTurns);
         if (out && (G.mode !== 'local' || k === 0)) G.reward = out;
       }
-      if (G.mode === 'online') updateAvatar();
+      if (G.mode === 'online' && !G.s.opts.subPractice) updateAvatar();
       if (me) { const before = new Set(Object.keys(me.ach || {})); await checkAch(); G.newAch = Eco.ACH.filter((a) => (me.ach || {})[a.id] && !before.has(a.id)); }
     }
     showResult();
@@ -1912,10 +2044,11 @@
       ${R.style ? `<div class="tiny" style="margin:0 0 8px">Your style this game: <b style="color:${Eco.STYLES[R.style].color}">${Eco.STYLES[R.style].icon} ${Eco.STYLES[R.style].name}</b> (${Eco.STYLES[R.style].tag})</div>` : ''}
       ${R.fastest ? `<div class="note" style="margin-bottom:8px">⚡ New record! Fastest win${R.fastestKey === 'fastestAi' ? ' vs the computer' : ''}: <b>${R.fastest} moves</b></div>` : ''}
       ${R.xpAfter != null ? lvlBar(R.xpAfter, R.xpBefore) : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold. Play the computer or online to earn.</div>' : '';
+    const prNote = R && R.practice ? '<div class="tiny muted" style="margin:-4px 0 8px">🎓 Sub-bending practice: doesn’t count toward your record or rank.</div>' : '';
     const na = G.newAch || [];
     const achH = na.length ? `<div class="field" style="text-align:left"><label>🏆 Achievements unlocked (${na.length})</label><div class="ach-chips">${na.slice(0, 8).map((a) => `<span class="chip">${a.icon || '🏆'} ${esc(a.name)} <b style="color:#ffd77a">+${a.gp}</b></span>`).join('')}${na.length > 8 ? `<span class="chip">+${na.length - 8} more</span>` : ''}</div></div>` : '';
     sheet(`<div style="text-align:center">${logoSvg(70)}<h3 style="font-size:28px;margin:4px 0">${head}</h3><p class="muted" style="margin:0 0 10px">${why}</p>
-      <div class="res-rows">${row(0)}${row(1)}</div>${rew}${achH}
+      <div class="res-rows">${row(0)}${row(1)}</div>${rew}${prNote}${achH}
       <div class="menu">${G.mode !== 'online' ? '<button class="btn primary" data-act="rematch">Play again</button>' : ''}<button class="btn" data-act="closeSheet">Look at the board</button><button class="btn" data-act="leaveGame">Home</button></div></div>`);
     animateBars();
   }
@@ -1956,6 +2089,11 @@
     tutVsAI: () => { closeSheet(); G = null; setup.mode = 'ai'; setup.level = 'easy'; setup.first = 'me'; startLocal('ai'); },
     startTutorial: () => startTutorial(),
     dailyOpen: () => dailyOpen(),
+    metalMode: (d) => { if (!G.metal) return; G.metal.mode = d.k; G.metal.pick = null; renderBoard(); renderMetalPanel(); },
+    metalDone: () => G.metal && G.metal.ops.length && metalSend(),
+    metalCancel: () => metalCancel(),
+    gustGo: () => { const s2 = G.s, tiles = P.metalPairs(s2); if (!tiles.length) return toast('No tiles to push'); G.sel = { kind: 'gust', tiles, target: null }; renderBoard(); toast('🌬️ Tap a tile, then where the wind pushes it'); },
+    avState: (d) => avatarStateAnswer(d.v === '1'),
     newsStore: () => { closeSheet(); go('store'); },
     dailyClaim: () => dailyClaim(),
     viewPlayer: (d, e) => { if (e && e.target.closest('[data-act="addFriendPid"]') && e.target.closest('[data-act="addFriendPid"]') !== e.target.closest('[data-act]')) return; viewPlayer(d); },
