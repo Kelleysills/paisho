@@ -478,3 +478,21 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .bprev-btn .board-thumb{display:block}
 .bprev-hint{position:absolute;right:2px;bottom:2px;font-size:10px;padding:2px 6px;border-radius:99px;background:#000a;color:#fff}
 .bprev-big svg{width:100%;max-width:340px;height:auto;display:block;margin:0 auto}
+
+/* loot */
+.loot-card{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;border:1px solid var(--rc);background:radial-gradient(circle at 50% 30%,color-mix(in srgb,var(--rc) 25%,transparent),transparent 70%);text-align:center;font-size:12px}
+.loot-card .lc-i{font-size:30px}.loot-card small{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.loot-card.big{min-width:110px;animation:lootPop .6s ease-out}.loot-card.big .lc-i{font-size:40px}
+@keyframes lootPop{0%{transform:scale(.4) rotate(-8deg);opacity:0}70%{transform:scale(1.08)}100%{transform:none;opacity:1}}
+.loot-row{display:flex;gap:8px;justify-content:center;margin:6px 0;flex-wrap:wrap}
+.loot-drop{text-align:center}
+.loot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.loot-item{position:relative;display:flex;flex-direction:column;gap:4px}
+.loot-item .btn{font-size:11px;padding:6px 4px}
+.loot-n{position:absolute;top:4px;right:6px;font-weight:700;font-size:12px;background:#000a;border-radius:99px;padding:1px 6px}
+.r-legendary .loot-card,.r-mythic .loot-card{box-shadow:0 0 12px var(--rc)}
+.loot-book{display:flex;flex-direction:column;gap:6px}
+.lb-r{font-size:12px}.lb-r>div{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
+.lb-i{font-size:18px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:var(--panel2)}
+.lb-x{opacity:.35}
+.screen .seg{flex-wrap:wrap;justify-content:center;row-gap:4px}

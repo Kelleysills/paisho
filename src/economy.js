@@ -163,6 +163,40 @@ const Eco = (() => {
   }
   const ownsTile = (p, t) => !p ? STARTER_TILES.includes(t) : (ensure(p).owned.tiles.includes(t));
   const ownsAvatar = (p, id) => !p ? FREE_AVATARS.includes(id) : ensure(p).owned.avatars.includes(id);
+
+  // ---- loot: dropped after ranked online wins, sold to the store for gold ----
+  const RARITY = {
+    common: { name: 'Common', w: 560, v: [40, 90], c: '#c9c2b4' },
+    uncommon: { name: 'Uncommon', w: 260, v: [150, 260], c: '#7fd18b' },
+    rare: { name: 'Rare', w: 120, v: [400, 700], c: '#5fb0ff' },
+    epic: { name: 'Epic', w: 45, v: [1300, 2200], c: '#c07cff' },
+    legendary: { name: 'Legendary', w: 13, v: [5000, 8500], c: '#ffb43a' },
+    mythic: { name: 'Mythic', w: 2, v: [25000, 30000], c: '#ff6ad5' },
+  };
+  const RORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const LOOT_DEF = {
+    common: [['Cabbage', '🥬'], ['Sea Prunes', '🫐'], ['Tea Leaves', '🍃'], ['Chipped Pai Sho Tile', '🀄'], ['Earth Kingdom Coin', '🪙'], ['Fire Nation Coin', '🪙'], ['Water Tribe Coin', '🪙'], ['Rice Ball', '🍙'], ['Moon Peach', '🍑'], ['Egg Custard Tart', '🥧'], ['Fire Flakes', '🌶️'], ['Bowl of Jook', '🥣'], ['Fish Hook', '🪝'], ['Seal Jerky', '🥓'], ['Tuft of Bison Fur', '🦬'], ['River Stone', '🪨'], ['Clay Pot', '🏺'], ['Bamboo Shoot', '🎋'], ['Paper Lantern', '🏮'], ['Silk Thread', '🧵'], ['Straw Sandals', '🩴'], ['Paper Kite', '🪁'], ['Ink Brush', '🖌️'], ['Torn Scroll', '📜'], ['Coil of Rope', '🪢'], ['Fishing Net', '🕸️'], ['Glider Feather', '🪶'], ['Lotus Petal', '🌸'], ['Fire Lily Seed', '🌱'], ['Ice Shard', '🧊'], ['Cactus Juice', '🌵'], ['Hot Leaf Juice', '🍵'], ['Mango', '🥭'], ['Steamed Bun', '🥟'], ['Seashell', '🐚'], ['Smooth Pebble', '⚪'], ['Candle Stub', '🕯️'], ['Wooden Bowl', '🥢'], ['Market Ticket', '🎫'], ['Sack of Rice', '🌾'], ['Dried Squid', '🦑'], ['Bag of Nuts', '🥜'], ['Moon Flower', '🌼'], ['Sand Dollar', '🪸'], ['Cracked Teacup', '☕']],
+    uncommon: [['Jasmine Tea Set', '🫖'], ['Earth Kingdom Helmet', '⛑️'], ['Fire Nation Armor Plate', '🛡️'], ['Air Nomad Prayer Beads', '📿'], ['Water Tribe Boomerang', '🪃'], ['Battle Fan', '🪭'], ['Ice Skates', '⛸️'], ['Wolf-Pelt Hood', '🐺'], ['Bison Whistle', '🎶'], ['Komodo Rhino Horn', '🦏'], ['Platypus Bear Egg', '🥚'], ['Turtle Duck Feather', '🦆'], ['Catgator Scale', '🐊'], ['Badgermole Claw', '🦡'], ['Ostrich Horse Saddle', '🐎'], ['Moon Shard', '🌙'], ['Sun Stone', '☀️'], ['Meteor Pebble', '☄️'], ['Spirit Lantern', '🏮'], ['Ember Island Ticket', '🎟️'], ['Map of the Great Wall', '🗺️'], ['Swamp Vine', '🌿'], ['Pro-bending Gloves', '🥊'], ['Tsungi Horn', '📯'], ['Hog Monkey Mask', '🐒'], ['Firework Rocket', '🎆'], ['Messenger Hawk', '🦅'], ['Jade Carving', '🗿'], ['Snow Leopard Pelt', '🐆'], ['Golden Teapot', '🫖'], ['Glider Wing Cloth', '🪁'], ['Polished Gong', '🥁']],
+    rare: [['Spirit Mask', '👺'], ['Dragon Bone', '🦴'], ['Sun Warrior Relic', '🌞'], ['Flame Crown', '👑'], ['Glacier Pearl', '🦪'], ['Lion Turtle Scale', '🐢'], ['Wisdom Scroll', '📜'], ['Star-Metal Blade', '🗡️'], ['Bloodbending Scroll', '🩸'], ['Lightning Scroll', '⚡'], ['Metalbending Primer', '⚙️'], ['Living Lava Rock', '🌋'], ['Air Temple Bell', '🔔'], ['Spirit Library Book', '📖'], ['Knowledge Seeker Feather', '🦉'], ['Ancient Pai Sho Set', '🎲'], ['White Lotus Tile', '🪷'], ['Fog of Lost Souls Vial', '🌫️'], ['Crystal Catacomb Gem', '💠'], ['Firelight Fountain Coin', '🔥']],
+    epic: [['Dragon Scale', '🐉'], ['Sky Bison Calf Bell', '🛎️'], ['Moon Spirit Koi', '🐟'], ['Ocean Spirit Koi', '🐠'], ['Lion Turtle Shell Shard', '🐚'], ['Eternal Ember', '🔥'], ['Masterwork Glider', '🪽'], ['Comet Fragment', '☄️'], ['Spirit Oasis Water', '💧'], ['Earth Temple Crystal', '💎'], ['Spirit Vine Seed', '🌱'], ['Avatar Relic Scroll', '📜']],
+    legendary: [['Light Spirit Fragment', '✨'], ['Dark Spirit Fragment', '🌑'], ['The Avatar’s Staff', '🪄'], ['Harmonic Convergence Star', '🌟'], ['The First Flame', '🔥'], ['Lion Turtle’s Blessing', '🐢']],
+    mythic: [['Spirit of the Avatar', '🪷'], ['Moon and Ocean', '☯️']],
+  };
+  const LOOT = []; const LOOTI = {};
+  RORDER.forEach((r) => LOOT_DEF[r].forEach(([name, icon], i) => {
+    const id = r[0] + i + '_' + name.toLowerCase().replace(/[^a-z]+/g, '').slice(0, 14);
+    const [lo, hi] = RARITY[r].v, h = [...name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+    const it = { id, name, icon, r, value: Math.round((lo + (h % 1000) / 1000 * (hi - lo)) / 5) * 5 };
+    LOOT.push(it); LOOTI[id] = it;
+  }));
+  function rollLoot(boost = 0) {
+    const tot = RORDER.reduce((a, r) => a + RARITY[r].w * (boost && r !== 'common' ? 1 + boost : 1), 0);
+    let x = Math.random() * tot, r = 'common';
+    for (const k of RORDER) { x -= RARITY[k].w * (boost && k !== 'common' ? 1 + boost : 1); if (x <= 0) { r = k; break; } }
+    const pool = LOOT.filter((it) => it.r === r);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const lootCount = (p) => Object.values((p && p.loot) || {}).reduce((a, b) => a + b, 0);
   const ownsBoard = (p, id) => id === 'classic' || (!!p && ensure(p).owned.boards.includes(id));
   function emoteUnlocked(p, id, isAvatar) {
     const e = EMO[id]; if (!e) return false;
@@ -336,6 +370,9 @@ const Eco = (() => {
     const idx = [0, 4, 9, 14, 19, 29, 39, 49, 59, 69, 79].filter((i) => i < t.tiers.length);
     idx.forEach((i, j) => ACH.push({ id: 'sp_' + t.k + '_' + i, spirit: true, track: 'sp_' + t.k, tier: j, name: 'Spirit ' + t.noun + ' ' + (j + 1), desc: t.d(t.tiers[i]) + ' in the Spirit Realm', goal: t.tiers[i], icon: '👻', gp: Math.round(60 + 600 * Math.pow(j / 10, 1.5)), ok: (p, c) => !!p.spirit && t.v(spiritView(p), c) >= t.tiers[i] }));
   });
+  ACH.push({ id: 'loot1', name: 'Spoils of War', desc: 'Win loot from a ranked match', icon: '🎁', gp: 150, ok: (p) => (p.lootFound || 0) >= 1 });
+  ACH.push({ id: 'loot50', name: 'Treasure Hunter', desc: 'Find 50 pieces of loot', icon: '🎁', gp: 1000, ok: (p) => (p.lootFound || 0) >= 50 });
+  ACH.push({ id: 'lootLeg', name: 'Legend Has It', desc: 'Find a Legendary or Mythic item', icon: '🌟', gp: 2500, ok: (p) => !!p.lootLegend });
   const ACH_MAIN = ACH.filter((a) => !a.track);
   // ---- play styles (worked out from each match's moves) ----
   const STYLES = {
@@ -375,5 +412,5 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { MAX_LEVEL, MAX_XP, lvl, TITLES, TITLE_AT, titleOf, nextTitleAt, INCARNATIONS, incName, canReincarnate, atFinal, snapshotSpirit, spiritView, STYLES, styleOf, styleScores, typicalStyle, PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { RARITY, RORDER, LOOT, LOOTI, rollLoot, lootCount, MAX_LEVEL, MAX_XP, lvl, TITLES, TITLE_AT, titleOf, nextTitleAt, INCARNATIONS, incName, canReincarnate, atFinal, snapshotSpirit, spiritView, STYLES, styleOf, styleScores, typicalStyle, PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();

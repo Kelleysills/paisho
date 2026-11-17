@@ -177,6 +177,11 @@
         const nr = Eco.newRating(p.rating, oppR, res); out.delta = nr - p.rating; p.rating = nr; out.rating = nr; p.ratingPeak = Math.max(p.ratingPeak || 0, nr);
         p.ranked[res === 'w' ? 'w' : res === 'l' ? 'l' : 'd']++;
         out.ranked = true;
+        if (res === 'w') { // loot for ranked wins: one piece, a 25% chance of a second, better odds when you close a ring
+          const drops = [Eco.rollLoot(ring ? 0.6 : 0)]; if (Math.random() < 0.25) drops.push(Eco.rollLoot(0));
+          p.loot = p.loot || {}; drops.forEach((it) => { p.loot[it.id] = (p.loot[it.id] || 0) + 1; if (it.r === 'legendary' || it.r === 'mythic') p.lootLegend = true; });
+          p.lootFound = (p.lootFound || 0) + drops.length; out.loot = drops.map((it) => it.id);
+        }
       }
       const st = Object.assign(emptyStats(), p.stats || {});
       const k = res === 'w' ? 0 : res === 'l' ? 1 : 2;
@@ -954,6 +959,11 @@
       <p class="tiny muted" style="text-align:center">${k === 'blackout' ? 'Seismic Sense: if you have it equipped, it’s the board in play whether you host or join. In Elemental games your opponent plays in the dark, feeling only faint tremors where tiles are while the board flashes back every few seconds, and the Melon Lord can’t touch you. If both players have it, the host gets the advantage.' : b.desc ? esc(b.desc) : b.unlock ? '' : 'Board theme. In online games, everyone plays on the host’s board.'}</p>
       <div class="menu">${own ? (me.board === k ? '<div class="tiny" style="text-align:center;color:#9fd18b">✓ In use</div>' : `<button class="btn primary" data-act="equipBoard" data-id="${k}">Use this board</button>`) : ''}<button class="btn" data-act="closeSheet">Close</button></div>`);
   }
+  function lootCard(id, big) {
+    const it = Eco.LOOTI[id]; if (!it) return '';
+    const R = Eco.RARITY[it.r];
+    return `<div class="loot-card ${big ? 'big' : ''}" style="--rc:${R.c}"><span class="lc-i">${it.icon}</span><b>${esc(it.name)}</b><small style="color:${R.c}">${R.name}</small></div>`;
+  }
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
     ensureMe();
@@ -963,6 +973,12 @@
       body = `<p class="muted tiny" style="margin:0">Effect tiles for your loadouts. Everyone starts with Stone and Boat.</p><div class="store-grid">${P.EFFECT_TYPES.slice().sort((a, b) => Eco.TILE_PRICE[a] - Eco.TILE_PRICE[b]).map((t) => { const own = Eco.ownsTile(me, t); return `<div class="item ${own ? 'owned' : ''}">${Glyphs.svg(t, 0, 'style="width:52px;height:52px"')}<div class="nm">${P.tname(t)}</div><div class="ds">${esc(Guide.INFO[t][1].split('. ')[0])}.</div>${own ? '<span class="tiny" style="color:#9fd18b">✓ Owned</span>' : `<button class="btn small primary" data-act="buyItem" data-kind="tiles" data-id="${t}">🪙 ${Eco.TILE_PRICE[t]}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'avatars') {
       body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${(Avatars.price(a.id) || Eco.AVATAR_PRICE)}</button>`}</div>`; }).join('')}</div>`;
+    } else if (storeTab === 'loot') {
+      const inv = Object.entries(me.loot || {}).filter(([id, n]) => n > 0 && Eco.LOOTI[id]).sort((a, b) => Eco.RORDER.indexOf(Eco.LOOTI[b[0]].r) - Eco.RORDER.indexOf(Eco.LOOTI[a[0]].r) || Eco.LOOTI[b[0]].value - Eco.LOOTI[a[0]].value);
+      const worth = inv.reduce((a, [id, n]) => a + Eco.LOOTI[id].value * n, 0), found = new Set(Object.keys(me.loot || {}).concat(me.lootSeen || []));
+      body = `<p class="muted tiny" style="margin:0">Win ranked online matches to find loot. Rarer pieces sell for much more. ${inv.length ? `Your bag is worth <b>${gpFmt(worth)}</b>.` : ''}</p>
+        ${inv.length ? `<div class="menu"><button class="btn small" data-act="sellLoot" data-id="__common">Sell all Common</button></div><div class="loot-grid">${inv.map(([id, n]) => `<div class="loot-item r-${Eco.LOOTI[id].r}">${lootCard(id)}${n > 1 ? `<span class="loot-n">×${n}</span>` : ''}<button class="btn small" data-act="sellLoot" data-id="${id}">Sell 🪙 ${Eco.LOOTI[id].value.toLocaleString()}</button></div>`).join('')}</div>` : '<div class="card tiny muted" style="text-align:center">Your bag is empty. Win a ranked match to find your first piece of loot.</div>'}
+        <div class="field"><label>📖 Collection · ${Eco.LOOT.filter((it) => found.has(it.id)).length}/${Eco.LOOT.length} found</label><div class="loot-book">${Eco.RORDER.map((r) => `<div class="lb-r"><b style="color:${Eco.RARITY[r].c}">${Eco.RARITY[r].name}</b><div>${Eco.LOOT.filter((it) => it.r === r).map((it) => `<span class="lb-i ${found.has(it.id) ? '' : 'lb-x'}" title="${esc(found.has(it.id) ? it.name : '???')}">${found.has(it.id) ? it.icon : '❔'}</span>`).join('')}</div></div>`).join('')}</div></div>`;
     } else if (storeTab === 'emotes') {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
@@ -970,7 +986,7 @@
       body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Always in play when equipped: opponents play in the dark in Elemental games (host wins ties)'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock === 'melon100' ? ((me.melonUses || 0) >= 100 ? `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price.toLocaleString()}</button>` : `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100), then 🪙 100,000</span>`) : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
-      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
+      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}${tab('loot', '🎁 Loot')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
       <div class="note">Earn gold: computer games pay a little (more on Hard), online games pay a lot — even a loss earns some. Completing a ring adds a bonus.</div></div>`;
   };
 
@@ -1298,7 +1314,8 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17e', items: [
+  const NEWS = { v: '2026-11-17f', items: [
+    ['🎁', 'Loot', 'Win ranked online matches to find Avatar-themed loot, from Common cabbages to Mythic relics. Sell it in the Store’s new Loot tab, and fill your collection book.'],
     ['🌈', 'Host’s board', 'In online games, both players now play on the host’s board. Show it off.'],
     ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
     ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
@@ -2548,6 +2565,7 @@
       ${R.melon ? '<div class="note" style="margin-bottom:8px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}
       ${R.subUnlocked ? '<div class="note" style="margin-bottom:8px">🌀 <b>Sub-bending unlocked!</b></div>' : R.levelUp ? `<div class="note" style="margin-bottom:8px">⬆️ <b>Level up!</b> You’re now Level ${Eco.level(R.xpAfter || 0, me && me.surpass)}.${me && Eco.titleOf(me, Eco.level(R.xpAfter || 0, me.surpass)) !== Eco.titleOf(me, Eco.level(R.xpBefore || 0, me.surpass)) ? ` New title: <b>${esc(Eco.titleOf(me, Eco.level(R.xpAfter || 0, me.surpass)))}</b>!` : ''}</div>` : ''}
       ${R.style ? `<div class="tiny" style="margin:0 0 8px">Your style this game: <b style="color:${Eco.STYLES[R.style].color}">${Eco.STYLES[R.style].icon} ${Eco.STYLES[R.style].name}</b> (${Eco.STYLES[R.style].tag})</div>` : ''}
+      ${R.loot && R.loot.length ? `<div class="card loot-drop"><div class="tiny muted">🎁 Loot found</div><div class="loot-row">${R.loot.map((id) => lootCard(id, true)).join('')}</div><div class="tiny muted">Sell it in the Store’s Loot tab, or keep collecting.</div></div>` : ''}
       ${R.fastest ? `<div class="note" style="margin-bottom:8px">⚡ New record! Fastest win${R.fastestKey === 'fastestAi' ? ' vs the computer' : ''}: <b>${R.fastest} moves</b></div>` : ''}
       ${R.xpAfter != null ? lvlBar(R.xpAfter, R.xpBefore) : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold. Play the computer or online to earn.</div>' : '';
     const prNote = R && R.practice ? '<div class="tiny muted" style="margin:-4px 0 8px">🎓 Sub-bending practice: doesn’t count toward your record or rank.</div>' : '';
@@ -2809,6 +2827,17 @@
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
     reincarnate: () => reincarnate(),
+    sellLoot: async (d) => {
+      if (!me) return; ensureMe(); await syncCounters();
+      me.loot = me.loot || {}; me.lootSeen = [...new Set((me.lootSeen || []).concat(Object.keys(me.loot)))];
+      let gain = 0, cnt = 0;
+      const ids = d.id === '__common' ? Object.keys(me.loot).filter((id) => Eco.LOOTI[id] && Eco.LOOTI[id].r === 'common') : [d.id];
+      if (d.id !== '__common' && Eco.LOOTI[d.id] && Eco.RORDER.indexOf(Eco.LOOTI[d.id].r) >= 3 && !(await choose(`Sell ${Eco.LOOTI[d.id].name}?`, [{ label: `Sell for 🪙 ${Eco.LOOTI[d.id].value.toLocaleString()}`, value: true, cls: 'primary' }], 'It’s ' + Eco.RARITY[Eco.LOOTI[d.id].r].name + '. You might not find another one.'))) return;
+      ids.forEach((id) => { const n = d.id === '__common' ? (me.loot[id] || 0) : Math.min(1, me.loot[id] || 0); if (!n || !Eco.LOOTI[id]) return; me.loot[id] -= n; gain += Eco.LOOTI[id].value * n; cnt += n; if (!me.loot[id]) delete me.loot[id]; });
+      if (!cnt) return;
+      me.gp += gain; me.gpPeak = Math.max(me.gpPeak || 0, me.gp); await saveMe();
+      toast(`🪙 Sold ${cnt} for ${gpFmt(gain)}`); const y = window.scrollY; screens.store(); window.scrollTo(0, y);
+    },
     boardPreview: (d) => boardPreviewSheet(d.id),
     buyWalker: async () => {
       if (!me || !me.pastLife) return toast('Only an Avatar who became a past life can walk this path');
