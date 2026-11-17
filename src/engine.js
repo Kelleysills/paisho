@@ -99,7 +99,7 @@ const PaiSho = (() => {
   function melonLeft(s, p) { const u = s.melon ? s.melon.used[p] : 0; return Math.max(0, MELON_MAX - (u === true ? 1 : +u || 0)); }
   function newGame(opts = {}) {
     const o = Object.assign({ minHarmonies: 4, effects: [[], []], chance: false, maxTurns: 400 }, opts);
-    if (o.subPractice) { o.bending = true; o.powers = [0, 1].map((p) => { const pw = (o.powers && o.powers[p]) || {}; return { nation: pw.nation || null, avatar: false, subs: pw.nation ? [SUB_OF[pw.nation]] : [] }; }); }
+    if (o.subPractice) { o.bending = true; o.powers = [0, 1].map((p) => { const pw = (o.powers && o.powers[p]) || {}; return { nation: pw.nation || null, avatar: !!pw.avatar, subs: pw.avatar ? ['metal', 'lightning', 'blood', 'flight'] : pw.nation ? [SUB_OF[pw.nation]] : [] }; }); }
     const hands = [0, 1].map((p) => {
       const h = {}; KEY_TYPES.forEach((t) => (h[t] = 3));
       (o.effects[p] || []).slice(0, 6).forEach((t) => { if (EFFECT_TYPES.includes(t)) h[t] = 1; });
@@ -591,7 +591,7 @@ const PaiSho = (() => {
       if (used.length >= PRACTICE_USES) return [];
       const last = (s.bend.subT || [])[p];
       if (last != null && s.turnNo - last < PRACTICE_COOLDOWN) return [];
-      return pw.subs.slice(0, 1);
+      return pw.subs.slice(); // the Avatar picks any of the four each time; everyone else repeats their own
     }
     const limit = pw.avatar ? 2 : 1;
     if (used.length >= limit) return [];

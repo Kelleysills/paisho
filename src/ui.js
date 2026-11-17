@@ -1187,7 +1187,8 @@
     if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
     if (hostBoard !== 'blackout') return { theme: G.mode === 'online' ? myBoard() : hostBoard, blackout: false };
     if (!elemental) return { theme: iAmHost ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
-    return { theme: iAmHost && G.mode === 'online' ? 'classic' : G.mode === 'online' ? 'classic' : 'classic', blackout: G.mode === 'online' ? !iAmHost : 'local' };
+    // Elemental: the owner plays on their seismic board (lighter view) while the opponent plays in the dark
+    return { theme: G.mode === 'online' ? (iAmHost ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iAmHost : 'local' };
   }
   function blackoutActive() {
     if (!G || !G.boardInfo || !G.boardInfo.blackout) return false;
