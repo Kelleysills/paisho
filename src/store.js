@@ -48,6 +48,8 @@ const Store = (() => {
   }
   async function set(col, id, data) {
     const body = JSON.parse(JSON.stringify(data)); delete body.id;
+    // online, a profile's owners and PIN hash are changed only through FB.createPlayer / claim / savePin
+    if (kind === 'firebase' && col === 'players') { delete body.uids; delete body.pin; }
     if (viaP2P(col)) return P2P.set(id, body);
     if (kind === 'firebase') return FB.col(col).doc(id).set(body, { merge: true });
     if (kind === 'artifact') return db.doc(col + '/' + id).set(body);

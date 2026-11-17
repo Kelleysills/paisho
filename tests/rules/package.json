@@ -1,0 +1,13 @@
+{
+  "name": "paisho-rules-tests",
+  "private": true,
+  "scripts": {
+    "test": "cd ../.. && firebase emulators:exec --only firestore --project paisho-rules-test \"node tests/rules/test_rules.js\"",
+    "test:client": "cd ../.. && firebase emulators:exec --only firestore,auth --project paisho-rules-test \"node tests/rules/test_client.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.0",
+    "firebase": "^10.12.2",
+    "firebase-tools": "^13.0.0"
+  }
+}

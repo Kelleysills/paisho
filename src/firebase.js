@@ -54,7 +54,47 @@ const FB = (() => {
   const takePending = () => { const p = pendingGoogle; pendingGoogle = null; return p; };
   const col = (c) => fs.collection(c);
   const now = () => Date.now();
-  return { init, col, get fs() { return fs; }, get uid() { return uid; }, now, googleSignIn, signOutGoogle, googleUser, playerForGoogle, takePending };
+
+  // ---- profile ownership (see firestore.rules) ----
+  // A profile belongs to the sign-ins in its `uids` (each phone that made it or unlocked it with the PIN) and its linked Google account.
+  const FV = () => firebase.firestore.FieldValue;
+  const ownerUids = (p) => (p ? (p.uids || []).concat(p.gUid ? [p.gUid] : []) : []);
+  const owns = (p) => !!(p && uid && ownerUids(p).includes(uid));
+  const denied = (e) => !!e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''));
+  const clean = (o) => JSON.parse(JSON.stringify(o));
+  // New profile, owned by this phone. The PIN hash is kept out of it (see savePin).
+  async function createPlayer(p) {
+    const body = clean(Object.assign({}, p, { uids: [uid] })); delete body.id; delete body.pin;
+    await fs.collection('players').doc(p.id).set(body);
+    return body.uids;
+  }
+  // Add this phone to a profile without a PIN proof (only works while the database rules allow it).
+  async function stamp(pid) {
+    try { await fs.collection('players').doc(pid).update({ uids: FV().arrayUnion(uid) }); return true; } catch (e) { return false; }
+  }
+  // Prove the PIN to the database and add this phone to the profile.
+  // true = right PIN, false = refused (wrong PIN, or rules without PIN claims); throws on connection errors.
+  async function claim(pid, proof) {
+    const cref = fs.collection('claims').doc(pid + '_' + uid), b = fs.batch();
+    b.set(cref, { pid, uid, proof, t: Date.now() });
+    b.update(fs.collection('players').doc(pid), { uids: FV().arrayUnion(uid) });
+    try { await b.commit(); } catch (e) { if (denied(e)) return false; throw e; }
+    cref.delete().catch(() => {});
+    return true;
+  }
+  // Keep the PIN hash where nobody can read it. Only done when the database really hides /pins; false otherwise.
+  async function savePin(pid, salt, hash) {
+    try { await fs.collection('pins').doc(pid).get(); return false; } catch (e) { if (!denied(e)) return false; }
+    const b = fs.batch();
+    b.set(fs.collection('pins').doc(pid), { pin: hash, t: Date.now() });
+    b.update(fs.collection('players').doc(pid), { salt, pin: FV().delete() });
+    try { await b.commit(); return true; } catch (e) { return false; }
+  }
+  // Older rules: the hash stays on the profile, as before.
+  const savePinPublic = (pid, salt, hash) => fs.collection('players').doc(pid).set({ salt, pin: hash }, { merge: true });
+  const dropPin = (pid) => fs.collection('pins').doc(pid).delete().catch(() => {});
+  return { init, col, get fs() { return fs; }, get uid() { return uid; }, now, googleSignIn, signOutGoogle, googleUser, playerForGoogle, takePending,
+    ownerUids, owns, createPlayer, stamp, claim, savePin, savePinPublic, dropPin };
 })();
 
 /* Friends over Firestore: friend codes, requests, presence, invites */
@@ -95,13 +135,27 @@ const FireSocial = (() => {
       emit('change');
     }, () => {}));
     // direct messages
-    unsubs.push(FB.col('dms').where('pids', 'array-contains', me.pid).onSnapshot((qs) => {
+    adoptDMs(me.pid, me.friends);
+    unsubs.push(FB.col('dms').where('uids', 'array-contains', FB.uid).onSnapshot((qs) => {
       const prev = Object.fromEntries(dmDocs.map((d) => [d.id, d.lastT || 0]));
       dmDocs = qs.docs.map((x) => Object.assign({ id: x.id }, x.data())).sort((a, b) => (b.lastT || 0) - (a.lastT || 0));
       dmDocs.forEach((d) => { if (dmReady && d.lastFrom && d.lastFrom !== me.pid && (d.lastT || 0) > (prev[d.id] || 0)) emit('dm', { id: d.id, from: d.lastFrom, name: (d.names || {})[d.lastFrom] || 'Player', text: d.lastText || '' }); });
       dmReady = true; emit('change'); emit('dmchange');
     }, () => {}));
     return true;
+  }
+  // Threads are found by sign-in (uids). Add this phone to threads it can open as one of the two players:
+  // older threads (before uids existed) and threads with friends from before this phone joined the profile.
+  async function adoptDMs(pid, friendPids) {
+    const FV = firebase.firestore.FieldValue, ids = new Set();
+    try { (await FB.col('dms').where('pids', 'array-contains', pid).get()).docs.forEach((d) => ids.add(d.id)); } catch (e) {} // refused by the newer rules
+    (friendPids || []).slice(0, 30).forEach((f) => ids.add(dmId(pid, f)));
+    for (const id of ids) {
+      try {
+        const d = await FB.col('dms').doc(id).get();
+        if (d.exists && !(d.data().uids || []).includes(FB.uid)) await FB.col('dms').doc(id).update({ uids: FV.arrayUnion(FB.uid) });
+      } catch (e) {}
+    }
   }
   // ---- direct messages: one doc per pair, last 100 messages ----
   let dmDocs = [], dmReady = false;
@@ -116,7 +170,10 @@ const FireSocial = (() => {
     const id = dmId(me.pid, toPid), ref = FB.col('dms').doc(id), t = FB.now();
     const m = { from: me.pid, text, t };
     const FV = firebase.firestore.FieldValue;
-    await ref.set({ pids: [me.pid, toPid].sort(), names: { [me.pid]: me.name, [toPid]: toName }, msgs: FV.arrayUnion(m), lastT: t, lastFrom: me.pid, lastText: text.slice(0, 80), read: { [me.pid]: t } }, { merge: true });
+    // who may read the thread: every sign-in that owns either player
+    const docs = await Promise.all([me.pid, toPid].map((x) => FB.col('players').doc(x).get().then((d) => d.data(), () => null)));
+    const uids = Array.from(new Set([FB.uid].concat(...docs.map(FB.ownerUids))));
+    await ref.set({ pids: [me.pid, toPid].sort(), uids, names: { [me.pid]: me.name, [toPid]: toName }, msgs: FV.arrayUnion(m), lastT: t, lastFrom: me.pid, lastText: text.slice(0, 80), read: { [me.pid]: t } }, { merge: true });
     const cur = dmDocs.find((d) => d.id === id); if (cur && (cur.msgs || []).length > 110) ref.set({ msgs: cur.msgs.slice(-100).concat([m]) }, { merge: true }).catch(() => {});
     Push.send(toPid, '💬 ' + me.name, text.slice(0, 120), 'dm-' + me.pid);
     return null;
@@ -171,7 +228,7 @@ const FireSocial = (() => {
     const r = reqDocs.find((x) => x.fromCode === code); if (!r) return;
     const FV = firebase.firestore.FieldValue;
     await FB.col('players').doc(me.pid).set({ friends: FV.arrayUnion(r.from) }, { merge: true });
-    await FB.col('players').doc(r.from).set({ friends: FV.arrayUnion(me.pid) }, { merge: true });
+    await FB.col('players').doc(r.from).set({ friends: FV.arrayUnion(me.pid), friendBy: me.pid }, { merge: true });
     await FB.col('requests').doc(r.id).delete();
     Push.send(r.from, '🤝 New friend', `${me.name} accepted your friend request`, 'fa-' + me.pid);
     emit('accepted', { code, name: r.fromName });
@@ -181,7 +238,7 @@ const FireSocial = (() => {
     const f = friendDocs.find((x) => x.code === code); if (!f) return;
     const FV = firebase.firestore.FieldValue;
     await FB.col('players').doc(me.pid).set({ friends: FV.arrayRemove(f.pid) }, { merge: true });
-    await FB.col('players').doc(f.pid).set({ friends: FV.arrayRemove(me.pid) }, { merge: true }).catch(() => {});
+    await FB.col('players').doc(f.pid).set({ friends: FV.arrayRemove(me.pid), friendBy: me.pid }, { merge: true }).catch(() => {});
   }
   const invites = () => inviteDocs.slice();
   const dismissInvite = (id) => { inviteDocs = inviteDocs.filter((v) => v.id !== id); emit('change'); return FB.col('invites').doc(id).delete().catch(() => {}); };

@@ -221,7 +221,15 @@
     await Store.init();
     if (Store.kind === 'firebase') { const pg = FB.takePending(); if (pg) { go('login'); return googleContinue(pg); } }
     const sess = Store.LS.get('session');
-    if (sess) { const p = await Store.get('players', sess).catch(() => null); if (p) { me = p; rememberProfile(p.id); return go('home'); } }
+    if (sess) {
+      const p = await Store.get('players', sess).catch(() => null);
+      if (p && Store.kind === 'firebase' && !FB.owns(p) && !(await FB.stamp(p.id))) {
+        // the profile isn't linked to this phone's sign-in yet: one PIN entry links it
+        rememberProfile(p.id); go('login'); toast('Enter your PIN once to keep playing on this phone', 4000);
+        return loginFlow(p, (pp) => finishSignIn(pp));
+      }
+      if (p) { me = p; rememberProfile(p.id); return go('home'); }
+    }
     go('login');
   };
 
@@ -299,12 +307,40 @@
     }));
   }
 
+  // Online check of a PIN: the database compares it with the hidden hash and adds this phone to the profile's owners.
+  async function checkPinOnline(p, pin) {
+    const h = await Auth.hash(pin, p.salt);
+    const legacyOk = !!p.pin && h === p.pin; // profiles made before the PIN hash moved out of the profile
+    if (p.pin && !legacyOk) return 'wrong';
+    let ok;
+    try { ok = await FB.claim(p.id, h); } catch (e) { return 'offline'; }
+    if (!ok) {
+      if (!legacyOk) return 'wrong';
+      await FB.stamp(p.id); // database rules from before PIN claims
+    }
+    p.uids = Array.from(new Set((p.uids || []).concat(FB.uid)));
+    if (ok && legacyOk) { const s2 = Auth.rid(10); if (await FB.savePin(p.id, s2, await Auth.hash(pin, s2))) { p.salt = s2; delete p.pin; } }
+    return 'ok';
+  }
   async function loginFlow(p, onOk, backTo = 'login') {
+    const online = Store.kind === 'firebase';
     const bio = p.cred && await Auth.bioAvailable();
     const tryBio = async () => {
-      try { if (await Auth.bioVerify(p.cred)) return onOk(p); } catch (e) { toast('Biometric unavailable here — use your PIN'); }
+      try {
+        if (!(await Auth.bioVerify(p.cred))) return;
+        if (online && !FB.owns(p)) {
+          if (!(await FB.stamp(p.id))) return toast('Enter your PIN once on this phone');
+          p.uids = Array.from(new Set((p.uids || []).concat(FB.uid)));
+        }
+        return onOk(p);
+      } catch (e) { toast('Biometric unavailable here — use your PIN'); }
     };
     pinPad(p.name, `${av(p.name)}<div class="muted" style="margin-top:8px">Enter your PIN</div>`, async (pin) => {
+      if (online) {
+        const r = await checkPinOnline(p, pin);
+        if (r === 'ok') { onOk(p); return true; }
+        toast(r === 'offline' ? 'Couldn’t check your PIN — check your connection' : 'Wrong PIN'); return false;
+      }
       const h = await Auth.hash(pin, p.salt);
       if (h === p.pin) { onOk(p); return true; }
       toast('Wrong PIN'); return false;
@@ -347,7 +383,13 @@
       if (bio && document.getElementById('np-bio').classList.contains('on')) {
         try { p.cred = await Auth.bioRegister(p); } catch (err) { toast('Biometric setup skipped — PIN only'); }
       }
-      try { await Store.set('players', id, p); } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
+      try {
+        if (Store.kind === 'firebase') {
+          p.uids = await FB.createPlayer(p);
+          if (await FB.savePin(id, p.salt, p.pin)) delete p.pin;
+          else await FB.savePinPublic(id, p.salt, p.pin);
+        } else await Store.set('players', id, p);
+      } catch (err) { return toast('Couldn’t save the player (no write access?)'); }
       me = p; rememberProfile(id);
       if (document.getElementById('np-keep').classList.contains('on')) Store.LS.set('session', id);
       startTutorial();
@@ -728,6 +770,7 @@
     const doc = { code, status: 'open', created: Date.now(), updated: Date.now(), ver: 0, state: null,
       opts: { minH: +S.minH, timer: +S.timer, chance: !!S.chance, enigma: !!S.enigma, bending: !!S.bending, rules: 'key' },
       host: { pid: myPid(), name: myName(), avatar: myAvatar(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: S.fx[0].filter((t) => Eco.ownsTile(me, t)) }, guest: null, pids: [myPid()] };
+    if (Store.kind === 'firebase') doc.uids = [FB.uid];
     if (Store.kind === 'firebase' && TurnAlerts.supported() && !TurnAlerts.enabled() && !Store.LS.get('askedAlerts')) { Store.LS.set('askedAlerts', 1); TurnAlerts.enable(); }
     if (Store.p2p()) P2P.host(code);
     try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t create the game (no write access?)'); }
@@ -764,6 +807,7 @@
     const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }] });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
+    if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
     try { await Store.set('games', code, nd); } catch (e) { return toast('Couldn’t join (no write access?)'); }
     if (d.host && d.host.pid) Push.send(d.host.pid, '🎮 Game on!', `${myName()} joined your game ${code}`, 'g-' + code);
     startOnline(Object.assign({ id: code }, nd));
@@ -1922,10 +1966,15 @@
       document.getElementById('cpf').addEventListener('submit', async (e) => {
         e.preventDefault(); const a = document.getElementById('cp1').value, b = document.getElementById('cp2').value;
         if (!/^\d{4,6}$/.test(a) || a !== b) return toast('PINs must match and be 4–6 digits');
-        me.salt = Auth.rid(10); me.pin = await Auth.hash(a, me.salt); await Store.set('players', me.id, me); closeSheet(); toast('PIN updated');
+        const salt = Auth.rid(10), h = await Auth.hash(a, salt);
+        if (Store.kind === 'firebase') {
+          try { if (await FB.savePin(me.id, salt, h)) { me.salt = salt; delete me.pin; } else { await FB.savePinPublic(me.id, salt, h); me.salt = salt; me.pin = h; } }
+          catch (err) { return toast('Couldn’t save — try again'); }
+        } else { me.salt = salt; me.pin = h; await Store.set('players', me.id, me); }
+        closeSheet(); toast('PIN updated');
       });
     },
-    deleteMe: async () => { if (await confirmBox('Delete player?', 'This removes ' + me.name + ' and their stats for good.', 'Delete', true)) { await Store.del('players', me.id); me = null; Store.LS.set('session', null); go('login'); } },
+    deleteMe: async () => { if (await confirmBox('Delete player?', 'This removes ' + me.name + ' and their stats for good.', 'Delete', true)) { if (Store.kind === 'firebase') await FB.dropPin(me.id); await Store.del('players', me.id); me = null; Store.LS.set('session', null); go('login'); } },
     startSetup: (d) => { setup.mode = d.mode; setup.fxTab = 0; setup.fx[0] = equipped().fx.slice(); go('setup'); },
     seg: (d) => { setup[d.k] = isNaN(+d.v) ? d.v : +d.v; rerenderSetup(); },
     fxTab: (d) => { setup.fxTab = +d.v; rerenderSetup(); },
