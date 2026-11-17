@@ -951,7 +951,7 @@
     const b = Eco.BOARDS[k]; if (!b) return;
     const own = me && Eco.ownsBoard(me, k);
     sheet(`<h3 style="text-align:center;margin-top:0">${esc(b.name)}</h3><div class="bprev-big">${boardPreview(k)}</div>
-      <p class="tiny muted" style="text-align:center">${k === 'blackout' ? 'Seismic Sense: in Elemental games you host, your opponent plays in the dark. They only feel faint tremors where tiles are, and the board flashes back every few seconds.' : b.desc ? esc(b.desc) : b.unlock ? '' : 'Board theme. In online games, everyone plays on the host’s board.'}</p>
+      <p class="tiny muted" style="text-align:center">${k === 'blackout' ? 'Seismic Sense: if you have it equipped, it’s the board in play whether you host or join. In Elemental games your opponent plays in the dark, feeling only faint tremors where tiles are while the board flashes back every few seconds, and the Melon Lord can’t touch you. If both players have it, the host gets the advantage.' : b.desc ? esc(b.desc) : b.unlock ? '' : 'Board theme. In online games, everyone plays on the host’s board.'}</p>
       <div class="menu">${own ? (me.board === k ? '<div class="tiny" style="text-align:center;color:#9fd18b">✓ In use</div>' : `<button class="btn primary" data-act="equipBoard" data-id="${k}">Use this board</button>`) : ''}<button class="btn" data-act="closeSheet">Close</button></div>`);
   }
   screens.store = () => {
@@ -967,7 +967,7 @@
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
     } else {
-      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Opponents play in the dark in Elemental games you host'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
+      body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Always in play when equipped: opponents play in the dark in Elemental games (host wins ties)'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
       <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
@@ -1254,8 +1254,8 @@
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
-    const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null, spirit: d.host.board === 'spirit' ? 1 : null });
+    const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : myBoard() === 'blackout' ? 0 : null, spirit: d.host.board === 'spirit' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -1655,12 +1655,18 @@
   // board theme for this game, and whether this viewer gets the Blackout effect
   function gameBoardInfo() {
     const elemental = !!G.s.bend;
-    let hostBoard = myBoard(), iAmHost = true;
-    if (G.mode === 'online' && G.doc && G.doc.host) { hostBoard = G.doc.host.board || 'classic'; iAmHost = G.my === 1; }
-    if (hostBoard !== 'blackout') return { theme: hostBoard, blackout: false };
-    if (!elemental) return { theme: iAmHost ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
+    // Seismic Sense always wins: if either player has it equipped it's the board in play. The owner (host first, if both) gets the advantage.
+    let hostBoard = myBoard(), owner = null, iOwn = true;
+    if (G.mode === 'online' && G.doc && G.doc.host) {
+      hostBoard = G.doc.host.board || 'classic';
+      const gb = G.doc.guest && G.doc.guest.board;
+      owner = typeof G.s.seismic === 'number' ? G.s.seismic : hostBoard === 'blackout' ? 1 : gb === 'blackout' ? 0 : null;
+      iOwn = G.my === owner;
+    } else if (hostBoard === 'blackout') owner = 'me';
+    if (owner === null) return { theme: hostBoard, blackout: false };
+    if (!elemental) return { theme: iOwn ? 'blackoutOwner' : 'blackout', blackout: false }; // owner sees a slightly lighter version
     // Elemental: the owner plays on their seismic board (lighter view) while the opponent plays in the dark
-    return { theme: G.mode === 'online' ? (iAmHost ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iAmHost : 'local' };
+    return { theme: G.mode === 'online' ? (iOwn ? 'blackoutOwner' : 'classic') : 'blackoutOwner', blackout: G.mode === 'online' ? !iOwn : 'local' };
   }
   function blackoutActive() {
     if (!G || !G.boardInfo || !G.boardInfo.blackout) return false;
