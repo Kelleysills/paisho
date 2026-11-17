@@ -112,6 +112,7 @@ const PaiSho = (() => {
       bend: o.bending ? { used: [false, false], subs: [[], []], skip: [0, 0], flight: [false, false] } : null, rubble: null,
     };
     if (o.seismic === 0 || o.seismic === 1) st.seismic = o.seismic;
+    if (o.spirit === 0 || o.spirit === 1) st.spirit = o.spirit;
     return st;
   }
   function freshTP() { return { mainDone: false, placed: false, used: {}, extra: null, mustLotus: false }; }
@@ -766,7 +767,7 @@ const PaiSho = (() => {
     return k.dirs === 'all' || k.dirs === li.kind;
   }
   function pathClear(s, a, li, owner, ignoreFlowers) {
-    const [r, c] = rc(a);
+    const [r, c] = rc(a); let opp = 0;
     for (let k = 1; k < li.d; k++) {
       const j = idx(r + li.sr * k, c + li.sc * k);
       if (!onBoard[j] || isGateSq(s, j)) return false;
@@ -774,6 +775,8 @@ const PaiSho = (() => {
       const t = topAt(s, j);
       if (t && isFlower(t.type)) {
         if (t.type === 'firelily' && t.owner === owner) continue; // firelily only blocks opponents
+        // Spirit board: the owner's harmonies need TWO opponent tiles in the line to break
+        if (s.spirit === owner && owner != null && owner >= 0 && t.owner !== owner) { opp++; if (opp < 2) continue; }
         return false;
       }
     }

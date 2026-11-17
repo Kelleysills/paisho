@@ -242,10 +242,11 @@ const FireSocial = (() => {
   }
   const invites = () => inviteDocs.slice();
   const dismissInvite = (id) => { inviteDocs = inviteDocs.filter((v) => v.id !== id); emit('change'); return FB.col('invites').doc(id).delete().catch(() => {}); };
-  async function invite(code, game) {
+  async function invite(code, game, kind) {
     const f = friendDocs.find((x) => x.code === code); if (!f) return;
-    await FB.col('invites').doc(game + '_' + f.pid).set({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, fromAvatar: me.avatar || null, game, t: FB.now() });
-    Push.send(f.pid, '🎮 Game invite', `${me.name} invited you to a game of Pai Sho`, 'inv-' + me.pid);
+    await FB.col('invites').doc(game + '_' + f.pid).set({ to: f.pid, from: me.pid, fromCode: me.fcode, fromName: me.name, fromAvatar: me.avatar || null, game, kind: kind || 'game', t: FB.now() });
+    if (kind === 'fight') Push.send(f.pid, '🥋 Duel challenge', `${me.name} challenged you to a bending duel. Join now!`, 'inv-' + me.pid);
+    else Push.send(f.pid, '🎮 Game invite', `${me.name} invited you to a game of Pai Sho`, 'inv-' + me.pid);
   }
   const friends = () => friendDocs.slice().sort((a, b) => (b.seen > Date.now() - ONLINE_MS) - (a.seen > Date.now() - ONLINE_MS) || a.name.localeCompare(b.name));
   const requests = () => reqDocs.map((r) => ({ code: r.fromCode, name: r.fromName, avatar: r.fromAvatar }));

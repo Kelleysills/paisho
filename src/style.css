@@ -414,3 +414,49 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .fcard svg{width:100%;height:auto;display:block}
 .toggle-row{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
 .fopts .fsw::before,.fopts .fsw::after{display:none}
+.pc-title{color:var(--gold2,#f2cf6b);font-weight:700}
+
+/* duels */
+.duel{display:flex;flex-direction:column;height:100%;padding:10px;gap:8px;position:relative;user-select:none}
+.duel-top{display:flex;align-items:center;gap:8px}
+.duel-top .vs{font-family:var(--fun);color:var(--gold);font-size:18px}
+.dbar{flex:1;min-width:0}.dbar .dbn{display:flex;flex-direction:column;font-size:12px;line-height:1.2}.dbar .dbn span{color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbar:not(.mine){text-align:right}
+.hp{height:12px;border-radius:99px;background:#1a110b;border:1px solid var(--line);overflow:hidden;margin-top:4px}
+.hp i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#5fd36f,#a6ec7a);transition:width .25s}
+.dbar:not(.mine) .hp i{margin-left:auto;background:linear-gradient(270deg,#5fd36f,#a6ec7a)}
+.hp i.low{background:linear-gradient(90deg,#e8513a,#ff9a6a)!important}
+.arena{flex:1;position:relative;min-height:240px;border-radius:16px;overflow:hidden;background:radial-gradient(ellipse at 50% 85%,#5a3e28 0,#2a1b12 55%,#120c08 100%);border:1px solid var(--line)}
+.arena::after{content:'';position:absolute;left:6%;right:6%;bottom:9%;height:10%;border-radius:50%;background:#00000055}
+.fighter{position:absolute;bottom:6%;width:34%;max-width:170px;z-index:1;transition:transform .15s}
+.fighter.fme{left:9%}.fighter.fopp{right:9%}
+.fighter.fopp .fig-in{transform:scaleX(-1)}
+.fighter svg{width:100%;height:auto;display:block}
+.fighter .shield{position:absolute;inset:-6% -14%;border-radius:50%;border:3px solid #bfe8ff;background:radial-gradient(circle,#bfe8ff22,#bfe8ff55);opacity:0;transition:opacity .12s;pointer-events:none}
+.fighter.guard .shield{opacity:1}
+.fighter.dodging{opacity:.55}
+.fme.lunge{animation:lungeR .3s}.fopp.lunge{animation:lungeL .3s}
+@keyframes lungeR{40%{transform:translateX(38%)}}@keyframes lungeL{40%{transform:translateX(-38%)}}
+.fighter.cast{animation:cast .4s}@keyframes cast{30%{transform:scale(1.08) translateY(-4%)}}
+.fighter.dodge{animation:dodgeA .48s}@keyframes dodgeA{40%{transform:translateY(-28%)}}
+.fighter.hit{animation:hitA .32s;filter:drop-shadow(0 0 10px #ff4a3a) brightness(1.3)}@keyframes hitA{25%{transform:translateX(-6%)}50%{transform:translateX(6%)}75%{transform:translateX(-3%)}}
+.fighter.blocked{animation:hitA .2s}
+.dproj{position:absolute;z-index:3;font-size:34px;transform:translate(-50%,-50%);filter:drop-shadow(0 0 12px var(--c))}
+.dfloat{position:absolute;z-index:4;transform:translateX(-50%);font-family:var(--fun);font-size:22px;color:#ff6a50;text-shadow:0 2px 0 #000;animation:floatUp .9s forwards;pointer-events:none}
+.dfloat.miss{color:#bfe8ff}.dfloat.blk{color:#ffd77a}
+@keyframes floatUp{to{transform:translate(-50%,-50px);opacity:0}}
+.dcount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;font-family:var(--fun);font-size:60px;color:var(--gold);text-shadow:0 4px 0 #000}
+.en{position:relative;height:16px;border-radius:99px;background:#1a110b;border:1px solid var(--line);overflow:hidden}
+.en i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#ffe38a)}
+.en span{position:absolute;inset:0;text-align:center;font-size:10px;line-height:16px;color:#2a1a0c;font-weight:700;mix-blend-mode:luminosity}
+.dmoves{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.dmove{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 4px;border-radius:16px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:12px;touch-action:manipulation}
+.dmove .di{font-size:28px}.dmove:disabled{opacity:.5}
+.dmove .cdv{position:absolute;left:0;right:0;bottom:0;background:#0009;pointer-events:none}
+.dmove:active:not(:disabled){transform:scale(.94)}
+.duel-over{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#000a;padding:20px}
+.duel-intro{text-align:center}
+.lvl-title{margin-bottom:6px;font-size:14px}
+.duel{min-height:100dvh;box-sizing:border-box;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.arena{min-height:46vh}
+.pc-title{color:inherit;opacity:.9}

@@ -11,9 +11,9 @@
   const noteHue = (p) => { if (p && p.name) { if (p.hue != null) hues[p.name] = p.hue; if (p.avatar && Avatars.has(p.avatar)) avs[p.name] = p.avatar; } return p; };
   const av = (name, cls = '') => avs[name] ? `<span class="avatar av-img ${cls}">${Avatars.svg(avs[name], '100%')}</span>` : `<span class="avatar ${cls}" style="background:hsl(${hues[name] != null ? hues[name] : hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
   let avatarPid = null;
-  const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid), lvl: Eco.level(me.xp || 0), xp: me.xp || 0 });
+  const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid), lvl: Eco.lvl(me), xp: me.xp || 0 });
   const APP_V = 20261117; // bump when the rules engine changes so outdated opponents get flagged
-  const myFig = () => (me ? Figure.of(me, Eco.level(me.xp || 0)) : null);
+  const myFig = () => (me ? Figure.of(me, Eco.lvl(me)) : null);
   const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
   const saveMe = () => (me ? (delete me._mig, Store.set('players', me.id, me)).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
   // pull counters from the server so a stale copy in memory never overwrites an admin fix or another device
@@ -152,10 +152,10 @@
       const p = await Store.get('players', pid); if (!p) return null;
       Eco.ensure(p);
       if (G && G.s && G.s.opts.subPractice) { // practice: small flat reward, no record, no rank
-        const lv0 = Eco.level(p.xp || 0);
+        const lv0 = Eco.lvl(p);
         p.gp = (p.gp || 0) + 30; p.xp = (p.xp || 0) + 10; p.gpPeak = Math.max(p.gpPeak || 0, p.gp);
         await Store.set('players', pid, p); if (me && me.id === pid) me = p;
-        return { gp: 30, xp: 10, practice: true, xpBefore: p.xp - 10, xpAfter: p.xp, levelUp: Eco.level(p.xp) > lv0, delta: 0 };
+        return { gp: 30, xp: 10, practice: true, xpBefore: p.xp - 10, xpAfter: p.xp, levelUp: Eco.lvl(p) > lv0, delta: 0 };
       }
       const bst = Eco.boost();
       const out = { gp: Math.round(Eco.earnings(mode, level, res, ring) * bst.gp), delta: 0, rating: p.rating, boost: bst.name ? bst : null };
@@ -164,11 +164,11 @@
       const spam = isMe && G ? Math.min(60, G.spam || 0) : 0; // 5 XP each, capped at 300 XP a match
       out.xp = Math.round((Eco.xpFor(mode, res) + (mode === 'online' ? spam * 5 : 0)) * bst.xp);
       out.xpBefore = p.xp || 0;
-      const lvBefore = Eco.level(p.xp || 0), subBefore = (p.xp || 0) >= Eco.SUB_XP;
+      const lvBefore = Eco.lvl(p), subBefore = (p.xp || 0) >= Eco.SUB_XP;
       p.xp = (p.xp || 0) + out.xp;
       const today = new Date().toISOString().slice(0, 10);
       if (p.lastDay !== today) { p.lastDay = today; p.daysPlayed = (p.daysPlayed || 0) + 1; }
-      out.levelUp = Eco.level(p.xp) > lvBefore; out.subUnlocked = !subBefore && p.xp >= Eco.SUB_XP;
+      out.levelUp = Eco.lvl(p) > lvBefore; out.subUnlocked = !subBefore && p.xp >= Eco.SUB_XP;
       if (isMe && G) p.bends = (p.bends || 0) + (G.bendsUsed || 0) + (G.spam || 0);
       if (isMe && G && G.s.melon && G.s.melon.bonus[G.my != null ? G.my : 0] && mode !== 'local') { const bg = Math.round(50 * bst.gp), bx = Math.round(50 * bst.xp); p.gp += bg; out.gp += bg; p.xp += bx; out.xp += bx; out.melon = true; }
       if (mode === 'online' && oppPid && !oppPid.startsWith('g-')) {
@@ -229,7 +229,7 @@
   async function createTrial(a, b) {
     const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
     const fxOf = (p) => { const lo = Array.isArray(p.loadouts) && p.loadouts[p.activeLoadout | 0]; return lo ? (lo.fx || []).filter((t) => Eco.ownsTile(p, t)).slice(0, 6) : []; };
-    const host = { pid: a.id, name: a.name, avatar: a.avatar || null, fig: Figure.of(a, Eco.level(a.xp || 0)), fx: fxOf(a) }, guest = { pid: b.id, name: b.name, avatar: b.avatar || null, fig: Figure.of(b, Eco.level(b.xp || 0)), fx: fxOf(b) };
+    const host = { pid: a.id, name: a.name, avatar: a.avatar || null, fig: Figure.of(a, Eco.lvl(a)), fx: fxOf(a) }, guest = { pid: b.id, name: b.name, avatar: b.avatar || null, fig: Figure.of(b, Eco.lvl(b)), fx: fxOf(b) };
     const s = P.newGame({ effects: [guest.fx, host.fx], minHarmonies: 4 });
     await Store.set('games', code, { code, status: 'playing', trial: true, created: Date.now(), updated: Date.now(), ver: 1, state: JSON.stringify(s), opts: { minH: 4, timer: 0, chance: false, enigma: false }, host, guest, pids: [a.id, b.id] });
     if (Store.kind === 'firebase') for (const p of [a, b]) FB.col('invites').add({ to: p.id, from: 'system', fromCode: 'AVATAR', fromName: '👑 Avatar Trial', game: code, t: Date.now() }).catch(() => {});
@@ -238,7 +238,7 @@
 
   // ---------- screens ----------
   const screens = {};
-  function go(name, ...args) { if (name !== 'dm' && dmUnsub) { dmUnsub(); dmUnsub = null; dmOpen = null; } if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+  function go(name, ...args) { if (typeof D !== 'undefined' && D) duelEnd(); if (name !== 'dm' && dmUnsub) { dmUnsub(); dmUnsub = null; dmOpen = null; } if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
 
   screens.boot = async () => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
@@ -444,7 +444,8 @@
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
         ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
-        <button class="btn" data-act="go" data-to="achievements">${icon('ach')}<span class="lbl">Achievements<small>${me ? `${Eco.ACH.filter((a) => (me.ach || {})[a.id]).length}/${Eco.ACH.length} · Lv ${Eco.level(me.xp)} · ${(me.xp || 0).toLocaleString()} XP` : 'Create a player to earn rewards'}</small></span></button>
+        <button class="btn" data-act="go" data-to="duel"><span style="font-size:22px;width:28px;text-align:center">🥋</span><span class="lbl">Bending duel<small>Fight a friend in real time · win their gold</small></span></button>
+        <button class="btn" data-act="go" data-to="achievements">${icon('ach')}<span class="lbl">Achievements<small>${me ? `${Eco.ACH.filter((a) => (me.ach || {})[a.id]).length}/${Eco.ACH.length} · Lv ${Eco.lvl(me)} · ${(me.xp || 0).toLocaleString()} XP` : 'Create a player to earn rewards'}</small></span></button>
         <button class="btn" data-act="go" data-to="store">${icon('store')}<span class="lbl">Store<small>${me ? gpFmt(me.gp) + ' · tiles, pictures, emotes, boards' : 'Create a player to earn gold'}</small></span></button>
         <button class="btn" data-act="go" data-to="loadouts">${icon('loadout')}<span class="lbl">Loadouts<small>Equipped: ${esc(equipped().name)} · ${loIcons(equipped().fx, 16)}</small></span></button>
         <button class="btn" data-act="go" data-to="guide">${icon('book')}<span class="lbl">How to play<small>Rules, tiles &amp; diagrams</small></span></button>
@@ -502,7 +503,7 @@
     Eco.ensure(p);
     const st = Object.assign(emptyStats(), p.stats || {}), ach = p.ach || {};
     const rec = (a) => `${a[0]}–${a[1]}–${a[2]}`, pct = st.games ? Math.round((100 * st.wins) / st.games) + '%' : '—';
-    const card = Object.assign({}, p, { avatar: p.avatar || 'whitelotus', isAvatar: !!(avatarPid && p.id === avatarPid), lvl: Eco.level(p.xp || 0), xp: p.xp || 0 });
+    const card = Object.assign({}, p, { avatar: p.avatar || 'whitelotus', isAvatar: !!(avatarPid && p.id === avatarPid), lvl: Eco.lvl(p), xp: p.xp || 0 });
     const got = Eco.ACH.filter((a) => ach[a.id]);
     const best = Eco.ACH_MAIN.filter((a) => ach[a.id]).concat(Eco.TRACKS.map((t) => Eco.ACH.filter((a) => a.track === t.k && ach[a.id]).pop()).filter(Boolean));
     let fbtn = '';
@@ -523,7 +524,7 @@
   function achBody(p = me, ctx = null) {
     const ach = p.ach || {}, done = Eco.ACH.filter((a) => ach[a.id]).length;
     const c = ctx || { isAvatar: !!(avatarPid && p.id === avatarPid), friends: p === me ? (Store.kind === 'firebase' && FireSocial.active ? FireSocial.friends().length : (Social.friends ? Social.friends().length : 0)) : 0 };
-    const head = `<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.level(p.xp)}</div><div class="tiny muted">${(p.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${done.toLocaleString()}</div><div class="tiny muted">of ${Eco.ACH.length.toLocaleString()} unlocked</div></div><div><div class="disp" style="font-size:22px">${(p.xp || 0) >= Eco.SUB_XP ? '🌀' : 'Lv ' + Eco.SUB_LEVEL}</div><div class="tiny muted">${(p.xp || 0) >= Eco.SUB_XP ? 'sub-bending' : 'sub-bending at'}</div></div></div>`;
+    const head = `<div class="card" style="display:flex;justify-content:space-around;text-align:center"><div><div class="disp" style="font-size:22px;color:#9fd1ff">Lv ${Eco.lvl(p)}</div><div class="tiny muted">${(p.xp || 0).toLocaleString()} XP</div></div><div><div class="disp" style="font-size:22px;color:#ffd77a">${done.toLocaleString()}</div><div class="tiny muted">of ${Eco.ACH.length.toLocaleString()} unlocked</div></div><div><div class="disp" style="font-size:22px">${(p.xp || 0) >= Eco.SUB_XP ? '🌀' : 'Lv ' + Eco.SUB_LEVEL}</div><div class="tiny muted">${(p.xp || 0) >= Eco.SUB_XP ? 'sub-bending' : 'sub-bending at'}</div></div></div>`;
     const main = Eco.ACH_MAIN.filter((a) => ach[a.id]).concat(Eco.ACH_MAIN.filter((a) => !ach[a.id]));
     const row = (a) => `<div class="trow" style="align-items:center;${ach[a.id] ? '' : 'opacity:.6'}"><span style="font-size:22px">${ach[a.id] ? (a.icon || '🏆') : '🔒'}</span><div><b>${esc(a.name)}</b><br><span class="tiny">${esc(a.desc)}</span></div><div class="mv" style="color:#ffd77a">${ach[a.id] ? '✓' : '+' + a.gp}</div></div>`;
     const tracks = Eco.TRACKS.map((t) => {
@@ -547,14 +548,14 @@
   let storeTab = 'tiles';
   function figStage(p, edit) {
     if (!p.fig) return edit && me && p.id === me.id ? `<button class="btn" data-act="go" data-to="character" style="margin:8px 0">🧍 Create your character</button>` : '';
-    return `<div class="fig-stage">${Figure.svg(Figure.of(p, p.lvl || Eco.level(p.xp || 0)))}${edit ? '<button class="btn small" data-act="go" data-to="character">✏️ Edit</button>' : ''}</div>`;
+    return `<div class="fig-stage">${Figure.svg(Figure.of(p, p.lvl || Eco.lvl(p)))}${edit ? '<button class="btn small" data-act="go" data-to="character">✏️ Edit</button>' : ''}</div>`;
   }
   let figTab = 'Outfit', figAv = false;
   screens.character = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Character</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to make a character.</div></div>`; return; }
     ensureMe();
     if (!me.fig) { me.fig = Figure.starter(me.nation, me.id.length + (me.name || '').length); saveMe(); }
-    const f = me.fig, lvl = Eco.level(me.xp || 0), cfg = Figure.of(me, lvl);
+    const f = me.fig, lvl = Eco.lvl(me), cfg = Figure.of(me, lvl);
     const price = (kind, id) => { const pr = Figure.priceOf(kind, id, me.nation); return Figure.owns(me, kind, id) ? (pr ? '<span class="price own">owned</span>' : '<span class="price free">free</span>') : `<span class="price">🪙 ${pr.toLocaleString()}</span>`; };
     const on = (k, v) => (f[k] === v ? 'on' : '');
     const sw = (k, v, c) => `<button class="fsw ${on(k, v)}" style="background:${c}" data-act="figSet" data-k="${k}" data-v="${v}"></button>`;
@@ -582,6 +583,180 @@
       <div class="store-tabs fig-tabs">${tabs}</div><div id="fig-pane">${pane}</div></div>`;
     if (y) document.querySelector('.screen').scrollTop = y;
   };
+  // ---------- bending duels (real-time mini-game) ----------
+  const DM = {
+    strike: { icon: '👊', name: 'Strike', cd: 650, dmg: 7, gain: 12 },
+    blast: { name: 'Blast', cd: 2300, dmg: 18, cost: 35, travel: 520 },
+    block: { icon: '🛡️', name: 'Block', cd: 2600, dur: 1000 },
+    dodge: { icon: '💨', name: 'Dodge', cd: 1900, dur: 480 },
+  };
+  const ELI = { fire: '🔥', water: '🌊', earth: '🪨', air: '🌪️' };
+  const ELC = { fire: '#ff7a2c', water: '#4fb6ff', earth: '#8bc34a', air: '#e8f6ff' };
+  let D = null;
+  const duelStake = (winLvl, loseLvl) => Math.round(50 * Math.max(0.5, Math.min(3, 1 + (loseLvl - winLvl) / 20)));
+  function duelMe() {
+    const nat = (me && me.nation) || 'earth', lv = me ? Eco.lvl(me) : 1;
+    return { pid: myPid(), name: myName(), lvl: lv, nation: nat, title: me ? Eco.titleOf(me, lv) : '', fig: myFig() || Object.assign(Figure.starter(nat, (myName() || '').length), { nation: nat, level: lv }) };
+  }
+  function duelEnd() { if (D) { D.over = true; if (D.un) D.un(); if (D.ai) clearTimeout(D.ai); cancelAnimationFrame(D.raf); } D = null; }
+  screens.duel = () => {
+    duelEnd();
+    const online = Store.kind === 'firebase' && Store.online() && me;
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Bending duel</h2><span style="width:42px"></span></div>
+      <div class="screen"><div class="card duel-intro"><div style="font-size:40px">🥋</div><b>Fight a friend in real time</b><p class="tiny muted">No turns: tap as fast as you like. 👊 Strike builds energy, your element Blast spends it, 🛡️ Block cuts damage and 💨 Dodge avoids it. Win to take gold from your opponent (more for beating a higher level). Both players earn XP. Duels don’t count toward your record.</p></div>
+      ${online ? `<div class="menu"><button class="btn primary" data-act="duelCreate">⚔️ Start a duel</button></div>
+      <div class="card"><div class="field"><label>Join with a code</label><div class="row"><input class="input" id="duelcode" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;font-weight:700"><button class="btn primary" data-act="duelJoinCode">Join</button></div></div></div>` : `<div class="card tiny muted">${me ? 'Duels with friends need an internet connection.' : 'Create a player to duel friends.'}</div>`}
+      <div class="menu"><button class="btn" data-act="duelPractice">🎯 Practice vs a training dummy <small>No rewards</small></button></div></div>`;
+  };
+  async function duelCreate() {
+    const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('');
+    const doc = { kind: 'fight', code, status: 'open', created: Date.now(), updated: Date.now(), host: duelMe(), guest: null, pids: [myPid()], uids: [FB.uid] };
+    try { await Store.set('games', code, doc); } catch (e) { return toast('Couldn’t start the duel — try again'); }
+    duelWait(code);
+  }
+  function duelWait(code) {
+    duelEnd();
+    const fr = Soc().ready && Soc().ready() ? Soc().friends() : [];
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="duelCancel" data-code="${code}">‹</button><h2>Waiting</h2><span style="width:42px"></span></div>
+      <div class="screen" style="text-align:center"><div style="font-size:48px">🥋</div><p class="muted">Share this code, or challenge a friend</p><div class="code">${code}</div><button class="btn" data-act="copyCode" data-code="${code}">Copy code</button>
+      ${fr.length ? `<div class="field" style="text-align:left;margin-top:12px"><label>Challenge a friend</label><div class="menu">${fr.map((f) => `<button class="btn" data-act="duelInvite" data-code="${esc(f.code)}" data-game="${code}">${av(f.name)}<span>${esc(f.name)}</span><span class="spacer"></span><span class="tiny ${Soc().isOnline(f.code) ? '' : 'muted'}">${Soc().isOnline(f.code) ? '🟢 online' : 'offline'}</span></button>`).join('')}</div></div>` : ''}
+      <p class="tiny muted">The duel starts as soon as they join. Both of you need the app open.</p></div>`;
+    const un = Store.watch('games', code, (d) => { if (d && d.status === 'playing' && d.guest) { un(); duelStart(d, 0); } });
+    D = { un, over: false };
+  }
+  async function duelJoin(code, d) {
+    if (!me) return toast('Create a player to duel');
+    if (d.host.pid === myPid()) return d.status === 'open' ? duelWait(code) : d.status === 'playing' ? duelStart(d, 0) : toast('That duel is over');
+    if (d.guest && d.guest.pid === myPid() && d.status === 'playing') return duelStart(d, 1);
+    if (d.status !== 'open') return toast('That duel already started');
+    const guest = duelMe();
+    try { await Store.patch('games', code, { status: 'playing', guest, pids: [d.host.pid, guest.pid], uids: [...new Set((d.uids || []).concat([FB.uid]))], updated: Date.now() }); } catch (e) { return toast('Couldn’t join — try again'); }
+    duelStart(Object.assign({}, d, { guest, status: 'playing' }), 1);
+  }
+  function duelPractice() {
+    const m = duelMe(), nat = ['fire', 'water', 'earth', 'air'].filter((n) => n !== m.nation)[Math.floor(Math.random() * 3)];
+    const dummy = { pid: 'dummy', name: 'Training Dummy', lvl: m.lvl, nation: nat, title: 'Practice partner', fig: Object.assign(Figure.starter(nat, 7), { nation: nat, level: 1, mood: 'fierce' }) };
+    duelStart({ code: null, host: m, guest: dummy }, 0, true);
+  }
+  function duelStart(d, my, practice = false) {
+    duelEnd();
+    const P2 = [d.host, d.guest];
+    D = { code: d.code, my, opp: 1 - my, P: P2, practice, hp: [100, 100], en: 30, cd: {}, guard: [0, 0], dodge: [0, 0], n: 0, seen: 0, over: false, startAt: Date.now() + 3000, aiEn: 30 };
+    const fig = (k) => `<div class="fighter f${k === my ? 'me' : 'opp'}" id="fg${k}"><div class="fig-in">${Figure.svg(P2[k].fig)}</div><div class="shield"></div></div>`;
+    const bar = (k) => `<div class="dbar ${k === my ? 'mine' : ''}"><div class="dbn"><b>${esc(P2[k].name)}</b><span>Lv ${P2[k].lvl}${P2[k].title ? ' · ' + esc(P2[k].title) : ''}</span></div><div class="hp"><i id="hp${k}"></i></div></div>`;
+    const el = P2[my].nation, mv = (k, icon, name) => `<button class="dmove" data-act="duelMove" data-k="${k}" id="mv-${k}"><span class="di">${icon}</span><span>${name}</span><i class="cdv"></i></button>`;
+    app.innerHTML = `<div class="duel"><div class="duel-top">${bar(my)}<span class="vs">VS</span>${bar(1 - my)}</div>
+      <div class="arena" id="arena" style="--el:${ELC[el]}">${fig(my)}${fig(1 - my)}<div id="dfx"></div><div class="dcount" id="dcount">3</div></div>
+      <div class="en"><i id="enb"></i><span>Energy</span></div>
+      <div class="dmoves">${mv('strike', '👊', 'Strike')}${mv('blast', ELI[el], 'Blast')}${mv('block', '🛡️', 'Block')}${mv('dodge', '💨', 'Dodge')}</div>
+      <button class="btn ghost small" data-act="duelQuit">${practice ? 'Leave practice' : 'Give up'}</button></div>`;
+    const tick = () => {
+      if (!D || D.over) return;
+      const now = Date.now(), c = document.getElementById('dcount');
+      if (c) { const left = Math.ceil((D.startAt - now) / 1000); c.textContent = left > 0 ? left : now - D.startAt < 700 ? 'FIGHT!' : ''; c.style.display = c.textContent ? '' : 'none'; }
+      if (now > D.startAt) D.en = Math.min(100, D.en + 0.012 * 16);
+      [0, 1].forEach((k) => { const h = document.getElementById('hp' + k); if (h) { h.style.width = Math.max(0, D.hp[k]) + '%'; h.classList.toggle('low', D.hp[k] < 30); } const f = document.getElementById('fg' + k); if (f) { f.classList.toggle('guard', now < D.guard[k]); f.classList.toggle('dodging', now < D.dodge[k]); } });
+      const e = document.getElementById('enb'); if (e) e.style.width = D.en + '%';
+      Object.keys(DM).forEach((k) => { const b = document.getElementById('mv-' + k); if (!b) return; const left = Math.max(0, (D.cd[k] || 0) - now), frac = left / DM[k].cd; b.querySelector('.cdv').style.height = (frac * 100) + '%'; b.disabled = now < D.startAt || left > 0 || (k === 'blast' && D.en < DM.blast.cost); });
+      D.raf = requestAnimationFrame(tick);
+    };
+    D.raf = requestAnimationFrame(tick);
+    if (practice) duelAi();
+    else D.un = Store.watch('games', d.code, (x) => {
+      if (!x || !D || D.over) return;
+      const f = x['f' + D.opp];
+      if (f) { if (typeof f.hp === 'number') D.hp[D.opp] = f.hp; if (f.n > D.seen) { D.seen = f.n; duelSee(D.opp, f.mv); } }
+      if (x.status === 'done') duelFinish(x.winner, x.quit);
+    });
+  }
+  function duelAnim(k, cls, ms = 380) { const f = document.getElementById('fg' + k); if (!f) return; f.classList.remove(cls); void f.offsetWidth; f.classList.add(cls); setTimeout(() => f.classList.remove(cls), ms); }
+  function duelFloat(k, txt, cls = '') {
+    const a = document.getElementById('dfx'), f = document.getElementById('fg' + k); if (!a || !f) return;
+    const n = document.createElement('div'); n.className = 'dfloat ' + cls; n.textContent = txt; n.style.left = (f.offsetLeft + f.offsetWidth / 2) + 'px'; n.style.top = (f.offsetTop + 30) + 'px'; a.appendChild(n); setTimeout(() => n.remove(), 900);
+  }
+  function duelProjectile(from, el) {
+    const a = document.getElementById('dfx'), f = document.getElementById('fg' + from), t = document.getElementById('fg' + (1 - from)); if (!a || !f || !t) return;
+    const n = document.createElement('div'); n.className = 'dproj'; n.textContent = ELI[el]; n.style.setProperty('--c', ELC[el]);
+    const y = f.offsetTop + f.offsetHeight * 0.42, x0 = f.offsetLeft + f.offsetWidth / 2, x1 = t.offsetLeft + t.offsetWidth / 2;
+    n.style.left = x0 + 'px'; n.style.top = y + 'px'; n.style.transition = `left ${DM.blast.travel}ms linear`; a.appendChild(n);
+    requestAnimationFrame(() => requestAnimationFrame(() => { n.style.left = x1 + 'px'; }));
+    setTimeout(() => n.remove(), DM.blast.travel + 60);
+  }
+  // someone (k) used a move: animate it, and work out damage on the target if this client is responsible for the target
+  function duelSee(k, mv) {
+    if (!D || D.over) return;
+    const now = Date.now(), tgt = 1 - k;
+    if (mv === 'block') { D.guard[k] = now + DM.block.dur; return; }
+    if (mv === 'dodge') { D.dodge[k] = now + DM.dodge.dur; duelAnim(k, 'dodge', 480); return; }
+    if (mv === 'strike') duelAnim(k, 'lunge', 300);
+    if (mv === 'blast') { duelAnim(k, 'cast', 400); duelProjectile(k, D.P[k].nation); }
+    const responsible = D.practice || tgt === D.my;
+    const delay = mv === 'blast' ? DM.blast.travel : 170;
+    setTimeout(() => {
+      if (!D || D.over) return;
+      const t = Date.now();
+      if (t < D.dodge[tgt]) { duelFloat(tgt, 'Dodged!', 'miss'); return; }
+      let dmg = DM[mv].dmg; const blocked = t < D.guard[tgt]; if (blocked) dmg = Math.round(dmg * 0.2);
+      duelAnim(tgt, blocked ? 'blocked' : 'hit', 320); duelFloat(tgt, blocked ? '🛡️ -' + dmg : '-' + dmg, blocked ? 'blk' : '');
+      if (k === D.my && mv === 'strike' && !blocked) D.en = Math.min(100, D.en + DM.strike.gain);
+      if (k !== D.my && D.practice && mv === 'strike') D.aiEn = Math.min(100, D.aiEn + DM.strike.gain);
+      if (!responsible) return;
+      D.hp[tgt] = Math.max(0, D.hp[tgt] - dmg); buzz(tgt === D.my ? 25 : 0);
+      if (D.practice) { if (D.hp[tgt] <= 0) duelFinish(k); return; }
+      const lost = D.hp[tgt] <= 0;
+      Store.patch('games', D.code, Object.assign({ ['f' + D.my]: { n: D.n, mv: null, hp: D.hp[D.my], t: Date.now() }, updated: Date.now() }, lost ? { status: 'done', winner: D.opp } : {})).catch(() => {});
+      if (lost) duelFinish(D.opp);
+    }, delay);
+  }
+  function duelMove(k) {
+    if (!D || D.over || Date.now() < D.startAt) return;
+    const m = DM[k], now = Date.now();
+    if ((D.cd[k] || 0) > now) return;
+    if (k === 'blast') { if (D.en < m.cost) return; D.en -= m.cost; }
+    D.cd[k] = now + m.cd; D.n++;
+    duelSee(D.my, k);
+    if (!D.practice) Store.patch('games', D.code, { ['f' + D.my]: { n: D.n, mv: k, hp: D.hp[D.my], t: now }, updated: now }).catch(() => {});
+  }
+  function duelAi() {
+    if (!D || D.over) return;
+    const go = () => {
+      if (!D || D.over) return;
+      if (Date.now() > D.startAt) {
+        const r = Math.random(), opp = D.opp, now = Date.now();
+        let mv = 'strike';
+        if (D.aiEn >= DM.blast.cost && r < 0.35 && (D.aiCd || 0) < now) { mv = 'blast'; D.aiEn -= DM.blast.cost; D.aiCd = now + DM.blast.cd; }
+        else if (r > 0.9) mv = 'block'; else if (r > 0.82) mv = 'dodge';
+        D.aiEn = Math.min(100, D.aiEn + 4);
+        duelSee(opp, mv);
+      }
+      D.ai = setTimeout(go, 750 + Math.random() * 900);
+    };
+    D.ai = setTimeout(go, 3200);
+  }
+  async function duelFinish(winner, quit) {
+    if (!D || D.over) return;
+    D.over = true; cancelAnimationFrame(D.raf); if (D.un) D.un(); if (D.ai) clearTimeout(D.ai);
+    const won = winner === D.my, me0 = D.P[D.my], op = D.P[D.opp];
+    let line = '';
+    if (D.practice) line = won ? 'Nice work! Practice doesn’t pay out.' : 'The dummy got you this time.';
+    else if (me) {
+      Eco.ensure(me); await syncCounters();
+      if (won) { const amt = duelStake(me0.lvl, op.lvl); me.gp += amt; me.xp = (me.xp || 0) + 40; me.fightWins = (me.fightWins || 0) + 1; me.gpPeak = Math.max(me.gpPeak || 0, me.gp); line = `🪙 +${amt} gp from ${esc(op.name)} · ✨ +40 XP`; }
+      else { const amt = Math.min(me.gp || 0, duelStake(op.lvl, me0.lvl)); me.gp -= amt; me.xp = (me.xp || 0) + 15; me.fightLosses = (me.fightLosses || 0) + 1; line = `🪙 −${amt} gp to ${esc(op.name)} · ✨ +15 XP`; }
+      saveMe(); setTimeout(checkAch, 1200);
+    }
+    const ov = document.createElement('div'); ov.className = 'duel-over';
+    ov.innerHTML = `<div class="card" style="text-align:center"><div style="font-size:46px">${won ? '🏆' : '💫'}</div><h2 style="margin:4px 0">${won ? 'You win!' : esc(op.name) + ' wins'}</h2>${quit ? `<p class="tiny muted">${won ? esc(op.name) + ' gave up.' : 'You gave up.'}</p>` : ''}<p>${line}</p><div class="menu"><button class="btn primary" data-act="${D.practice ? 'duelPractice' : 'duelCreate'}">${D.practice ? 'Again' : '⚔️ New duel'}</button><button class="btn" data-act="go" data-to="duel">Done</button></div></div>`;
+    const a = document.querySelector('.duel'); if (a) a.appendChild(ov);
+  }
+  async function duelQuit() {
+    if (!D) return go('duel');
+    if (D.practice || D.over) return go('duel');
+    if (!(await choose('Give up this duel?', [{ label: 'Give up', value: true, cls: 'primary' }], 'You’ll lose and pay the gold.'))) return;
+    if (!D || D.over) return;
+    await Store.patch('games', D.code, { status: 'done', winner: D.opp, quit: true, updated: Date.now() }).catch(() => {});
+    duelFinish(D.opp, true);
+  }
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
     ensureMe();
@@ -832,8 +1007,8 @@
     lobbyUnsub = Store.watchCol('games', (games) => {
       clearTimeout(timer);
       const now = Date.now();
-      const mine = games.filter((g) => g.status !== 'done' && ((g.host && g.host.pid === pid) || (g.guest && g.guest.pid === pid)) && now - (g.updated || 0) < 14 * 864e5);
-      const open = games.filter((g) => g.status === 'open' && g.host && g.host.pid !== pid && now - (g.updated || 0) < 2 * 864e5);
+      const mine = games.filter((g) => g.kind !== 'fight' && g.status !== 'done' && ((g.host && g.host.pid === pid) || (g.guest && g.guest.pid === pid)) && now - (g.updated || 0) < 14 * 864e5);
+      const open = games.filter((g) => g.kind !== 'fight' && g.status === 'open' && g.host && g.host.pid !== pid && now - (g.updated || 0) < 2 * 864e5);
       const mg = document.getElementById('mygames'), og = document.getElementById('opengames');
       if (!mg) return;
       mg.innerHTML = mine.map((g) => { const opp = g.host.pid === pid ? (g.guest ? g.guest.name : 'waiting…') : g.host.name; return `<button class="btn" data-act="resumeOnline" data-code="${esc(g.id)}"><span class="disp">${esc(g.id)}</span><span class="spacer"></span>vs ${esc(opp)} · ${g.status === 'open' ? 'waiting' : 'in play'}</button>`; }).join('') || '<div class="muted tiny">None yet.</div>';
@@ -876,12 +1051,13 @@
       try { d = await P2P.join(code); } catch (e) { return toast(e.message === 'nohost' ? 'No one is hosting ' + code + ' right now' : 'Couldn’t connect — check the code and try again'); }
     } else d = await Store.get('games', code).catch(() => null);
     if (!d) return toast('No game with that code');
+    if (d.kind === 'fight') return duelJoin(code, d);
     const pid = myPid();
     if (d.host.pid === pid) return d.status === 'open' ? waitOnline(code) : startOnline(d);
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null });
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : null, spirit: d.host.board === 'spirit' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -924,7 +1100,11 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17b', items: [
+  const NEWS = { v: '2026-11-17c', items: [
+    ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
+    ['🏷️', 'Nation titles', 'Earn a new title at Level 1, 5, 10 and every 10 levels after, up to Level 100.'],
+    ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit board.'],
+    ['⚠️', 'Switching nations', 'Changing nation now starts you over from scratch. Only your gold carries over.'],
     ['🧍', 'Characters', 'Build your own character: body, skin, eyes, hair and outfits. Unlock more clothes, hairstyles and accessories in the store. It shows on your profile and in your game seat.'],
     ['🌀', 'Airbending Masters', 'Air Nomads earn their arrow markings at level 5. Avatars glow in Avatar State.'],
     ['⚙️', 'New Metalbending', 'Your whole turn: swap two tiles, or move/smash up to two. Steals gold from your opponent.'],
@@ -953,7 +1133,7 @@
     const all = Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden);
     const own = all.filter(([k]) => Eco.ownsBoard(p, k)), special = all.filter(([, b]) => b.unlock);
     const sw = (k, b, locked) => `<div class="bd-sw ${locked ? 'locked' : ''} ${b.unlock ? 'ach' : ''}" title="${esc(b.name)}"><svg viewBox="-10 -10 20 20" width="44" height="44"><circle r="9.5" fill="${b.bg}" stroke="${b.rim}" stroke-width="0.8"/><circle r="8.5" fill="${b.wood[0]}"/><polygon points="0,0 0,-8.5 -8.5,0" fill="${b.light}"/><polygon points="0,0 0,8.5 8.5,0" fill="${b.light}"/><polygon points="0,0 0,-8.5 8.5,0" fill="${b.dark}"/><polygon points="0,0 0,8.5 -8.5,0" fill="${b.dark}"/>${b.lightHatch ? '<circle r="5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/><circle r="2.5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/>' : ''}</svg><span>${locked ? '🔒 ' : b.unlock ? '🏆 ' : ''}${esc(b.name)}</span></div>`;
-    const ach = special.map(([k, b]) => { const got = Eco.ownsBoard(p, k); const prog = b.unlock === 'melon100' ? ` · 🍈 ${Math.min(100, p.melonUses || 0)}/100 Melon Lords` : ''; return `<div class="trow" style="align-items:center${got ? '' : ';opacity:.7'}">${sw(k, b, !got)}<div><b>${esc(b.name)}</b><br><span class="tiny">${got ? 'Unlocked! ✓' : 'Locked'}${prog}</span></div></div>`; }).join('');
+    const ach = special.map(([k, b]) => { const got = Eco.ownsBoard(p, k); const prog = b.unlock === 'melon100' ? ` · 🍈 ${Math.min(100, p.melonUses || 0)}/100 Melon Lords` : b.unlock === 'spirit' ? ' · Enter the Spirit Realm after your final reincarnation. Your harmonies need two blockers to break.' : ''; return `<div class="trow" style="align-items:center${got ? '' : ';opacity:.7'}">${sw(k, b, !got)}<div><b>${esc(b.name)}</b><br><span class="tiny">${got ? 'Unlocked! ✓' : 'Locked'}${prog}</span></div></div>`; }).join('');
     return `<div class="card"><div class="field" style="margin:0"><label>🎨 Boards unlocked · ${own.length}/${all.length}</label>${ach ? `<div class="tlist" style="margin-bottom:8px">${ach}</div>` : ''}<div class="bd-grid">${own.filter(([, b]) => !b.unlock).map(([k, b]) => sw(k, b, false)).join('')}</div></div></div>`;
   }
   function styleCard(p, withLegend = true) {
@@ -964,10 +1144,36 @@
     const legend = withLegend ? `<details class="sty-legend"><summary>What do the styles mean?</summary>${Object.values(Eco.STYLES).map((v) => `<div class="trow" style="align-items:center"><span style="font-size:22px">${v.icon}</span><div><b>${v.name}</b> <span class="tiny muted">${v.tag}</span><br><span class="tiny">${v.desc}</span></div></div>`).join('')}<div class="tiny muted" style="margin-top:6px">Each match is scored from your moves: harmonies you formed, harmonies and tiles you took from your opponent, blocking tiles, and tricks. Your <b>typical style</b> is the one you play most often. Fewer moves to win = faster.</div></details>` : '';
     return `<div class="card sty-card"><div class="sty-head"><span class="sty-big">${T ? T.icon : '❔'}</span><div><div class="tiny muted">Typical play style</div><b style="font-size:18px;color:${T ? T.color : 'inherit'}">${T ? T.name + ' · ' + T.tag : 'Not enough games yet'}</b><div class="tiny muted">${total} ${total === 1 ? 'match' : 'matches'} analysed</div></div></div>${bars}${fast}${legend}</div>`;
   }
-  function lvlBar(xp, from = null) {
-    const lv = Eco.level(xp), into = xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
-    const fromPct = from == null ? pct : Eco.level(from) < lv ? 0 : Math.round((100 * (from - (lv - 1) * 500)) / 500);
-    return `<div class="lvl"><div class="lvl-top"><b>Level ${lv}</b><span>${into}/500 XP · ${500 - into} to Level ${lv + 1}</span></div><div class="lvl-bar"><i style="width:${fromPct}%" data-to="${pct}"></i></div></div>`;
+  function lvlBar(xp, from = null, p = me) {
+    const free = !!(p && p.surpass), lv = Eco.level(xp, free), capped = !free && lv >= Eco.MAX_LEVEL;
+    const into = capped ? 500 : xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
+    const fromPct = from == null || capped ? pct : Eco.level(from, free) < lv ? 0 : Math.round((100 * (from - (lv - 1) * 500)) / 500);
+    const tl = p && p.nation ? Eco.titleOf(p, lv) : '', nx = Eco.nextTitleAt(lv);
+    const title = tl ? `<div class="lvl-title">🏷️ <b>${esc(tl)}</b>${nx && !capped ? ` <span class="tiny muted">· next title at Level ${nx}</span>` : ''}${p.inc || p.spirit ? ` <span class="tiny muted">· ${esc(Eco.incName(p))}</span>` : ''}</div>` : '';
+    const mine = p && me && p.id === me.id;
+    const re = mine && Eco.canReincarnate(p) ? '<button class="btn primary small" data-act="reincarnate" style="margin-top:8px">🔄 Reincarnate</button>' : mine && Eco.atFinal(p) ? '<button class="btn primary small" data-act="finalChoice" style="margin-top:8px">🌟 Final reincarnation complete: choose your path</button>' : '';
+    return `<div class="lvl">${title}<div class="lvl-top"><b>Level ${lv}</b><span>${capped ? (Eco.canReincarnate(p) || Eco.atFinal(p) ? 'Max level reached' : 'Max level') : `${into}/500 XP · ${500 - into} to Level ${lv + 1}`}</span></div><div class="lvl-bar"><i style="width:${fromPct}%" data-to="${pct}"></i></div>${re}</div>`;
+  }
+  async function reincarnate() {
+    if (!me || !Eco.canReincarnate(me)) return;
+    const n = (me.inc || 0) + 1;
+    const ok = await choose(`Reincarnate into your ${Eco.INCARNATIONS[n]}?`, [{ label: '🔄 Reincarnate', value: true, cls: 'primary' }], `You go back to Level 1 and sub-bending locks again until Level ${Eco.SUB_LEVEL}. Your gold, purchases, character, record and achievements stay. New achievements unlock for each life (${n}/6).`);
+    if (!ok) return;
+    me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.inc = n;
+    await saveMe(); closeSheet(); toast(`🔄 Welcome to your ${Eco.INCARNATIONS[n]}!`, 3500); setTimeout(checkAch, 900); go('stats');
+  }
+  async function finalChoice() {
+    if (!me || !Eco.atFinal(me)) return;
+    const pick = await choose('Your final reincarnation is complete', [{ label: '🌟 Rise past Level 100', value: 'ascend', cls: 'primary' }, { label: '👻 Enter the Spirit Realm', value: 'spirit' }],
+      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit board, where your harmonies take two blockers to break.`);
+    if (pick === 'ascend') { me.surpass = true; await saveMe(); toast('🌟 You’ve risen beyond the cycle!', 3500); }
+    else if (pick === 'spirit') {
+      const sure = await choose('Enter the Spirit Realm?', [{ label: '👻 Cross over', value: true, cls: 'primary' }], 'This can’t be undone. You keep 10% of your gold.');
+      if (!sure) return;
+      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
+      await saveMe(); toast('👻 You’ve crossed into the Spirit Realm. The Spirit board is yours.', 4000);
+    } else return;
+    closeSheet(); setTimeout(checkAch, 900); go('stats');
   }
   function animateBars() { setTimeout(() => document.querySelectorAll('.lvl-bar i[data-to]').forEach((el) => { el.style.width = el.dataset.to + '%'; }), 120); }
   function dailyOpen() {
@@ -988,12 +1194,12 @@
     const b = Eco.boost(), r = Eco.dailyReward(ds.streak);
     const gp = Math.round(r.gp * b.gp), xp = Math.round(r.xp * b.xp);
     Eco.ensure(me);
-    const lvBefore = Eco.level(me.xp || 0);
+    const lvBefore = Eco.lvl(me);
     me.gp += gp; me.xp = (me.xp || 0) + xp; me.gpPeak = Math.max(me.gpPeak || 0, me.gp);
     me.daily = { last: Eco.dayKey(), streak: ds.streak, best: Math.max((me.daily && me.daily.best) || 0, ds.streak) };
     await saveMe();
     closeSheet(); buzz(20);
-    toast(`🎁 +${gp} gp, +${xp} XP · ${ds.streak}-day streak!` + (Eco.level(me.xp) > lvBefore ? ` ⬆️ Level ${Eco.level(me.xp)}!` : ''), 3500);
+    toast(`🎁 +${gp} gp, +${xp} XP · ${ds.streak}-day streak!` + (Eco.lvl(me) > lvBefore ? ` ⬆️ Level ${Eco.lvl(me)}!` : ''), 3500);
     setTimeout(checkAch, 1200);
     if (document.querySelector('[data-act="startSetup"]')) screens.home();
   }
@@ -1048,7 +1254,7 @@
     if (Store.kind !== 'firebase' || !FireSocial.invites) return '';
     const iv = FireSocial.invites(); if (!iv.length) return '';
     const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
-    return `<div class="field"><label>🎮 Game invites</label><div class="menu">${iv.map((v) => `<div class="prof">${av(v.fromName)}<div style="flex:1;min-width:0"><div class="nm">${esc(v.fromName)}</div><div class="tiny muted">Game ${esc(v.game)} · ${ago(v.t)}</div></div><button class="btn small primary" data-act="acceptInvite" data-id="${esc(v.id)}" data-game="${esc(v.game)}">Join</button><button class="btn small ghost" data-act="declineInvite" data-id="${esc(v.id)}" aria-label="Decline">✕</button></div>`).join('')}</div></div>`;
+    return `<div class="field"><label>🎮 Game invites</label><div class="menu">${iv.map((v) => `<div class="prof">${av(v.fromName)}<div style="flex:1;min-width:0"><div class="nm">${esc(v.fromName)}</div><div class="tiny muted">${v.kind === 'fight' ? '🥋 Duel' : 'Game'} ${esc(v.game)} · ${ago(v.t)}</div></div><button class="btn small primary" data-act="acceptInvite" data-id="${esc(v.id)}" data-game="${esc(v.game)}">Join</button><button class="btn small ghost" data-act="declineInvite" data-id="${esc(v.id)}" aria-label="Decline">✕</button></div>`).join('')}</div></div>`;
   }
   screens.friends = () => {
     if (Store.kind === 'firebase' && !me) {
@@ -1079,7 +1285,7 @@
         if (q.length < 2) { box.innerHTML = ''; return; }
         all = all || await players();
         const hits = all.filter((p) => (!me || p.id !== me.id) && p.name.toLowerCase().includes(q)).slice(0, 12);
-        box.innerHTML = hits.map((p) => { const fr = FireSocial.isFriend && FireSocial.isFriend(p.id); return `<div class="prof" data-act="viewPlayer" data-pid="${esc(p.id)}">${av(p.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(p.name)}</div><div class="tiny muted">Lv ${Eco.level(p.xp || 0)} · ${(p.stats && p.stats.wins) || 0} wins</div></div>${fr ? '<span class="tiny" style="color:#9fd18b">✓ Friends</span>' : `<button class="btn small primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add</button>`}</div>`; }).join('') || '<div class="muted tiny">No players found</div>';
+        box.innerHTML = hits.map((p) => { const fr = FireSocial.isFriend && FireSocial.isFriend(p.id); return `<div class="prof" data-act="viewPlayer" data-pid="${esc(p.id)}">${av(p.name)}<div style="flex:1;min-width:0"><div class="nm">${esc(p.name)}</div><div class="tiny muted">Lv ${Eco.lvl(p)} · ${(p.stats && p.stats.wins) || 0} wins</div></div>${fr ? '<span class="tiny" style="color:#9fd18b">✓ Friends</span>' : `<button class="btn small primary" data-act="addFriendPid" data-pid="${esc(p.id)}">＋ Add</button>`}</div>`; }).join('') || '<div class="muted tiny">No players found</div>';
       }, 300); });
     }
   };
@@ -1120,11 +1326,11 @@
     Store.LS.set('setup', { level: S.level, first: S.first, fx: S.fx, minH: S.minH, timer: S.timer, chance: S.chance, enigma: S.enigma, hints: S.hints, bending: S.bending, subPractice: S.subPractice });
     let meFirst = S.first === 'me' || (S.first === 'rand' && Math.random() < 0.5);
     const human = { name: myName(), pid: me ? me.id : null, avatar: myAvatar(), fig: myFig(), kind: 'human' };
-    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, fig: S.p2.prof ? Figure.of(S.p2.prof, Eco.level(S.p2.prof.xp || 0)) : null, kind: 'human' };
+    const other = mode === 'ai' ? { name: 'Computer · ' + S.level[0].toUpperCase() + S.level.slice(1), kind: 'ai', level: S.level } : { name: S.p2.name, pid: S.p2.pid, avatar: S.p2.avatar, fig: S.p2.prof ? Figure.of(S.p2.prof, Eco.lvl(S.p2.prof)) : null, kind: 'human' };
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
-    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null });
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null, spirit: me && myBoard() === 'spirit' ? (meFirst ? 0 : 1) : null });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
@@ -2124,7 +2330,7 @@
     const rew = R && (R.gp || R.ranked || R.xp) ? `<div class="card res-rew">${R.gp ? `<span style="color:#ffd77a">🪙 +${R.gp} gp</span>` : ''}${R.xp ? `<span style="color:#9fd1ff">✨ +${R.xp} XP</span>` : ''}${R.ranked ? `<span>⭐ ${R.rating} (${R.delta >= 0 ? '+' : ''}${R.delta})</span>` : ''}</div>
       ${R.boost && (R.gp || R.xp) ? `<div class="tiny" style="margin:-4px 0 8px;color:#ffd77a">${R.boost.icon} ${R.boost.name}: ${R.boost.xp}× XP · ${R.boost.gp}× gold</div>` : ''}
       ${R.melon ? '<div class="note" style="margin-bottom:8px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}
-      ${R.subUnlocked ? '<div class="note" style="margin-bottom:8px">🌀 <b>Sub-bending unlocked!</b></div>' : R.levelUp ? `<div class="note" style="margin-bottom:8px">⬆️ <b>Level up!</b> You’re now Level ${Eco.level(R.xpAfter || 0)}.</div>` : ''}
+      ${R.subUnlocked ? '<div class="note" style="margin-bottom:8px">🌀 <b>Sub-bending unlocked!</b></div>' : R.levelUp ? `<div class="note" style="margin-bottom:8px">⬆️ <b>Level up!</b> You’re now Level ${Eco.level(R.xpAfter || 0, me && me.surpass)}.${me && Eco.titleOf(me, Eco.level(R.xpAfter || 0, me.surpass)) !== Eco.titleOf(me, Eco.level(R.xpBefore || 0, me.surpass)) ? ` New title: <b>${esc(Eco.titleOf(me, Eco.level(R.xpAfter || 0, me.surpass)))}</b>!` : ''}</div>` : ''}
       ${R.style ? `<div class="tiny" style="margin:0 0 8px">Your style this game: <b style="color:${Eco.STYLES[R.style].color}">${Eco.STYLES[R.style].icon} ${Eco.STYLES[R.style].name}</b> (${Eco.STYLES[R.style].tag})</div>` : ''}
       ${R.fastest ? `<div class="note" style="margin-bottom:8px">⚡ New record! Fastest win${R.fastestKey === 'fastestAi' ? ' vs the computer' : ''}: <b>${R.fastest} moves</b></div>` : ''}
       ${R.xpAfter != null ? lvlBar(R.xpAfter, R.xpBefore) : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold. Play the computer or online to earn.</div>' : '';
@@ -2237,9 +2443,13 @@
         if (pickedNat && pickedNat !== me.nation) {
           if (me.nation) {
             ensureMe();
-            if (me.gp < 300) return toast('Switching nations costs 300 gp');
-            const ok = await choose('Switch to ' + Eco.NATIONS[pickedNat].name + '?', [{ label: 'Switch for 🪙 300', value: true, cls: 'primary' }]);
-            if (!ok) return; me.gp -= 300;
+            const ok = await choose('Switch to ' + Eco.NATIONS[pickedNat].name + '?', [{ label: 'Start over as ' + Eco.NATIONS[pickedNat].name, value: true, cls: 'primary' }], `⚠️ Switching nations starts you over from scratch. Your level, titles, reincarnations, record, achievements, character and purchases all reset. Only your gold (${gpFmt(me.gp || 0)}) stays.`);
+            if (!ok) return;
+            const keep = ['id', 'name', 'hue', 'avatar', 'pin', 'pinHash', 'salt', 'uids', 'gUid', 'gEmail', 'cred', 'fcode', 'friends', 'friendBy', 'gp', 'gBonus', 'created', 'createdAt', 'v', 'melonUses'];
+            const gone = Object.keys(me).filter((k) => !keep.includes(k));
+            if (Store.kind === 'firebase') { const D = firebase.firestore.FieldValue.delete(); try { await FB.col('players').doc(me.id).update(Object.fromEntries(gone.map((k) => [k, D]))); } catch (err) { return toast('Couldn’t switch nations — try again'); } }
+            gone.forEach((k) => delete me[k]);
+            me.xp = 0; me.stats = { v2: true, fastFix: true }; me.ach = {}; me.owned = {}; me.fig = null; me.xpFix1 = true;
           }
           me.nation = pickedNat; Eco.ensure(me);
         }
@@ -2381,6 +2591,15 @@
       }
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
+    reincarnate: () => reincarnate(),
+    duelCreate: () => duelCreate(),
+    duelPractice: () => duelPractice(),
+    duelJoinCode: () => joinGame((document.getElementById('duelcode') || {}).value),
+    duelMove: (d) => duelMove(d.k),
+    duelQuit: () => duelQuit(),
+    duelInvite: async (d) => { await Soc().invite(d.code, d.game, 'fight'); toast('Challenge sent!'); },
+    duelCancel: async (d) => { duelEnd(); await Store.del('games', d.code).catch(() => {}); go('duel'); },
+    finalChoice: () => finalChoice(),
     infoTab: (d) => { G.infoTab = d.k; G.infoPinned = true; renderInfo(null); },
     showSug: () => {
       if (!G || !G.ana || !G.ana.sug || G.ana.s !== G.s) return;

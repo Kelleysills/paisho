@@ -209,6 +209,10 @@ const Figure = (() => {
     if (late) s += accessory(o.acc, N, o.hair);
     if (master) s += `<g clip-path="url(#${id}f)">${arrows(o.hair, b, AC, 'head', av ? gid : null)}</g>`;
     s += '</g>';
+    if (o.ghost) {
+      const gd = `<filter id="${id}gh"><feColorMatrix type="matrix" values="0.35 0.35 0.3 0 0.08  0.35 0.45 0.35 0 0.18  0.4 0.5 0.45 0 0.28  0 0 0 0.78 0"/></filter><linearGradient id="${id}gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0.6" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="${id}gm"><rect x="0" y="0" width="200" height="316" fill="url(#${id}gf)"/></mask><radialGradient id="${id}gw"><stop offset="0" stop-color="#bff4ff" stop-opacity=".55"/><stop offset="1" stop-color="#bff4ff" stop-opacity="0"/></radialGradient>`;
+      s = `<defs>${gd}</defs><ellipse cx="100" cy="150" rx="90" ry="150" fill="url(#${id}gw)"/><g filter="url(#${id}gh)" ${opts.portrait ? '' : `mask="url(#${id}gm)"`}>${s}</g>`;
+    }
     const vb = opts.portrait ? '54 22 92 102' : '0 0 200 316';
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" class="figure">${s}</svg>`;
   }
@@ -226,7 +230,7 @@ const Figure = (() => {
     return { build: seed % 2 ? 'femme' : 'masc', skin: sk[(seed >> 1) % sk.length], hair: hs[(seed >> 2) % hs.length], hairColor: 'black', eyes: 'brown', mood: 'calm', outfit: n + '_train', acc: 'none' };
   }
   // the bits of a profile the figure needs; safe to embed in game docs
-  const of = (p, level) => (p && p.fig ? Object.assign({}, p.fig, { nation: p.nation || (OUTFITS[p.fig.outfit] || {}).n || 'earth', level: level || 1 }) : null);
+  const of = (p, level) => (p && p.fig ? Object.assign({}, p.fig, { nation: p.nation || (OUTFITS[p.fig.outfit] || {}).n || 'earth', level: level || 1, ghost: !!p.spirit }) : null);
   return { svg, priceOf, owns, starter, of, OUTFITS, HAIRSTYLES, ACCESSORIES, SKIN, HAIR, EYES, NATION, DEFAULT };
 })();
 if (typeof module !== 'undefined') module.exports = Figure;

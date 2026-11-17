@@ -80,6 +80,7 @@ const Eco = (() => {
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
+    spirit: { name: 'Spirit World', price: null, unlock: 'spirit', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
     blackoutOwner: { name: 'Blackout (owner view)', hidden: true, price: null, unlock: 'melon100', wood: ['#141414', '#111111'], light: '#242424', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
     glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
@@ -152,7 +153,7 @@ const Eco = (() => {
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];
-    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], (p.melonUses || 0) >= 100 ? ['blackout'] : []))];
+    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], (p.melonUses || 0) >= 100 ? ['blackout'] : [], p.spirit ? ['spirit'] : []))];
     if (typeof p.rating !== 'number') p.rating = START_RATING;
     p.ranked = p.ranked || { w: 0, l: 0, d: 0 };
     p.board = p.board || 'classic';
@@ -193,7 +194,46 @@ const Eco = (() => {
     earth: { icon: '🪨', verb: 'Smash', desc: 'Smash a tile and leave rubble there for 4 turns.' },
     air: { icon: '🌪️', verb: 'Sweep', desc: 'Sweep a tile up to 3 squares in a straight line.' },
   };
-  const level = (xp) => 1 + Math.floor((xp || 0) / 500);
+  const MAX_LEVEL = 100, MAX_XP = (MAX_LEVEL - 1) * 500;
+  const level = (xp, free) => { const l = 1 + Math.floor((xp || 0) / 500); return free ? l : Math.min(MAX_LEVEL, l); };
+  const lvl = (p) => level((p && p.xp) || 0, !!(p && p.surpass));
+  // ---- titles: Lv 1, 5, 10, then every 10 up to 100 ----
+  const TITLE_AT = [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const TITLES = {
+    earth: ['Pebble Pusher', 'Stone Shaper', 'Earthbender', 'Rock Hurler', 'Boulder Breaker', 'Sand Sailor', 'Mountain Mover', 'Seismic Seer', 'Metal Shaper', 'Earth Sage', 'Grand Earthbender', 'Master of the Earth'],
+    fire: ['Spark', 'Ember Keeper', 'Firebender', 'Flame Dancer', 'Blaze Warrior', 'Dragon Student', 'Sun Warrior', 'Lightning Caller', 'Inferno Master', 'Fire Sage', 'Grand Firebender', 'Master of Fire'],
+    air: ['Air Acolyte', 'Airbending Master', 'Wind Walker', 'Breeze Rider', 'Glider Ace', 'Sky Dancer', 'Cloud Strider', 'Tempest Monk', 'Wind Sage', 'Air Elder', 'Grand Air Master', 'Master of the Sky'],
+    water: ['Tide Pool', 'Wave Shaper', 'Waterbender', 'Ice Sculptor', 'Tide Turner', 'Healer', 'Moon Child', 'Storm Caller', 'Ocean Warden', 'Water Sage', 'Grand Waterbender', 'Master of the Sea'],
+  };
+  const titleIdx = (l) => { let i = 0; TITLE_AT.forEach((t, k) => { if (l >= t) i = k; }); return i; };
+  function titleOf(p, l) {
+    if (!p || !p.nation || !TITLES[p.nation]) return '';
+    l = l || lvl(p);
+    let t = TITLES[p.nation][titleIdx(l)];
+    if (l > MAX_LEVEL) t = 'Ascended ' + t;
+    return (p.spirit ? 'Spirit ' : '') + t;
+  }
+  const nextTitleAt = (l) => TITLE_AT.find((t) => t > l) || null;
+  // ---- incarnations ----
+  const INCARNATIONS = ['First Incarnation', 'First Reincarnation', 'Second Reincarnation', 'Third Reincarnation', 'Fourth Reincarnation', 'Fifth Reincarnation', 'Final Reincarnation'];
+  const incName = (p) => (p && p.spirit ? 'Spirit Realm' : INCARNATIONS[Math.min(6, (p && p.inc) || 0)]);
+  const canReincarnate = (p) => !!p && !p.surpass && !p.spirit && (p.xp || 0) >= MAX_XP && (p.inc || 0) < 6;
+  const atFinal = (p) => !!p && !p.surpass && !p.spirit && (p.xp || 0) >= MAX_XP && (p.inc || 0) >= 6;
+  const SPIRIT_KEYS = ['wins', 'games', 'rings', 'losses', 'draws'];
+  function snapshotSpirit(p) {
+    const s = p.stats || {};
+    return { st: Object.fromEntries(SPIRIT_KEYS.map((k) => [k, s[k] || 0])), onl: ((s.online || [])[0]) || 0, hard: (((s.ai || {}).hard || [])[0]) || 0, bends: p.bends || 0, emotesSent: p.emotesSent || 0, melonUses: p.melonUses || 0, spamSent: p.spamSent || 0, chatsSent: p.chatsSent || 0, fights: p.fightWins || 0 };
+  }
+  // what the player has done since entering the spirit realm, shaped like a profile
+  function spiritView(p) {
+    const b = p.spiritBase || snapshotSpirit({}), s = p.stats || {};
+    const st = Object.assign({}, s);
+    SPIRIT_KEYS.forEach((k) => { st[k] = Math.max(0, (s[k] || 0) - (b.st[k] || 0)); });
+    st.online = [Math.max(0, ((s.online || [])[0] || 0) - b.onl)];
+    st.ai = { hard: [Math.max(0, (((s.ai || {}).hard || [])[0] || 0) - b.hard)] };
+    st.best = p.spiritBest || 0;
+    return Object.assign({}, p, { stats: st, bends: Math.max(0, (p.bends || 0) - b.bends), emotesSent: Math.max(0, (p.emotesSent || 0) - b.emotesSent), melonUses: Math.max(0, (p.melonUses || 0) - b.melonUses), spamSent: Math.max(0, (p.spamSent || 0) - b.spamSent), chatsSent: Math.max(0, (p.chatsSent || 0) - b.chatsSent), fightWins: Math.max(0, (p.fightWins || 0) - (b.fights || 0)) });
+  }
   function powersFor(p, isAvatar) {
     if (!p || !p.nation) return { nation: null };
     const xp = p.xp || 0;
@@ -249,7 +289,7 @@ const Eco = (() => {
     { k: 'draw', n: 32, a: 1, b: 1000, noun: 'Balanced', icon: '☯️', d: (x) => `Draw ${x} ${pl(x, 'match', 'matches')}`, v: (p) => st(p).draws || 0 },
     { k: 'bend', n: 80, a: 1, b: 25000, noun: 'Bender', icon: '🌀', d: (x) => `Bend ${x} ${pl(x, 'time', 'times')}`, v: (p) => p.bends || 0 },
     { k: 'spam', n: 70, a: 5, b: 200000, noun: 'Showoff', icon: '🎇', d: (x) => `Show off with ${x} flames, waves, quakes or gusts`, v: (p) => p.spamSent || 0 },
-    { k: 'lvl', n: 60, a: 2, b: 500, noun: 'Ascendant', icon: '📈', d: (x) => `Reach Level ${x}`, v: (p) => 1 + Math.floor((p.xp || 0) / 500) },
+    { k: 'lvl', n: 60, a: 2, b: 500, noun: 'Ascendant', icon: '📈', d: (x) => `Reach Level ${x}`, v: (p) => lvl(p) },
     { k: 'rate', n: 50, a: 1050, b: 3500, lin: true, step: 50, noun: 'Contender', icon: '⭐', d: (x) => `Reach a ranked rating of ${x}`, v: (p) => p.ratingPeak || p.rating || 0 },
     { k: 'emote', n: 65, a: 1, b: 50000, noun: 'Expressive', icon: '😊', d: (x) => `Send ${x} ${pl(x, 'emote', 'emotes')}`, v: (p) => p.emotesSent || 0 },
     { k: 'chat', n: 65, a: 1, b: 50000, noun: 'Storyteller', icon: '💬', d: (x) => `Send ${x} chat ${pl(x, 'message', 'messages')}`, v: (p) => p.chatsSent || 0 },
@@ -280,6 +320,19 @@ const Eco = (() => {
       const word = TIER_WORDS[Math.min(TIER_WORDS.length - 1, Math.floor((i / t.n) * TIER_WORDS.length))];
       ACH.push({ id: t.k + '_' + i, track: t.k, tier: i, name: `${word} ${t.noun}`, desc: t.d(x), goal: x, icon: t.icon, gp: Math.round(20 + 480 * Math.pow(i / Math.max(1, t.n - 1), 1.6)), ok: (p, c) => t.v(p, c) >= x });
     });
+  });
+  // reincarnation, ascension and spirit realm achievements
+  INCARNATIONS.slice(1).forEach((nm, i) => ACH.push({ id: 'inc_' + (i + 1), name: nm, desc: `Reincarnate ${i + 1} ${i ? 'times' : 'time'}`, icon: '🔄', gp: 2000 * (i + 1), ok: (p) => (p.inc || 0) >= i + 1 }));
+  ACH.push({ id: 'ascend', name: 'Beyond the Cycle', desc: 'Finish your final reincarnation and rise past Level 100', icon: '🌟', gp: 20000, ok: (p) => !!p.surpass });
+  ACH.push({ id: 'spirit', name: 'Spirit Walker', desc: 'Finish your final reincarnation and enter the Spirit Realm (unlocks the Spirit board)', icon: '👻', gp: 5000, ok: (p) => !!p.spirit });
+  ACH.push({ id: 'fight1', name: 'First Blood', desc: 'Win a bending duel', icon: '🥋', gp: 200, ok: (p) => (p.fightWins || 0) >= 1 });
+  ACH.push({ id: 'fight25', name: 'Duelist', desc: 'Win 25 bending duels', icon: '🥋', gp: 750, ok: (p) => (p.fightWins || 0) >= 25 });
+  const NO_SPIRIT = ['lotus', 'arsenal', 'board', 'avatar', 'friend', 'subbender', 'rich'];
+  ACH.filter((a) => !a.track && !a.id.startsWith('inc_') && !['ascend', 'spirit'].includes(a.id) && !NO_SPIRIT.includes(a.id)).forEach((a) => ACH.push({ id: 'sp_' + a.id, spirit: true, name: 'Spirit ' + a.name, desc: a.desc + ' in the Spirit Realm', icon: '👻', gp: a.gp, ok: (p, c) => !!p.spirit && a.ok(spiritView(p), c) }));
+  ['wins', 'games', 'ring', 'onl', 'bend', 'lvl'].forEach((k) => {
+    const t = TRACKS.find((x) => x.k === k); if (!t) return;
+    const idx = [0, 4, 9, 14, 19, 29, 39, 49, 59, 69, 79].filter((i) => i < t.tiers.length);
+    idx.forEach((i, j) => ACH.push({ id: 'sp_' + t.k + '_' + i, spirit: true, track: 'sp_' + t.k, tier: j, name: 'Spirit ' + t.noun + ' ' + (j + 1), desc: t.d(t.tiers[i]) + ' in the Spirit Realm', goal: t.tiers[i], icon: '👻', gp: Math.round(60 + 600 * Math.pow(j / 10, 1.5)), ok: (p, c) => !!p.spirit && t.v(spiritView(p), c) >= t.tiers[i] }));
   });
   const ACH_MAIN = ACH.filter((a) => !a.track);
   // ---- play styles (worked out from each match's moves) ----
@@ -320,5 +373,5 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { STYLES, styleOf, styleScores, typicalStyle, PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { MAX_LEVEL, MAX_XP, lvl, TITLES, TITLE_AT, titleOf, nextTitleAt, INCARNATIONS, incName, canReincarnate, atFinal, snapshotSpirit, spiritView, STYLES, styleOf, styleScores, typicalStyle, PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();
