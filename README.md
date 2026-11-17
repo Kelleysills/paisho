@@ -31,6 +31,15 @@ node build.js   → dist/index.html (single self-contained file)
 node tests/test_random.js · node tests/test_ai.js medium easy 4   engine and AI tests
 ```
 
+### Online security (Firebase)
+
+The Firebase web config in `src/firebase.js` is public by design; what protects the data is `firestore.rules`.
+A profile belongs to the sign-ins listed in its `uids` (each phone that created it or unlocked it with the PIN) and its linked Google account. The PIN hash lives in `pins/{player}`, which nobody can read: a new phone proves the PIN by writing a claim the rules check. Only owners can change a profile or its push subscriptions, only the two players can read a direct-message thread, and only the players in a game can move.
+
+Rolling it out: deploy the app first, then publish `firestore.rules` in the Firebase console (Firestore Database > Rules). The app works under the old rules too, and links each phone to its profile as people play.
+
+Rules tests (needs Java): `cd tests/rules && npm install && npm test`
+
 ### House readings of the rules
 
 Where the booklet leaves room for interpretation:

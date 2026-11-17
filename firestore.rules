@@ -1,0 +1,163 @@
+rules_version = '2';
+// Pai Sho Firestore rules. Paste into Firebase console > Firestore Database > Rules, then Publish.
+//
+// Every visitor is signed in (anonymously, or with Google). A player profile is "owned" by the
+// sign-ins listed in its `uids` (each phone that created it or unlocked it with the PIN) plus its
+// linked Google account (`gUid`). Only owners can change a profile, its PIN or its push
+// subscriptions, and only the two players in a direct-message thread can read it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function playerPath(pid) { return /databases/$(database)/documents/players/$(pid); }
+    function ownerOf(p) { return me() in p.get('uids', []) || p.get('gUid', '') == me(); }
+    // true when the signed-in user owns player `pid` (false for guests and missing players)
+    function owns(pid) {
+      return signedIn() && pid is string && exists(playerPath(pid)) && ownerOf(get(playerPath(pid)).data);
+    }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // ---------- player profiles (public, for the leaderboard and friend lookups) ----------
+    match /players/{pid} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.uids == [me()]
+        && request.resource.data.get('gUid', me()) == me();
+
+      // The PIN hash lives in /pins now. Old profiles may still carry one: it can be removed, never added or changed.
+      function pinOk() {
+        return !('pin' in request.resource.data) || request.resource.data.pin == resource.data.get('pin', null);
+      }
+      function ownerUpdate() {
+        return ownerOf(resource.data) && pinOk()
+          && request.resource.data.get('gUid', resource.data.get('gUid', null)) in [resource.data.get('gUid', null), me()];
+      }
+      // A new phone adds its own sign-in after proving the PIN (see /claims) in the same batch.
+      function claimUpdate() {
+        return changed().hasOnly(['uids'])
+          && request.resource.data.uids.toSet() == resource.data.get('uids', []).toSet().union([me()].toSet())
+          && existsAfter(/databases/$(database)/documents/claims/$(pid + '_' + me()));
+      }
+      // Accepting or removing a friend touches the other player's list: only your own id, one at a time.
+      function friendUpdate() {
+        let by = request.resource.data.friendBy;
+        let before = resource.data.get('friends', []).toSet();
+        let after = request.resource.data.get('friends', []).toSet();
+        return changed().hasOnly(['friends', 'friendBy']) && by is string && by != pid && owns(by)
+          && (after == before.union([by].toSet()) || after == before.difference([by].toSet()));
+      }
+      // Anyone may give a player a friend code if they don't have one yet.
+      function fcodeUpdate() {
+        return changed().hasOnly(['fcode']) && !('fcode' in resource.data) && request.resource.data.fcode is string;
+      }
+      allow update: if signedIn() && (ownerUpdate() || claimUpdate() || friendUpdate() || fcodeUpdate());
+      allow delete: if signedIn() && ownerOf(resource.data);
+    }
+
+    // PIN hashes: nobody can read them; only the profile's owners can set them.
+    match /pins/{pid} {
+      allow read: if false;
+      allow write: if owns(pid) && request.resource.data.keys().hasOnly(['pin', 't']) && request.resource.data.pin is string;
+      allow delete: if owns(pid);
+    }
+
+    // A PIN proof: written in the same batch that adds a phone to a profile. Unreadable.
+    match /claims/{id} {
+      function stored(pid) {
+        return exists(/databases/$(database)/documents/pins/$(pid))
+          ? get(/databases/$(database)/documents/pins/$(pid)).data.pin
+          : get(playerPath(pid)).data.get('pin', null);
+      }
+      function validClaim() {
+        return signedIn()
+        && request.resource.data.keys().hasOnly(['pid', 'uid', 'proof', 't'])
+        && request.resource.data.uid == me()
+        && id == request.resource.data.pid + '_' + me()
+        && exists(playerPath(request.resource.data.pid))
+        && request.resource.data.proof is string
+        && request.resource.data.proof == stored(request.resource.data.pid);
+      }
+      allow read: if false;
+      allow create, update: if validClaim();
+      allow delete: if signedIn() && resource.data.uid == me();
+    }
+
+    // Name reservations (unique player names).
+    match /names/{key} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.pid is string
+        && (!exists(playerPath(request.resource.data.pid)) || owns(request.resource.data.pid));
+      allow update: if owns(resource.data.pid) && owns(request.resource.data.pid);
+      allow delete: if owns(resource.data.pid);
+    }
+
+    // ---------- online games ----------
+    match /games/{code} {
+      allow read: if signedIn();
+      function inGame() {
+        return me() in resource.data.get('uids', [])
+          || owns(resource.data.pids[0])
+          || (resource.data.pids.size() > 1 && owns(resource.data.pids[1]))
+          || !('uids' in resource.data); // games created before these rules
+      }
+      function joining() {
+        let d = request.resource.data;
+        return resource.data.status == 'open' && resource.data.guest == null
+          && d.status == 'playing' && d.host == resource.data.host
+          && d.pids == [resource.data.pids[0], d.guest.pid]
+          && d.uids.toSet() == resource.data.get('uids', []).toSet().union([me()].toSet())
+          && (d.guest.pid.matches('g-.*') || owns(d.guest.pid));
+      }
+      allow create: if signedIn() && (
+        (request.resource.data.uids == [me()]
+          && (request.resource.data.host.pid.matches('g-.*') || owns(request.resource.data.host.pid)))
+        || (request.resource.data.trial == true && request.resource.data.get('uids', []).size() == 0));
+      allow update: if signedIn() && (inGame() || joining());
+      allow delete: if signedIn() && inGame();
+    }
+
+    // ---------- friends ----------
+    match /requests/{id} {
+      allow read: if signedIn();
+      allow create: if owns(request.resource.data.from) && id == request.resource.data.from + '_' + request.resource.data.to;
+      allow delete: if owns(resource.data.to) || owns(resource.data.from);
+    }
+    match /invites/{id} {
+      allow read: if signedIn();
+      allow create: if owns(request.resource.data.from)
+        || (signedIn() && request.resource.data.from == 'system' && request.resource.data.fromCode == 'AVATAR'
+            && get(/databases/$(database)/documents/games/$(request.resource.data.game)).data.trial == true);
+      allow delete: if owns(resource.data.to) || owns(resource.data.from);
+    }
+
+    // ---------- direct messages: only the two players ----------
+    match /dms/{id} {
+      function party(d) { return owns(d.pids[0]) || owns(d.pids[1]); }
+      allow list: if signedIn() && me() in resource.data.uids;
+      allow get: if signedIn() && (me() in resource.data.get('uids', []) || party(resource.data));
+      allow create: if signedIn() && request.resource.data.pids is list && request.resource.data.pids.size() == 2
+        && id == request.resource.data.pids[0] + '__' + request.resource.data.pids[1]
+        && me() in request.resource.data.uids && party(request.resource.data);
+      allow update: if signedIn() && request.resource.data.pids == resource.data.pids
+        && me() in request.resource.data.uids && party(resource.data);
+    }
+
+    // ---------- push subscriptions: readable one at a time (the push worker), never listed ----------
+    match /push/{pid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow write: if owns(pid);
+    }
+
+    // ---------- shared app state (the current Avatar) ----------
+    match /meta/{id} {
+      allow read, write: if signedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
