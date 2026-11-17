@@ -174,7 +174,7 @@ const Eco = (() => {
   const rankedGames = (p) => { const r = (p && p.ranked) || {}; return (r.w || 0) + (r.l || 0) + (r.d || 0); };
   // who is the Avatar: unique top rating among players with enough ranked games
   function computeAvatar(players) {
-    const eligible = players.filter((p) => rankedGames(p) >= MIN_RANKED).map((p) => ({ p, r: typeof p.rating === 'number' ? p.rating : START_RATING })).sort((a, b) => b.r - a.r);
+    const eligible = players.filter((p) => !p.pastLife && rankedGames(p) >= MIN_RANKED).map((p) => ({ p, r: typeof p.rating === 'number' ? p.rating : START_RATING })).sort((a, b) => b.r - a.r);
     if (!eligible.length) return { pid: null, tie: null };
     if (eligible.length > 1 && eligible[0].r === eligible[1].r) return { pid: null, tie: [eligible[0].p, eligible[1].p] };
     return { pid: eligible[0].p.id, tie: null };
@@ -237,7 +237,7 @@ const Eco = (() => {
   function powersFor(p, isAvatar) {
     if (!p || !p.nation) return { nation: null };
     const xp = p.xp || 0;
-    return { nation: p.nation, avatar: !!isAvatar, subs: xp >= SUB_XP ? (isAvatar ? Object.keys(SUBS) : [SUB_OF[p.nation]]) : [] };
+    return { nation: p.nation, avatar: !!isAvatar, allEl: !!p.pastLife, subs: xp >= SUB_XP ? (isAvatar ? Object.keys(SUBS) : [SUB_OF[p.nation]]) : [] };
   }
   const XP = { online: [100, 30, 50], ai: [40, 10, 20] };
   const xpFor = (mode, res) => { const t = XP[mode]; if (!t) return 0; return t[res === 'w' ? 0 : res === 'l' ? 1 : 2]; };

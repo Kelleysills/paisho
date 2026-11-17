@@ -223,7 +223,7 @@
           await Store.set('meta', 'avatar', Object.assign({}, meta, { trial: { code, pids, t: Date.now() } }));
         }
       }
-      avatarPid = r.pid || meta.pid || null;
+      avatarPid = r.pid || (meta.pid && !(list.find((x) => x.id === meta.pid) || {}).pastLife ? meta.pid : null);
     } catch (e) { console.warn(e); }
   }
   async function createTrial(a, b) {
@@ -238,7 +238,7 @@
 
   // ---------- screens ----------
   const screens = {};
-  function go(name, ...args) { if (typeof D !== 'undefined' && D) duelEnd(); if (name !== 'dm' && dmUnsub) { dmUnsub(); dmUnsub = null; dmOpen = null; } if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
+  function go(name, ...args) { if (typeof D !== 'undefined' && D) duelEnd(); if (typeof spiritHubUn !== 'undefined' && spiritHubUn) { spiritHubUn(); spiritHubUn = null; } if (name !== 'dm' && dmUnsub) { dmUnsub(); dmUnsub = null; dmOpen = null; } if (name === 'loadouts') loTab = null; Music.stop(); closeSheet(); stopGameTimers(); if (name !== 'lobby' && lobbyUnsub) { lobbyUnsub(); lobbyUnsub = null; } screens[name](...args); window.scrollTo(0, 0); }
 
   screens.boot = async () => {
     app.innerHTML = `<div class="screen" style="justify-content:center;align-items:center">${logoSvg(140)}<div class="muted">Opening the garden gate…</div></div>`;
@@ -444,6 +444,7 @@
         <button class="btn" data-act="startSetup" data-mode="local">${icon('pass')}<span class="lbl">Pass &amp; play<small>Two players, one phone</small></span></button>
         <button class="btn" data-act="go" data-to="lobby">${icon('net')}<span class="lbl">Play online<small>${Store.online() ? 'Create or join a game with a code' : 'Needs an internet connection'}</small></span></button>
         ${(Store.kind === 'firebase' || (Social.ready() && Store.kind === 'local')) ? `<button class="btn" data-act="go" data-to="friends">${icon('friends')}<span class="lbl">Friends<small>${friendsLine()}</small></span></button>` : ''}
+        ${me && me.pastLife ? `<button class="btn" data-act="go" data-to="spirit"><span style="font-size:22px;width:28px;text-align:center">👻</span><span class="lbl">Watch over the Avatar<small>Spectate their matches · 2 bends per match, then hints</small></span></button>` : ''}
         <button class="btn" data-act="go" data-to="duel"><span style="font-size:22px;width:28px;text-align:center">🥋</span><span class="lbl">Bending duel<small>Fight a friend in real time · win their gold</small></span></button>
         <button class="btn" data-act="go" data-to="achievements">${icon('ach')}<span class="lbl">Achievements<small>${me ? `${Eco.ACH.filter((a) => (me.ach || {})[a.id]).length}/${Eco.ACH.length} · Lv ${Eco.lvl(me)} · ${(me.xp || 0).toLocaleString()} XP` : 'Create a player to earn rewards'}</small></span></button>
         <button class="btn" data-act="go" data-to="store">${icon('store')}<span class="lbl">Store<small>${me ? gpFmt(me.gp) + ' · tiles, pictures, emotes, boards' : 'Create a player to earn gold'}</small></span></button>
@@ -548,14 +549,15 @@
   let storeTab = 'tiles';
   function figStage(p, edit) {
     if (!p.fig) return edit && me && p.id === me.id ? `<button class="btn" data-act="go" data-to="character" style="margin:8px 0">🧍 Create your character</button>` : '';
-    return `<div class="fig-stage">${Figure.svg(Figure.of(p, p.lvl || Eco.lvl(p)))}${edit ? '<button class="btn small" data-act="go" data-to="character">✏️ Edit</button>' : ''}</div>`;
+    return `<div class="fig-stage ${p.isAvatar ? 'av' : ''}">${Figure.svg(Figure.of(p, p.lvl || Eco.lvl(p)), { avatarState: !!p.isAvatar })}${p.isAvatar ? '<div class="tiny" style="color:#bfe8ff">✨ Avatar State</div>' : ''}${edit ? '<button class="btn small" data-act="go" data-to="character">✏️ Edit</button>' : ''}</div>`;
   }
-  let figTab = 'Outfit', figAv = false;
+  let figTab = 'Outfit', figAv = null;
   screens.character = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Character</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to make a character.</div></div>`; return; }
     ensureMe();
     if (!me.fig) { me.fig = Figure.starter(me.nation, me.id.length + (me.name || '').length); saveMe(); }
     const f = me.fig, lvl = Eco.lvl(me), cfg = Figure.of(me, lvl);
+    if (figAv === null) figAv = amAvatar();
     const price = (kind, id) => { const pr = Figure.priceOf(kind, id, me.nation); return Figure.owns(me, kind, id) ? (pr ? '<span class="price own">owned</span>' : '<span class="price free">free</span>') : `<span class="price">🪙 ${pr.toLocaleString()}</span>`; };
     const on = (k, v) => (f[k] === v ? 'on' : '');
     const sw = (k, v, c) => `<button class="fsw ${on(k, v)}" style="background:${c}" data-act="figSet" data-k="${k}" data-v="${v}"></button>`;
@@ -583,6 +585,85 @@
       <div class="store-tabs fig-tabs">${tabs}</div><div id="fig-pane">${pane}</div></div>`;
     if (y) document.querySelector('.screen').scrollTop = y;
   };
+  // ---------- past-life spirits: watch over the Avatar ----------
+  let spiritHubUn = null;
+  screens.spirit = () => {
+    if (spiritHubUn) { spiritHubUn(); spiritHubUn = null; }
+    if (!me || !me.pastLife) return go('home');
+    app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Past life</h2><span style="width:42px"></span></div>
+      <div class="screen"><div class="card" style="text-align:center"><div style="font-size:40px">👻</div><b>Watch over the Avatar</b><p class="tiny muted">Pick one of the Avatar’s live matches to watch. You get two bends per match: burn, wash, smash or sweep any tile, to help them or to humble them. After that you can send them hints.</p></div>
+      <div class="field"><label>The Avatar’s live matches</label><div id="avgames" class="menu"><div class="muted tiny">${avatarPid ? 'Looking…' : 'There’s no Avatar right now.'}</div></div></div></div>`;
+    if (!avatarPid) return;
+    const show = (games) => {
+      const el = document.getElementById('avgames'); if (!el) return;
+      const list = games.filter((g) => g.kind !== 'fight' && g.status === 'playing' && g.state && (g.pids || []).includes(avatarPid) && Date.now() - (g.updated || 0) < 2 * 864e5);
+      el.innerHTML = list.map((g) => `<button class="btn" data-act="spectate" data-code="${esc(g.id)}"><span>👑 ${esc(g.host.pid === avatarPid ? g.host.name : g.guest.name)} vs ${esc(g.host.pid === avatarPid ? g.guest.name : g.host.name)}</span><span class="spacer"></span><span class="disp">${esc(g.id)}</span></button>`).join('') || '<div class="muted tiny">The Avatar isn’t in a match right now. Check back later.</div>';
+    };
+    if (Store.kind === 'firebase') spiritHubUn = Store.watchCol('games', show);
+    else Store.list('games').then((g) => show((g || []).map((x, i) => Object.assign({ id: x.id || x.code }, x)))).catch(() => {});
+  };
+  async function spectate(code) {
+    if (spiritHubUn) { spiritHubUn(); spiritHubUn = null; }
+    const d = await Store.get('games', code).catch(() => null);
+    if (!d || !d.state || !d.guest) return toast('That match isn’t available');
+    const seat = (x) => ({ name: x.name, pid: x.pid, avatar: x.avatar, fig: x.fig || null, kind: 'remote' });
+    G = { mode: 'spectate', code, doc: d, ver: d.ver, s: JSON.parse(d.state), seats: [seat(d.guest), seat(d.host)], my: d.host.pid === avatarPid ? 1 : 0, history: [], sel: null, showH: true, opts: Object.assign({}, d.opts), recorded: true, chat: [] };
+    G.unwatch = Store.watch('games', code, (nd) => { if (!G || G.mode !== 'spectate' || !nd || !nd.state) return; if ((nd.ver || 0) > G.ver) { G.ver = nd.ver; G.s = JSON.parse(nd.state); G.sel = null; renderGame(); } });
+    G.spiritUn = Store.watch('meta', 'spirit_' + code, (m) => { if (!G || G.mode !== 'spectate') return; G.spiritMeta = m || {}; renderSpiritBar(); });
+    gameScreen();
+  }
+  const spiritPending = () => { const m = (G && G.spiritMeta) || {}, done = (G && G.s.spiritDone) || []; return Object.entries(m.acts || {}).filter(([id, a]) => a.pid === myPid() && !done.includes(id) && !((m.fail || {})[id])).length; };
+  const spiritLeftMine = () => (G ? P.spiritLeft(G.s, myPid()) - spiritPending() : 0);
+  function renderSpiritBar() {
+    if (!G || G.mode !== 'spectate') return;
+    const bar = document.getElementById('bendbar'); if (!bar) return;
+    bar.style.display = '';
+    const left = spiritLeftMine(), sel = G.sel && (G.sel.kind === 'bend' || G.sel.kind === 'sweep') ? G.sel.el || 'air' : null;
+    bar.innerHTML = `<span class="bb spent"><span class="i">👻</span><small>${left > 0 ? left + ' spirit ' + (left === 1 ? 'bend' : 'bends') + ' left' : 'Bends used'}</small></span>` +
+      (left > 0 ? ['fire', 'water', 'earth', 'air'].map((el) => `<button class="bb ${sel === el ? 'on' : ''}" data-act="spiritEl" data-el="${el}"><span class="i">${Eco.BEND[el].icon}</span><b>${Eco.BEND[el].verb}</b></button>`).join('') : '') +
+      `<button class="bb" data-act="spiritHint"><span class="i">💡</span><b>Send a hint</b></button>`;
+  }
+  async function spiritSend(a) {
+    G.sel = null; renderBoard(); renderSpiritBar();
+    if (spiritLeftMine() <= 0) return toast('You’ve used your two spirit bends this match');
+    const act = { t: 'spirit', el: a.el, target: a.target, to: a.to != null ? a.to : null, pid: myPid(), name: myName() };
+    try { P.apply(G.s, act); } catch (e) { return toast('That bend isn’t possible'); }
+    const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try { await Store.patch('meta', 'spirit_' + G.code, { acts: { [id]: Object.assign({ t: Date.now() }, act) }, avatar: avatarPid, code: G.code }); } catch (e) { return toast('Couldn’t send — check your connection'); }
+    G.spiritMeta = G.spiritMeta || {}; G.spiritMeta.acts = Object.assign({}, G.spiritMeta.acts, { [id]: act }); renderSpiritBar();
+    toast('👻 Sent! It lands as soon as the player whose turn it is sees it.', 3500);
+  }
+  // players: whoever's turn it is applies spirit bends sent by past lives
+  function applySpiritActs() {
+    if (!G || G.mode !== 'online' || !G.spiritMeta || !isHumanTurn()) return;
+    const acts = G.spiritMeta.acts || {}; let changed = false;
+    Object.keys(acts).sort().forEach((id) => {
+      if ((G.s.spiritDone || []).includes(id)) return;
+      const a = acts[id];
+      try { const s2 = P.apply(G.s, { t: 'spirit', el: a.el, target: a.target, to: a.to, pid: a.pid, name: a.name }); s2.spiritDone = (G.s.spiritDone || []).concat([id]); G.s = s2; changed = true; showFx(a.el); toast(`👻 ${a.name}, a past life of the Avatar, ${{ fire: 'burned', water: 'washed out', earth: 'smashed', air: 'swept' }[a.el]} a tile!`, 4000); }
+      catch (e) { G.s = P.clone(G.s); G.s.spiritDone = (G.s.spiritDone || []).concat([id]); changed = true; Store.patch('meta', 'spirit_' + G.code, { fail: { [id]: true } }).catch(() => {}); }
+    });
+    if (changed) { G.sel = null; G.history = []; renderGame(); pushOnline(); }
+  }
+  function spiritHints() {
+    if (!G || G.mode !== 'online' || G.seats[G.my].pid !== avatarPid) return;
+    G.hintSeen = G.hintSeen || {};
+    Object.entries((G.spiritMeta && G.spiritMeta.hints) || {}).sort((a, b) => a[1].t - b[1].t).forEach(([id, h]) => {
+      if (G.hintSeen[id]) return; G.hintSeen[id] = 1;
+      if (Date.now() - (h.t || 0) < 5 * 60000) toast(`👻 ${h.name} (past life): ${String(h.text || '').slice(0, 120)}`, 6000);
+    });
+  }
+  async function spiritHint() {
+    if (!G || G.mode !== 'spectate') return;
+    sheet(`<h3>💡 Hint for the Avatar</h3><p class="tiny muted">Only the Avatar sees it, as a message from a past life.</p><form id="hintf" class="menu"><input class="input" id="hint-t" maxlength="120" placeholder="Block the Jade near the North gate…"><button class="btn primary" type="submit">Send hint</button></form>`);
+    document.getElementById('hintf').addEventListener('submit', async (e) => {
+      e.preventDefault(); const text = document.getElementById('hint-t').value.trim(); if (!text) return;
+      const id = 'h' + Date.now().toString(36);
+      await Store.patch('meta', 'spirit_' + G.code, { hints: { [id]: { pid: myPid(), name: myName(), text, t: Date.now() } }, avatar: avatarPid, code: G.code }).catch(() => toast('Couldn’t send'));
+      closeSheet(); toast('💡 Hint sent');
+    });
+  }
+
   // ---------- bending duels (real-time mini-game) ----------
   const DM = {
     strike: { icon: '👊', name: 'Strike', cd: 650, dmg: 7, gain: 12 },
@@ -592,11 +673,19 @@
   };
   const ELI = { fire: '🔥', water: '🌊', earth: '🪨', air: '🌪️' };
   const ELC = { fire: '#ff7a2c', water: '#4fb6ff', earth: '#8bc34a', air: '#e8f6ff' };
+  // sub-bending ultimates: land a 5-hit combo to charge one; each has a quick counter
+  const ULT = {
+    lightning: { icon: '⚡', name: 'Lightning', w: 1300, dmg: 35, back: 25, counter: 'redirect', cIcon: '🔄', cName: 'Redirect it!', warn: 'is charging lightning! Redirect it!' },
+    blood: { icon: '🩸', name: 'Bloodbending', w: 1100, dmg: 12, freeze: 3000, counter: 'chi', cIcon: '🧘', cName: 'Channel chi!', warn: 'is bloodbending you! Channel your chi!' },
+    metal: { icon: '⚙️', name: 'Metal crush', w: 1300, dmg: 30, counter: 'strike', warn: 'is metalbending! Strike to break their focus!' },
+    flight: { icon: '🌀', name: 'Air suffocation', w: 4000, tick: 4, every: 500, counter: 'strike', warn: 'is pulling the air from your lungs! Strike to break their focus!' },
+  };
+  const COMBO = 5;
   let D = null;
   const duelStake = (winLvl, loseLvl) => Math.round(50 * Math.max(0.5, Math.min(3, 1 + (loseLvl - winLvl) / 20)));
   function duelMe() {
     const nat = (me && me.nation) || 'earth', lv = me ? Eco.lvl(me) : 1;
-    return { pid: myPid(), name: myName(), lvl: lv, nation: nat, title: me ? Eco.titleOf(me, lv) : '', fig: myFig() || Object.assign(Figure.starter(nat, (myName() || '').length), { nation: nat, level: lv }) };
+    return { pid: myPid(), name: myName(), lvl: lv, nation: nat, allEl: !!(amAvatar() || (me && me.pastLife)), subs: me ? Eco.powersFor(me, amAvatar()).subs : [], title: me ? Eco.titleOf(me, lv) : '', fig: myFig() || Object.assign(Figure.starter(nat, (myName() || '').length), { nation: nat, level: lv }) };
   }
   function duelEnd() { if (D) { D.over = true; if (D.un) D.un(); if (D.ai) clearTimeout(D.ai); cancelAnimationFrame(D.raf); } D = null; }
   screens.duel = () => {
@@ -635,20 +724,21 @@
   }
   function duelPractice() {
     const m = duelMe(), nat = ['fire', 'water', 'earth', 'air'].filter((n) => n !== m.nation)[Math.floor(Math.random() * 3)];
-    const dummy = { pid: 'dummy', name: 'Training Dummy', lvl: m.lvl, nation: nat, title: 'Practice partner', fig: Object.assign(Figure.starter(nat, 7), { nation: nat, level: 1, mood: 'fierce' }) };
+    const dummy = { pid: 'dummy', name: 'Training Dummy', lvl: m.lvl, nation: nat, subs: m.lvl >= Eco.SUB_LEVEL ? [Eco.SUB_OF[nat]] : [], title: 'Practice partner', fig: Object.assign(Figure.starter(nat, 7), { nation: nat, level: 1, mood: 'fierce' }) };
     duelStart({ code: null, host: m, guest: dummy }, 0, true);
   }
   function duelStart(d, my, practice = false) {
     duelEnd();
     const P2 = [d.host, d.guest];
-    D = { code: d.code, my, opp: 1 - my, P: P2, practice, hp: [100, 100], en: 30, cd: {}, guard: [0, 0], dodge: [0, 0], n: 0, seen: 0, over: false, startAt: Date.now() + 3000, aiEn: 30 };
+    D = { code: d.code, my, opp: 1 - my, P: P2, practice, hp: [100, 100], en: 30, cd: {}, guard: [0, 0], dodge: [0, 0], n: 0, seen: 0, over: false, startAt: Date.now() + 3000, aiEn: 30, combo: [0, 0], lastHit: [0, 0], ultReady: [false, false], ult: [null, null], frozen: [0, 0] };
     const fig = (k) => `<div class="fighter f${k === my ? 'me' : 'opp'}" id="fg${k}"><div class="fig-in">${Figure.svg(P2[k].fig)}</div><div class="shield"></div></div>`;
     const bar = (k) => `<div class="dbar ${k === my ? 'mine' : ''}"><div class="dbn"><b>${esc(P2[k].name)}</b><span>Lv ${P2[k].lvl}${P2[k].title ? ' · ' + esc(P2[k].title) : ''}</span></div><div class="hp"><i id="hp${k}"></i></div></div>`;
-    const el = P2[my].nation, mv = (k, icon, name) => `<button class="dmove" data-act="duelMove" data-k="${k}" id="mv-${k}"><span class="di">${icon}</span><span>${name}</span><i class="cdv"></i></button>`;
+    const el = P2[my].nation, mv = (k, icon, name, e) => `<button class="dmove${e ? ' del' : ''}" data-act="duelMove" data-k="${k}" ${e ? `data-el="${e}"` : ''} id="mv-${k}${e ? '-' + e : ''}"><span class="di">${icon}</span><span>${name}</span><i class="cdv"></i></button>`;
+    const blasts = P2[my].allEl ? `<div class="dmoves dels">${['fire', 'water', 'earth', 'air'].map((e) => mv('blast', ELI[e], { fire: 'Fire', water: 'Water', earth: 'Earth', air: 'Air' }[e], e)).join('')}</div>` : '';
     app.innerHTML = `<div class="duel"><div class="duel-top">${bar(my)}<span class="vs">VS</span>${bar(1 - my)}</div>
-      <div class="arena" id="arena" style="--el:${ELC[el]}">${fig(my)}${fig(1 - my)}<div id="dfx"></div><div class="dcount" id="dcount">3</div></div>
-      <div class="en"><i id="enb"></i><span>Energy</span></div>
-      <div class="dmoves">${mv('strike', '👊', 'Strike')}${mv('blast', ELI[el], 'Blast')}${mv('block', '🛡️', 'Block')}${mv('dodge', '💨', 'Dodge')}</div>
+      <div class="arena" id="arena" style="--el:${ELC[el]}">${fig(my)}${fig(1 - my)}<div id="dfx"></div><div class="dcount" id="dcount">3</div><div class="dwarn" id="dwarn"></div></div>
+      <div class="en"><i id="enb"></i><span>Energy</span></div>${(P2[my].subs || []).length ? `<div class="combo" id="combo"></div>` : ''}<div class="dult" id="dult"></div>
+      ${blasts}<div class="dmoves" ${P2[my].allEl ? 'style="grid-template-columns:repeat(3,1fr)"' : ''}>${mv('strike', '👊', 'Strike')}${P2[my].allEl ? '' : mv('blast', ELI[el], 'Blast')}${mv('block', '🛡️', 'Block')}${mv('dodge', '💨', 'Dodge')}</div>
       <button class="btn ghost small" data-act="duelQuit">${practice ? 'Leave practice' : 'Give up'}</button></div>`;
     const tick = () => {
       if (!D || D.over) return;
@@ -657,7 +747,9 @@
       if (now > D.startAt) D.en = Math.min(100, D.en + 0.012 * 16);
       [0, 1].forEach((k) => { const h = document.getElementById('hp' + k); if (h) { h.style.width = Math.max(0, D.hp[k]) + '%'; h.classList.toggle('low', D.hp[k] < 30); } const f = document.getElementById('fg' + k); if (f) { f.classList.toggle('guard', now < D.guard[k]); f.classList.toggle('dodging', now < D.dodge[k]); } });
       const e = document.getElementById('enb'); if (e) e.style.width = D.en + '%';
-      Object.keys(DM).forEach((k) => { const b = document.getElementById('mv-' + k); if (!b) return; const left = Math.max(0, (D.cd[k] || 0) - now), frac = left / DM[k].cd; b.querySelector('.cdv').style.height = (frac * 100) + '%'; b.disabled = now < D.startAt || left > 0 || (k === 'blast' && D.en < DM.blast.cost); });
+      document.querySelectorAll('.dmove[data-act="duelMove"]').forEach((b) => { const k = b.dataset.k, left = Math.max(0, (D.cd[k] || 0) - now), frac = left / DM[k].cd; b.querySelector('.cdv').style.height = (frac * 100) + '%'; b.disabled = now < D.startAt || left > 0 || now < D.frozen[D.my] || (k === 'blast' && D.en < DM.blast.cost); });
+      const cb = document.getElementById('combo'); if (cb) cb.innerHTML = D.ultReady[D.my] ? '<b>⚡ Ultimate ready</b>' : `Combo ${'●'.repeat(D.combo[D.my])}${'○'.repeat(Math.max(0, COMBO - D.combo[D.my]))}`;
+      if (now - D.lastHit[D.my] > 3000 && D.combo[D.my] && !D.ultReady[D.my]) D.combo[D.my] = 0;
       D.raf = requestAnimationFrame(tick);
     };
     D.raf = requestAnimationFrame(tick);
@@ -683,13 +775,16 @@
     setTimeout(() => n.remove(), DM.blast.travel + 60);
   }
   // someone (k) used a move: animate it, and work out damage on the target if this client is responsible for the target
-  function duelSee(k, mv) {
+  function duelSee(k, mv0) {
     if (!D || D.over) return;
+    const [mv, bel] = String(mv0).split(':'), bEl = bel && (D.P[k].allEl) ? bel : D.P[k].nation;
     const now = Date.now(), tgt = 1 - k;
+    if (mv === 'ult') return duelUltSeen(k, bel);
+    if (mv === 'redirect' || mv === 'chi') return duelCounterSeen(k, mv);
     if (mv === 'block') { D.guard[k] = now + DM.block.dur; return; }
     if (mv === 'dodge') { D.dodge[k] = now + DM.dodge.dur; duelAnim(k, 'dodge', 480); return; }
     if (mv === 'strike') duelAnim(k, 'lunge', 300);
-    if (mv === 'blast') { duelAnim(k, 'cast', 400); duelProjectile(k, D.P[k].nation); }
+    if (mv === 'blast') { duelAnim(k, 'cast', 400); duelProjectile(k, bEl); }
     const responsible = D.practice || tgt === D.my;
     const delay = mv === 'blast' ? DM.blast.travel : 170;
     setTimeout(() => {
@@ -698,6 +793,7 @@
       if (t < D.dodge[tgt]) { duelFloat(tgt, 'Dodged!', 'miss'); return; }
       let dmg = DM[mv].dmg; const blocked = t < D.guard[tgt]; if (blocked) dmg = Math.round(dmg * 0.2);
       duelAnim(tgt, blocked ? 'blocked' : 'hit', 320); duelFloat(tgt, blocked ? '🛡️ -' + dmg : '-' + dmg, blocked ? 'blk' : '');
+      if (!blocked) { duelCombo(k); if (!D.ultReady[tgt]) D.combo[tgt] = Math.max(0, D.combo[tgt] - 1); if (mv === 'strike' && D.ult[tgt] && ULT[D.ult[tgt].kind].counter === 'strike' && !D.ult[tgt].done) duelBreak(tgt, k); }
       if (k === D.my && mv === 'strike' && !blocked) D.en = Math.min(100, D.en + DM.strike.gain);
       if (k !== D.my && D.practice && mv === 'strike') D.aiEn = Math.min(100, D.aiEn + DM.strike.gain);
       if (!responsible) return;
@@ -708,14 +804,90 @@
       if (lost) duelFinish(D.opp);
     }, delay);
   }
-  function duelMove(k) {
-    if (!D || D.over || Date.now() < D.startAt) return;
+  function duelMove(k, el) {
+    if (!D || D.over || Date.now() < D.startAt || Date.now() < D.frozen[D.my]) return;
     const m = DM[k], now = Date.now();
     if ((D.cd[k] || 0) > now) return;
     if (k === 'blast') { if (D.en < m.cost) return; D.en -= m.cost; }
     D.cd[k] = now + m.cd; D.n++;
-    duelSee(D.my, k);
-    if (!D.practice) Store.patch('games', D.code, { ['f' + D.my]: { n: D.n, mv: k, hp: D.hp[D.my], t: now }, updated: now }).catch(() => {});
+    const mvk = k === 'blast' && el ? 'blast:' + el : k;
+    duelSee(D.my, mvk);
+    if (!D.practice) Store.patch('games', D.code, { ['f' + D.my]: { n: D.n, mv: mvk, hp: D.hp[D.my], t: now }, updated: now }).catch(() => {});
+  }
+  function duelSend(mvk) { if (D && !D.practice) Store.patch('games', D.code, { ['f' + D.my]: { n: ++D.n, mv: mvk, hp: D.hp[D.my], t: Date.now() }, updated: Date.now() }).catch(() => {}); else if (D) D.n++; }
+  function duelCombo(k) {
+    if (!D) return; const now = Date.now();
+    D.combo[k] = now - D.lastHit[k] < 3000 ? D.combo[k] + 1 : 1; D.lastHit[k] = now;
+    if (D.combo[k] >= COMBO && (D.P[k].subs || []).length && !D.ultReady[k]) { D.ultReady[k] = true; if (k === D.my) { buzz(40); duelUltBar(); toast('⚡ Combo! Your ultimate is ready'); } }
+  }
+  function duelUltBar() {
+    const el = document.getElementById('dult'); if (!el || !D) return;
+    const subs = D.P[D.my].subs || [];
+    el.innerHTML = D.ultReady[D.my] ? subs.map((k) => `<button class="dmove dultb" data-act="duelUlt" data-k="${k}"><span class="di">${ULT[k].icon}</span><span>${ULT[k].name}</span></button>`).join('') : '';
+  }
+  function duelWarn(html, ms) { const w = document.getElementById('dwarn'); if (!w) return; w.innerHTML = html; w.style.display = html ? '' : 'none'; clearTimeout(D && D.warnT); if (D && ms) D.warnT = setTimeout(() => { if (w) w.style.display = 'none'; }, ms); }
+  function duelUlt(kind) {
+    if (!D || D.over || !D.ultReady[D.my] || !(D.P[D.my].subs || []).includes(kind)) return;
+    D.ultReady[D.my] = false; D.combo[D.my] = 0; duelUltBar();
+    duelSend('ult:' + kind); duelUltSeen(D.my, kind);
+  }
+  // k started an ultimate
+  function duelUltSeen(k, kind) {
+    if (!D || D.over || !ULT[kind]) return;
+    const U = ULT[kind], tgt = 1 - k, now = Date.now(), resp = D.practice || tgt === D.my;
+    D.ult[k] = { kind, start: now, done: false, countered: false };
+    duelAnim(k, 'cast', U.w);
+    const fk = document.getElementById('fg' + k); if (fk) { fk.classList.add('ulting'); fk.style.setProperty('--uc', kind === 'lightning' ? '#9fd8ff' : kind === 'blood' ? '#c0182a' : kind === 'metal' ? '#c8ccd2' : '#e8f6ff'); }
+    if (tgt === D.my) { buzz(60); duelWarn(`<div class="dw-t">${U.icon} ${esc(D.P[k].name)} ${U.warn}</div>${U.counter === 'strike' ? '' : `<button class="dcounter" data-act="duelCounter" data-k="${U.counter}">${U.cIcon} ${U.cName}</button>`}`, U.w + 200); }
+    else duelWarn(`<div class="dw-t">${U.icon} ${U.name}!</div>`, 1200);
+    if (D.practice && tgt !== D.my && Math.random() < 0.35) setTimeout(() => { if (!D || !D.ult[k] || D.ult[k].done) return; if (U.counter === 'strike') duelSee(tgt, 'strike'); else duelCounterSeen(tgt, U.counter); }, 300 + Math.random() * 700);
+    if (kind === 'flight') {
+      const tickF = () => {
+        if (!D || D.over || !D.ult[k] || D.ult[k].done) return;
+        if (Date.now() - D.ult[k].start >= U.w) { duelUltEnd(k); return; }
+        duelAnim(tgt, 'hit', 250); duelFloat(tgt, '🌀 -' + U.tick);
+        if (resp) duelDamage(tgt, U.tick, k);
+        D.ult[k].tick = setTimeout(tickF, U.every);
+      };
+      D.ult[k].tick = setTimeout(tickF, U.every);
+      return;
+    }
+    setTimeout(() => {
+      if (!D || D.over || !D.ult[k] || D.ult[k].done) return;
+      const u = D.ult[k]; duelUltEnd(k);
+      if (u.countered) return;
+      if (kind === 'lightning') duelProjectile(k, 'fire');
+      duelAnim(tgt, 'hit', 400); duelFloat(tgt, `${U.icon} -${U.dmg}`);
+      if (kind === 'blood') { D.frozen[tgt] = Date.now() + U.freeze; const ft = document.getElementById('fg' + tgt); if (ft) { ft.classList.add('frozen'); setTimeout(() => ft && ft.classList.remove('frozen'), U.freeze); } if (tgt === D.my) duelWarn('<div class="dw-t">🩸 You’re being bloodbent and can’t move!</div>', U.freeze); }
+      if (resp) duelDamage(tgt, U.dmg, k);
+    }, U.w);
+  }
+  function duelUltEnd(k) { if (!D || !D.ult[k]) return; D.ult[k].done = true; clearTimeout(D.ult[k].tick); const f = document.getElementById('fg' + k); if (f) f.classList.remove('ulting'); }
+  // the target answered with redirect / chi
+  function duelCounter(kind) {
+    if (!D || D.over) return;
+    const k = D.opp, u = D.ult[k]; if (!u || u.done || ULT[u.kind].counter !== kind) return;
+    duelSend(kind); duelCounterSeen(D.my, kind);
+  }
+  function duelCounterSeen(by, kind) {
+    if (!D || D.over) return;
+    const k = 1 - by, u = D.ult[k]; if (!u || u.countered || Date.now() - u.start > ULT[u.kind].w + 1500) return;
+    u.countered = true; duelUltEnd(k); duelWarn('', 0);
+    if (kind === 'redirect') {
+      duelFloat(by, '🔄 Redirected!', 'miss'); duelProjectile(by, 'fire');
+      setTimeout(() => { if (!D || D.over) return; duelAnim(k, 'hit', 400); duelFloat(k, '⚡ -' + ULT.lightning.back); if (D.practice || k === D.my) duelDamage(k, ULT.lightning.back, by); }, DM.blast.travel);
+    } else duelFloat(by, '🧘 Rejected!', 'miss');
+  }
+  // a strike landed on someone channeling a strike-counterable ultimate
+  function duelBreak(caster, by) { const u = D.ult[caster]; if (!u || u.done) return; u.countered = true; duelUltEnd(caster); duelFloat(caster, '💥 Focus broken!', 'blk'); if (caster !== D.my) duelWarn('', 0); else duelWarn('<div class="dw-t">💥 They broke your focus!</div>', 1200); }
+  function duelDamage(tgt, dmg, from) {
+    if (!D || D.over) return;
+    D.hp[tgt] = Math.max(0, D.hp[tgt] - dmg); if (tgt === D.my) buzz(25);
+    if (D.practice) { if (D.hp[tgt] <= 0) duelFinish(from); return; }
+    if (tgt !== D.my) return;
+    const lost = D.hp[tgt] <= 0;
+    Store.patch('games', D.code, Object.assign({ ['f' + D.my]: { n: D.n, mv: null, hp: D.hp[D.my], t: Date.now() }, updated: Date.now() }, lost ? { status: 'done', winner: D.opp } : {})).catch(() => {});
+    if (lost) duelFinish(D.opp);
   }
   function duelAi() {
     if (!D || D.over) return;
@@ -727,7 +899,8 @@
         if (D.aiEn >= DM.blast.cost && r < 0.35 && (D.aiCd || 0) < now) { mv = 'blast'; D.aiEn -= DM.blast.cost; D.aiCd = now + DM.blast.cd; }
         else if (r > 0.9) mv = 'block'; else if (r > 0.82) mv = 'dodge';
         D.aiEn = Math.min(100, D.aiEn + 4);
-        duelSee(opp, mv);
+        if (D.ultReady[opp] && Math.random() < 0.5) { D.ultReady[opp] = false; D.combo[opp] = 0; duelUltSeen(opp, D.P[opp].subs[0]); }
+        else duelSee(opp, mv);
       }
       D.ai = setTimeout(go, 750 + Math.random() * 900);
     };
@@ -813,6 +986,7 @@
   }
   async function doBend(a) {
     if (!G) return;
+    if (G.mode === 'spectate') return spiritSend(a);
     if (a.t !== 'avatarState' || a.by == null) a.by = bendSeat(); G.sel = null;
     // during the opponent's turn online: queue it; their phone applies it instantly
     if (G.mode === 'online' && !isHumanTurn()) {
@@ -1100,7 +1274,9 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17c', items: [
+  const NEWS = { v: '2026-11-17d', items: [
+    ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
+    ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
     ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
     ['🏷️', 'Nation titles', 'Earn a new title at Level 1, 5, 10 and every 10 levels after, up to Level 100.'],
     ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit board.'],
@@ -1165,13 +1341,16 @@
   async function finalChoice() {
     if (!me || !Eco.atFinal(me)) return;
     const pick = await choose('Your final reincarnation is complete', [{ label: '🌟 Rise past Level 100', value: 'ascend', cls: 'primary' }, { label: '👻 Enter the Spirit Realm', value: 'spirit' }],
-      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit board, where your harmonies take two blockers to break.`);
+      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit board, where your harmonies take two blockers to break.${amAvatar() ? '\n\n👑 You are the Avatar: crossing over gives up the title. You become a past-life spirit who bends all four elements forever (in elemental matches and duels) and can watch over the next Avatar’s matches, with two bends per match to help or humble them, then hints.' : ''}`);
     if (pick === 'ascend') { me.surpass = true; await saveMe(); toast('🌟 You’ve risen beyond the cycle!', 3500); }
     else if (pick === 'spirit') {
       const sure = await choose('Enter the Spirit Realm?', [{ label: '👻 Cross over', value: true, cls: 'primary' }], 'This can’t be undone. You keep 10% of your gold.');
       if (!sure) return;
-      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
-      await saveMe(); toast('👻 You’ve crossed into the Spirit Realm. The Spirit board is yours.', 4000);
+      const wasAvatar = amAvatar();
+      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; if (wasAvatar) me.pastLife = true; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
+      await saveMe();
+      if (wasAvatar) { await Store.set('meta', 'avatar', { pid: null, name: null, since: Date.now(), trial: null, pastLife: { pid: me.id, name: me.name, t: Date.now() } }).catch(() => {}); avatarPid = null; updateAvatar(); toast('👻 You gave up the Avatar title and became a past-life spirit. You bend all four elements forever, and you can watch over the next Avatar’s matches.', 6000); }
+      else toast('👻 You’ve crossed into the Spirit Realm. The Spirit board is yours.', 4000);
     } else return;
     closeSheet(); setTimeout(checkAch, 900); go('stats');
   }
@@ -1406,7 +1585,7 @@
       if (nd.here && nd.here[1 - G.my]) { const t = nd.here[1 - G.my]; if (G.hereT !== undefined && t > G.hereT + 20000 && P.flightOn(G.s, G.my)) { toast('👀 ' + G.seats[1 - G.my].name + ' is back in the match. Your Flight is watching!', 4000); buzz(20); } G.hereT = Math.max(G.hereT || 0, t); }
       if ((nd.ver || 0) > G.ver) {
         G.ver = nd.ver; G.doc = nd; G.s = JSON.parse(nd.state); G.history = []; G.sel = null; G.draftLive = false;
-        renderGame(); afterTurnChange(); applyQueuedBends(nd);
+        renderGame(); afterTurnChange(); applyQueuedBends(nd); applySpiritActs();
       } else if (nd.draft && nd.draft.t > (G.draftT || 0) && !isHumanTurn() && P.flightOn(G.s, G.my)) {
         // 🪽 Flight: watch their turn live
         G.draftT = nd.draft.t;
@@ -1415,6 +1594,7 @@
     });
     // practice games made before the update: give the Avatar all four sub-bendings
     try { const pw = G.s.opts.powers && G.s.opts.powers[G.my]; if (G.s.opts.subPractice && pw && amAvatar() && (pw.subs || []).length < 4) { pw.avatar = true; pw.subs = ['metal', 'lightning', 'blood', 'flight']; if (isHumanTurn()) pushOnline(); } } catch (e) {}
+    if (G.seats.some((x) => x.pid && x.pid === avatarPid)) G.spiritUn = Store.watch('meta', 'spirit_' + G.code, (m) => { if (!G || G.mode !== 'online') return; G.spiritMeta = m || {}; applySpiritActs(); spiritHints(); });
     gameScreen();
     const here = () => G && G.mode === 'online' && Store.patch('games', G.code, { here: { [G.my]: Date.now(), ['v' + G.my]: APP_V } }).catch(() => {});
     here(); G.hereTimer = setInterval(() => { if (!G || G.mode !== 'online') return clearInterval(G && G.hereTimer); if (!document.hidden) here(); }, 45000);
@@ -1687,13 +1867,14 @@
     const H = P.harmonies(G.s);
     const el = document.getElementById('seats'); if (!el) return;
     el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"${G.seats[k].pid && !String(G.seats[k].pid).startsWith('g-') ? ` data-act="viewPlayer" data-pid="${esc(G.seats[k].pid)}"` : ''}>${G.seats[k].fig ? `<span class="disc fig-disc ${avGlow(k) ? 'glow' : ''}" style="position:relative">${Figure.svg(G.seats[k].fig, { portrait: true, avatarState: avGlow(k) })}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
-      <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span>${liveStyle(k)}</div>
+      <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k && G.mode !== 'spectate' ? ' (you)' : G.mode === 'spectate' && G.seats[k].pid === avatarPid ? ' 👑' : ''}</span><span class="st">${seatStatus(k)}</span>${liveStyle(k)}</div>
       <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
   }
   function statusText() {
     const s = G.s, tp = s.tp;
     if (s.winner !== null) return s.winner === 'draw' ? '<b>Draw</b>' : `<b>${esc(G.seats[s.winner].name)}</b> wins by ${s.winReason}`;
     const nm = esc(G.seats[s.turn].name);
+    if (G.mode === 'spectate') return `👻 Watching · <b>${nm}</b>’s turn`;
     if (!isHumanTurn()) return G.seats[s.turn].kind === 'ai' ? `${nm} is thinking…` : `Waiting for <b>${nm}</b>… ${G.mode === 'online' ? '<button class="btn small yip" data-act="yipYip">📣 Yip yip!</button>' : ''}`;
     const pre = G.mode === 'local' ? `<b>${nm}</b>: ` : '<b>Your turn</b> — ';
     if (G.sel && G.sel.kind === 'plant') return pre + 'tap a glowing gate to plant';
@@ -1854,10 +2035,11 @@
   }
   const bendSeat = () => (G.my != null ? G.my : G.s.turn);
   function renderBendBar() {
+    if (G && G.mode === 'spectate') return renderSpiritBar();
     const bar = document.getElementById('bendbar'); if (!bar) return;
     const s = G.s, seat = bendSeat(), pw = (s.opts.powers || [])[seat] || {};
     if (!s.bend || !(pw.nation || pw.avatar) || G.seats[seat].kind !== 'human' || s.winner !== null) { bar.style.display = 'none'; return; }
-    const els = pw.avatar ? ['fire', 'water', 'earth', 'air'] : [pw.nation];
+    const els = pw.avatar || pw.allEl ? ['fire', 'water', 'earth', 'air'] : [pw.nation];
     const used = s.bend.used[seat], free = pw.avatar || P.hasHarmony(s, seat), cost = P.bendCost(s, seat);
     const sel = G.sel && G.sel.kind === 'bend' ? G.sel.el : null;
     let o = '';
@@ -2530,7 +2712,7 @@
     bendMenu: () => {
       if (!G || !G.s.bend) return;
       const s = G.s, seat = bendSeat(), pw = (s.opts.powers || [])[seat] || {};
-      const els = pw.avatar ? ['fire', 'water', 'earth', 'air'] : [pw.nation];
+      const els = pw.avatar || pw.allEl ? ['fire', 'water', 'earth', 'air'] : [pw.nation];
       const used = s.bend.used[seat], cost = P.bendCost(s, seat), free = pw.avatar || P.hasHarmony(s, seat);
       const costTxt = free ? '<span style="color:#9fd18b">Free right now</span> (you ' + (pw.avatar ? 'are the Avatar' : 'have a harmony') + ')' : cost ? `Costs your <b>${P.tname(cost.type)}</b>` : '<span style="color:#e08a6a">You need an effect tile to give up</span>';
       const subs = P.subAvailable(s, seat), usedSubs = s.bend.subs[seat];
@@ -2592,10 +2774,22 @@
       me.fig[d.k] = d.v; saveMe(); screens.character();
     },
     reincarnate: () => reincarnate(),
+    spectate: (d) => spectate(d.code),
+    spiritHint: () => spiritHint(),
+    spiritEl: (d) => {
+      if (!G || G.mode !== 'spectate') return;
+      if (G.sel && G.sel.kind === 'bend' && G.sel.el === d.el) { G.sel = null; renderBoard(); return renderSpiritBar(); }
+      const t = []; for (let i = 0; i < 324; i++) if (G.s.board[i]) t.push(i);
+      if (!t.length) return toast('No tiles on the board yet');
+      G.sel = { kind: 'bend', el: d.el, targets: t, spirit: true }; renderBoard(); renderSpiritBar();
+      toast(`👻 Tap any tile to ${Eco.BEND[d.el].verb.toLowerCase()} it`);
+    },
     duelCreate: () => duelCreate(),
     duelPractice: () => duelPractice(),
     duelJoinCode: () => joinGame((document.getElementById('duelcode') || {}).value),
-    duelMove: (d) => duelMove(d.k),
+    duelMove: (d) => duelMove(d.k, d.el),
+    duelUlt: (d) => duelUlt(d.k),
+    duelCounter: (d) => duelCounter(d.k),
     duelQuit: () => duelQuit(),
     duelInvite: async (d) => { await Soc().invite(d.code, d.game, 'fight'); toast('Challenge sent!'); },
     duelCancel: async (d) => { duelEnd(); await Store.del('games', d.code).catch(() => {}); go('duel'); },
@@ -2651,8 +2845,8 @@
         <button class="btn" data-act="toggleAutoSend">Auto-send moves: ${autoSend() ? 'On' : 'Off'}</button>
         <button class="btn" data-act="guideInGame">How to play</button>
         <button class="btn" data-act="showLog">Move log</button>
-        ${G.s.winner === null ? '<button class="btn danger" data-act="resign">Resign</button>' : ''}
-        <button class="btn" data-act="leaveGame">Leave game</button></div>`);
+        ${G.s.winner === null && G.mode !== 'spectate' ? '<button class="btn danger" data-act="resign">Resign</button>' : ''}
+        <button class="btn" data-act="leaveGame">${G.mode === 'spectate' ? 'Stop watching' : 'Leave game'}</button></div>`);
     },
     guideInGame: () => { sheet(`<div style="margin:-8px -16px">${Guide.html()}</div>`, { tall: true }); },
     showLog: () => { sheet(`<h3>Move log</h3><div class="log">${G.s.log.slice().reverse().map((l) => `<div><span class="dot" style="background:var(--p${l.p})"></span><b>${esc(G.seats[l.p].name)}</b> ${esc(l.text)} <span class="tiny muted">turn ${l.turn}</span></div>`).join('') || '<div class="muted">No moves yet</div>'}</div>`); },
@@ -2664,7 +2858,7 @@
       if (G.mode === 'online') await pushOnline();
       afterTurnChange();
     },
-    leaveGame: () => { Music.stop(); if (G && G.unwatch) G.unwatch(); stopGameTimers(); G = null; go('home'); },
+    leaveGame: () => { Music.stop(); if (G && G.unwatch) G.unwatch(); if (G && G.spiritUn) G.spiritUn(); stopGameTimers(); G = null; go('home'); },
     rematch: () => { closeSheet(); if (G.unwatch) G.unwatch(); startLocal(G.mode); },
     backToGame: () => gameScreen(),
   };

@@ -395,6 +395,7 @@ const PaiSho = (() => {
       const actor = a.by != null ? a.by : s.turn;
       if (actor === s.avCounter.target) { if (s.bend && s.bend.skip[actor] > 0 && s.turn === actor) throw new Error('Decide on the Avatar State first'); s.avCounter = null; }
     }
+    if (a.t === 'spirit') { applySpirit(s, a); return s; }
     const desc = describe(s0, a);
     if (a.t === 'plant') {
       if (s.hands[p][a.type] <= 0) throw new Error('No tile');
@@ -538,7 +539,7 @@ const PaiSho = (() => {
   function canBend(s, p, el) {
     if (!s.bend || s.winner !== null || s.bend.used[p]) return false;
     const pw = powersOf(s, p);
-    return !!el && (pw.avatar || pw.nation === el);
+    return !!el && (pw.avatar || pw.allEl || pw.nation === el);
   }
   function bendTargets(s, p) {
     const out = [];
@@ -582,6 +583,26 @@ const PaiSho = (() => {
     s.bend.used[p] = true;
     s.lastMove = { to: a.el === 'air' ? a.to : a.target };
     s.lastBend = { p, el: a.el, at: a.el === 'air' ? a.to : a.target, paid, t: s.turnNo };
+  }
+  // a past-life spirit spectating the Avatar's match can bend any tile, twice per match
+  const SPIRIT_USES = 2;
+  const spiritLeft = (s, pid) => SPIRIT_USES - ((s.spiritUsed && s.spiritUsed[pid]) || 0);
+  function applySpirit(s, a) {
+    if (s.winner !== null) throw new Error('Game over');
+    if (spiritLeft(s, a.pid) <= 0) throw new Error('No spirit bends left');
+    const c = s.board[a.target];
+    if (!c || protectedByBadger(s, a.target)) throw new Error('Bad target');
+    if (!['fire', 'water', 'earth', 'air'].includes(a.el)) throw new Error('Bad element');
+    if (a.el === 'air' && !sweepDests(s, a.target).includes(a.to)) throw new Error('Bad sweep');
+    const victim = c.top, what = { fire: 'burned', water: 'washed out', earth: 'smashed', air: 'swept' }[a.el];
+    if (a.el === 'fire') { s.removed.push(victim); s.board[a.target] = c.under ? { top: c.under, under: null } : null; }
+    else if (a.el === 'water') { returnToHand(s, victim); s.board[a.target] = c.under ? { top: c.under, under: null } : null; }
+    else if (a.el === 'earth') { s.removed.push(victim); if (c.under) returnToHand(s, c.under); s.board[a.target] = null; s.rubble = s.rubble || {}; s.rubble[a.target] = 4; }
+    else { s.board[a.to] = c; s.board[a.target] = null; }
+    s.spiritUsed = Object.assign({}, s.spiritUsed, { [a.pid]: ((s.spiritUsed && s.spiritUsed[a.pid]) || 0) + 1 });
+    s.lastMove = { to: a.el === 'air' ? a.to : a.target };
+    s.lastSpirit = { el: a.el, at: a.el === 'air' ? a.to : a.target, name: a.name || 'A past life', owner: victim.owner, t: s.turnNo };
+    s.log.push({ p: s.turn, turn: s.turnNo, text: `👻 ${a.name || 'A past-life spirit'} ${what} ${tname(victim.type)} at ${sqName(a.target)}` });
   }
   const PRACTICE_USES = 3;
   // after any sub-bending, wait until the opponent has finished 2 turns that started after it
@@ -873,7 +894,7 @@ const PaiSho = (() => {
   return { subReadyAt, practiceCooldown, PRACTICE_USES, metalMoveDests, gustDests, flightOn, gustAvailable, runMetal, harmonyKeys, metalGold, melonLeft, MELON_MAX,
     N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
     KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
-    SUB_OF, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,
+    SUB_OF, SPIRIT_USES, spiritLeft, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,
     newGame, clone, legalActions, apply, harmonies, findRing, plantedCount, knotted, colorOK,
     flowerDests, stoneSpots, wheelOptions, koiOptions, isGateSq, sqName, describe, neighbors, angleOf, dAngle,
   };
