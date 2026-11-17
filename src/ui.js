@@ -138,7 +138,7 @@
   function myPid() { if (me) return me.id; let g = Store.LS.get('guestId'); if (!g) { g = 'g-' + Auth.rid(6); Store.LS.set('guestId', g); } return g; }
   const myName = () => (me ? me.name : Store.LS.get('guestName', 'Guest'));
 
-  async function recordResult(pid, mode, level, res, opp, turns, ring, oppPid) {
+  async function recordResult(pid, mode, level, res, opp, turns, ring, oppPid, trk = null, myTurns = 0) {
     if (!pid || pid.startsWith('g-')) return null;
     try {
       const p = await Store.get('players', pid); if (!p) return null;
@@ -173,6 +173,16 @@
         if (res === 'w' && ring) st.rings++;
       }
       st.v2 = true;
+      if (trk) { // play style for this match
+        const sty = Eco.styleOf(trk); out.style = sty;
+        p.style = p.style || { counts: {}, sums: {} };
+        p.style.counts[sty] = (p.style.counts[sty] || 0) + 1;
+        Object.entries(Eco.styleScores(trk)).forEach(([k, v]) => { p.style.sums[k] = (p.style.sums[k] || 0) + v; });
+      }
+      if (res === 'w' && myTurns > 0) {
+        const key = mode === 'ai' ? 'fastestAi' : 'fastest';
+        if (!st[key] || myTurns < st[key]) { st[key] = myTurns; out.fastest = myTurns; out.fastestKey = key; }
+      }
       st.recent = [{ t: Date.now(), mode, level, res, opp, turns }].concat(st.recent || []).slice(0, 20);
       p.gpPeak = Math.max(p.gpPeak || 0, p.gp || 0);
       p.stats = st; out.xpAfter = p.xp; await Store.set('players', pid, p);
@@ -488,6 +498,7 @@
     sheet(`<div class="pview">${Avatars.card(card, esc, { big: true, noStats: true })}${fbtn}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
+      ${styleCard(p, false)}
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr></table></div>
       <div class="field"><label>🏆 Achievements · ${got.length.toLocaleString()}/${Eco.ACH.length.toLocaleString()}</label><div class="ach-chips">${best.map((a) => `<span class="chip" title="${esc(a.desc)}">${a.icon || '🏆'} ${esc(a.name)}</span>`).join('') || '<span class="muted tiny">None yet</span>'}</div></div>
 </div>`);
@@ -580,12 +591,12 @@
       try { P.apply(G.s, a); } catch (e) { toast('That bend isn’t possible'); renderBoard(); return; }
       const id = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await Store.patch('games', G.code, { bq: { [id]: a } }).catch(() => toast('Couldn’t send — check your connection'));
-      if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
+      if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1; G.trkB = (G.trkB || 0) + 1;
       toast('Bending sent — it lands on their board now'); renderBoard(); return;
     }
     let s2;
     try { s2 = P.apply(G.s, a); } catch (e) { toast(e.message === 'No effect tile to give up' ? 'You need an effect tile to give up' : 'That bend isn’t possible'); renderBoard(); return; }
-    G.history.push(G.s); G.s = s2; if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
+    track(G.s, s2, a, a.by); G.history.push(G.s); G.s = s2; if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1;
     if (a.t === 'bend') showFx(a.el); else if (a.t === 'melon') showFx('melon'); else showFx({ metal: 'earth', lightning: 'fire', blood: 'water', flight: 'air' }[a.kind]);
     const lb = G.s.lastBend; if (lb && lb.paid) toast(`It cost you your ${P.tname(lb.paid)}`);
     if (G.mode === 'online') pushOnline();
@@ -847,7 +858,11 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-16c', items: [
+  const NEWS = { v: '2026-11-16d', items: [
+    ['🎭', 'Play styles', 'Stats now show how you play: Gardener, Aggressor, Guardian, Trickster or Balanced, worked out from your moves.'],
+    ['👀', 'Live style tags', 'During a match, a tag under each name shows how they’re playing right now, like “More defensive than usual”.'],
+    ['⚡', 'Fastest wins', 'Your record for the fewest moves to win, online and against the computer.'],
+    ['🍈', 'Melon Lord ×3', 'Call it up to 3 times per match.'],
     ['🖼️', '20 new profile pictures', 'Sky Bison, Dragon, Lion Turtle, Badgermole, Moon & Ocean, Koi, Phoenix, Panda and more.'],
     ['🎨', '19 new boards', 'Sakura Spring, Glacier, Spirit World, Aurora, Neon Night, Royal Gold and lots more.'],
     ['😂', '22 new emotes', 'A cartoony pack, from 😎 Too cool to 🥬 My cabbages! Three of them are free.'],
@@ -861,6 +876,14 @@
     Store.LS.set('newsSeen', NEWS.v);
     sheet(`<div style="text-align:center"><div style="font-size:40px">📣</div><h3 style="margin:2px 0 10px">What’s new</h3></div><div class="tlist">${NEWS.items.map(([i, t, d]) => `<div class="trow" style="align-items:center"><span style="font-size:26px">${i}</span><div><b>${t}</b><br><span class="tiny">${d}</span></div></div>`).join('')}</div>
       <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
+  }
+  function styleCard(p, withLegend = true) {
+    const c = (p.style && p.style.counts) || {}, total = Object.values(c).reduce((a, b) => a + b, 0), st = p.stats || {};
+    const typ = Eco.typicalStyle(p), T = typ && Eco.STYLES[typ];
+    const bars = Object.entries(Eco.STYLES).map(([k, v]) => { const n = c[k] || 0, pct = total ? Math.round((100 * n) / total) : 0; return `<div class="sty-row"><span class="sty-l">${v.icon} ${v.name}</span><span class="sty-b"><i style="width:${pct}%;background:${v.color}"></i></span><span class="sty-n">${pct}%</span></div>`; }).join('');
+    const fast = `<div class="sty-fast"><div><div class="disp">${st.fastest ? st.fastest : '—'}</div><div class="tiny muted">⚡ Fastest win (moves)</div></div><div><div class="disp">${st.fastestAi ? st.fastestAi : '—'}</div><div class="tiny muted">🤖 Fastest vs computer</div></div></div>`;
+    const legend = withLegend ? `<details class="sty-legend"><summary>What do the styles mean?</summary>${Object.values(Eco.STYLES).map((v) => `<div class="trow" style="align-items:center"><span style="font-size:22px">${v.icon}</span><div><b>${v.name}</b> <span class="tiny muted">${v.tag}</span><br><span class="tiny">${v.desc}</span></div></div>`).join('')}<div class="tiny muted" style="margin-top:6px">Each match is scored from your moves: harmonies you formed, harmonies and tiles you took from your opponent, blocking tiles, and tricks. Your <b>typical style</b> is the one you play most often. Fewer moves to win = faster.</div></details>` : '';
+    return `<div class="card sty-card"><div class="sty-head"><span class="sty-big">${T ? T.icon : '❔'}</span><div><div class="tiny muted">Typical play style</div><b style="font-size:18px;color:${T ? T.color : 'inherit'}">${T ? T.name + ' · ' + T.tag : 'Not enough games yet'}</b><div class="tiny muted">${total} ${total === 1 ? 'match' : 'matches'} analysed</div></div></div>${bars}${fast}${legend}</div>`;
   }
   function lvlBar(xp, from = null) {
     const lv = Eco.level(xp), into = xp - (lv - 1) * 500, pct = Math.round((100 * into) / 500);
@@ -998,7 +1021,7 @@
       if (statsTab === 'ach') { body.innerHTML = tabs + achBody(); return; }
       body.innerHTML = tabs;
     }
-    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}
+    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}${styleCard(me)}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
@@ -1328,11 +1351,28 @@
     const who = G.seats[k].kind === 'ai' ? '' : k === 0 ? 'Guest · ' : 'Host · ';
     return `${who}${keys} key · ${hide ? fx + ' hidden' : fx + ' effect'}`;
   }
+  // live play-style blip under each name: this game's style vs their usual one
+  const STY_ADJ = { builder: 'more harmony-focused', aggressor: 'more aggressive', guardian: 'more defensive', trickster: 'trickier', balanced: 'more balanced' };
+  function usualStyle(k) {
+    const seat = G.seats[k]; if (!seat || seat.kind === 'ai') return null;
+    if (me && seat.pid === me.id) return Eco.typicalStyle(me);
+    G.usual = G.usual || {};
+    if (!(seat.pid in G.usual)) { G.usual[seat.pid] = null; if (seat.pid && !String(seat.pid).startsWith('g-')) Store.get('players', seat.pid).then((p) => { if (p && G && G.usual) { G.usual[seat.pid] = Eco.typicalStyle(p); renderSeats(); } }).catch(() => {}); }
+    return G.usual[seat.pid];
+  }
+  function liveStyle(k) {
+    const T = (G.s.trk || {})[k]; if (!T) return '';
+    const sc = Eco.styleScores(T), tot = Object.values(sc).reduce((a, b) => a + b, 0);
+    if (tot < 4) return '';
+    const cur = Eco.styleOf(T), C = Eco.STYLES[cur], usual = usualStyle(k);
+    const adj = STY_ADJ[cur], txt = !usual ? C.name : usual === cur ? C.name + ' ✓' : adj.charAt(0).toUpperCase() + adj.slice(1) + ' than usual';
+    return `<span class="sty-blip" style="--c:${C.color}" title="${esc(C.name + ': ' + C.desc)}">${C.icon} ${txt}</span>`;
+  }
   function renderSeats() {
     const H = P.harmonies(G.s);
     const el = document.getElementById('seats'); if (!el) return;
     el.innerHTML = [0, 1].map((k) => `<div class="seat ${G.s.turn === k && G.s.winner === null ? 'active' : ''}"${G.seats[k].pid && !String(G.seats[k].pid).startsWith('g-') ? ` data-act="viewPlayer" data-pid="${esc(G.seats[k].pid)}"` : ''}>${G.seats[k].avatar && Avatars.has(G.seats[k].avatar) ? `<span class="disc av-img" style="position:relative">${Avatars.svg(G.seats[k].avatar, 26)}<svg viewBox="-1.1 -1.1 2.2 2.2" style="position:absolute;right:-4px;bottom:-4px;width:13px;height:13px">${Glyphs.tile('lotus', k)}</svg></span>` : `<svg class="disc" viewBox="-1.1 -1.1 2.2 2.2">${Glyphs.tile('lotus', k)}</svg>`}
-      <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span></div>
+      <div class="meta"><span class="nm">${esc(G.seats[k].name)}${G.my === k ? ' (you)' : ''}</span><span class="st">${seatStatus(k)}</span>${liveStyle(k)}</div>
       <div class="hc">${H.filter((h) => h.owners.includes(k)).length}<small>HARM.</small></div></div>`).join('');
   }
   function statusText() {
@@ -1655,11 +1695,30 @@
     if (G.mode === 'online') return isHumanTurn() && G.history.length > 0;
     return true;
   }
+  // per-match play-style tracking (stored in the game state so Undo rolls it back)
+  const DEF_T = { stone: 1, knotweed: 1, badgermole: 1 }, TRICK_T = { wheel: 1, boat: 1, koi: 1, skybison: 1 };
+  function track(prev, next, a, seat) {
+    if (seat == null || !next) return;
+    try {
+      next.trk = next.trk || {};
+      const T = next.trk[seat] = Object.assign({ f: 0, d: 0, k: 0, b: 0, g: 0, t: 0, m: 0 }, next.trk[seat]);
+      const cnt = (st, k) => P.harmonies(st).filter((h) => h.owners.includes(k)).length;
+      const rem = (st, k) => (st.removed || []).filter((x) => x.owner === k).length;
+      const o = 1 - seat;
+      T.f += Math.max(0, cnt(next, seat) - cnt(prev, seat));
+      T.d += Math.max(0, cnt(prev, o) - cnt(next, o));
+      T.k += Math.max(0, rem(next, o) - rem(prev, o));
+      if (a.t === 'plant' || a.t === 'move') T.m++;
+      if (a.t === 'place') { if (DEF_T[a.type]) T.g++; else if (TRICK_T[a.type]) T.t++; else if (a.type === 'dragon') T.b++; }
+      if (a.t === 'wheel' || a.t === 'koi' || a.t === 'melon' || (a.t === 'sub' && a.kind !== 'lightning')) T.t++;
+      if (a.t === 'bend' || (a.t === 'sub' && a.kind === 'lightning')) T.b++;
+    } catch (e) {}
+  }
   function doAction(a) {
     if (!G || G.busy) return;
     try {
       G.history.push(G.s);
-      G.s = P.apply(G.s, a);
+      const prev = G.s; G.s = P.apply(G.s, a); track(prev, G.s, a, a.by != null ? a.by : prev.turn);
     } catch (e) { G.history.pop(); toast('That move isn’t allowed'); console.warn(e); return; }
     G.sel = null; buzz(10);
     if (a.t === 'end' || a.t === 'forfeit') return turnEnded();
@@ -1791,7 +1850,7 @@
       if (G !== g) return;
       if (a.t === 'end') break;
       if (a.t === 'forfeit') { g.s = P.apply(g.s, a); g.busy = false; renderGame(); afterTurnChange(); return; }
-      try { g.s = P.apply(g.s, a); } catch (e) { // board changed under it (bending) — finish the turn sensibly
+      try { const pv = g.s; g.s = P.apply(g.s, a); track(pv, g.s, a, a.by != null ? a.by : pv.turn); } catch (e) { // board changed under it (bending) — finish the turn sensibly
         if (!g.s.tp.mainDone) { const re = AI.chooseTurn(g.s, g.seats[g.s.turn].level).find((x) => x.t === 'move' || x.t === 'plant'); if (re) { try { g.s = P.apply(g.s, re); } catch (e2) {} } }
         break;
       }
@@ -1816,7 +1875,10 @@
         if (seat.kind !== 'human' || !seat.pid) continue;
         const res = s.winner === 'draw' ? 'd' : s.winner === k ? 'w' : 'l';
         const mode = G.mode === 'ai' ? 'ai' : G.mode;
-        const out = await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring, G.seats[1 - k].pid);
+        const trk = Object.assign({}, (s.trk || {})[k] || {}); if (k === G.my && G.trkB) trk.b = (trk.b || 0) + G.trkB;
+        trk.safe = Math.max(0, 3 - (s.removed || []).filter((x) => x.owner === k).length);
+        const myTurns = new Set((s.log || []).filter((l) => l.p === k).map((l) => l.turn)).size;
+        const out = await recordResult(seat.pid, mode, G.seats[1 - k].level, res, G.seats[1 - k].name, turns, ring, G.seats[1 - k].pid, trk, myTurns);
         if (out && (G.mode !== 'local' || k === 0)) G.reward = out;
       }
       if (G.mode === 'online') updateAvatar();
@@ -1837,6 +1899,8 @@
       ${R.boost && (R.gp || R.xp) ? `<div class="tiny" style="margin:-4px 0 8px;color:#ffd77a">${R.boost.icon} ${R.boost.name}: ${R.boost.xp}× XP · ${R.boost.gp}× gold</div>` : ''}
       ${R.melon ? '<div class="note" style="margin-bottom:8px">🍈 Blind-move bonus included: +50 gp, +50 XP</div>' : ''}
       ${R.subUnlocked ? '<div class="note" style="margin-bottom:8px">🌀 <b>Sub-bending unlocked!</b></div>' : R.levelUp ? `<div class="note" style="margin-bottom:8px">⬆️ <b>Level up!</b> You’re now Level ${Eco.level(R.xpAfter || 0)}.</div>` : ''}
+      ${R.style ? `<div class="tiny" style="margin:0 0 8px">Your style this game: <b style="color:${Eco.STYLES[R.style].color}">${Eco.STYLES[R.style].icon} ${Eco.STYLES[R.style].name}</b> (${Eco.STYLES[R.style].tag})</div>` : ''}
+      ${R.fastest ? `<div class="note" style="margin-bottom:8px">⚡ New record! Fastest win${R.fastestKey === 'fastestAi' ? ' vs the computer' : ''}: <b>${R.fastest} moves</b></div>` : ''}
       ${R.xpAfter != null ? lvlBar(R.xpAfter, R.xpBefore) : ''}` : G.mode === 'local' ? '<div class="tiny muted" style="margin-bottom:10px">Pass &amp; play games don’t pay gold. Play the computer or online to earn.</div>' : '';
     const na = G.newAch || [];
     const achH = na.length ? `<div class="field" style="text-align:left"><label>🏆 Achievements unlocked (${na.length})</label><div class="ach-chips">${na.slice(0, 8).map((a) => `<span class="chip">${a.icon || '🏆'} ${esc(a.name)} <b style="color:#ffd77a">+${a.gp}</b></span>`).join('')}${na.length > 8 ? `<span class="chip">+${na.length - 8} more</span>` : ''}</div></div>` : '';

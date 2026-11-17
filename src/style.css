@@ -334,3 +334,10 @@ body input,body textarea,body [contenteditable="true"]{-webkit-user-select:text;
 .dm-bar .input{flex:1}.dm-bar .btn{flex:none;width:auto;padding:0 18px}
 .dm-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff6b5a;margin-left:4px;vertical-align:middle}
 .dm-badge{background:#ff6b5a;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;margin-left:6px}
+
+.sty-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}.sty-big{font-size:40px}
+.sty-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}.sty-l{width:108px}.sty-b{flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}.sty-b i{display:block;height:100%;border-radius:5px}.sty-n{width:34px;text-align:right;opacity:.75}
+.sty-fast{display:flex;justify-content:space-around;text-align:center;margin:12px 0 4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}.sty-fast .disp{font-size:24px;color:#ffd77a}
+.sty-legend{margin-top:10px}.sty-legend summary{cursor:pointer;font-size:13px;font-weight:700;color:#f2cf6e}
+.sty-blip{display:inline-block;margin-top:2px;font-size:10px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.sty-blip{white-space:normal;line-height:1.25}

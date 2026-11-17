@@ -126,6 +126,13 @@ const Eco = (() => {
   function ensure(p) {
     if (!p) return p;
     if (typeof p.gp !== 'number') p.gp = START_GP;
+    if (p.stats && !p.stats.fastFix) { // fastest wins from recent games (your moves ≈ half the turns)
+      (p.stats.recent || []).filter((r) => r.res === 'w' && r.turns > 0).forEach((r) => {
+        const k = r.mode === 'ai' ? 'fastestAi' : 'fastest', n = Math.ceil(r.turns / 2);
+        if (!p.stats[k] || n < p.stats[k]) p.stats[k] = n;
+      });
+      p.stats.fastFix = true; p._mig = true;
+    }
     if (!p.xpFix1) { // credit XP for games played before XP existed
       const S = p.stats || {}, A = S.ai || {}, row = (a, t) => (a ? a[0] * t[0] + a[1] * t[1] + a[2] * t[2] : 0);
       const base = row(S.online, XP.online) + row(A.easy, XP.ai) + row(A.medium, XP.ai) + row(A.hard, XP.ai);
@@ -273,6 +280,25 @@ const Eco = (() => {
     });
   });
   const ACH_MAIN = ACH.filter((a) => !a.track);
+  // ---- play styles (worked out from each match's moves) ----
+  const STYLES = {
+    builder:   { icon: '🌸', name: 'Gardener', tag: 'Builder', color: '#e48ab0', desc: 'Grows harmonies fast. Most of their moves link flowers and push toward a ring.' },
+    aggressor: { icon: '🔥', name: 'Aggressor', tag: 'Offensive', color: '#ff7a3d', desc: 'Goes after you. Breaks your harmonies, removes your tiles and bends at you.' },
+    guardian:  { icon: '🛡️', name: 'Guardian', tag: 'Defensive', color: '#7fb4ff', desc: 'Plays it safe. Blocks with Stone, Knotweed and Badgermole and rarely loses tiles.' },
+    trickster: { icon: '🌀', name: 'Trickster', tag: 'Tricky', color: '#b08cff', desc: 'Loves surprises: Wheel spins, Koi swaps, Boats, sub-bending and the Melon Lord.' },
+    balanced:  { icon: '☯️', name: 'Balanced', tag: 'All-rounder', color: '#d8c89a', desc: 'Mixes building, attacking and defending without leaning on one.' },
+  };
+  function styleScores(T) {
+    T = T || {};
+    return { builder: (T.f || 0) * 2, aggressor: (T.d || 0) * 2 + (T.k || 0) * 3 + (T.b || 0) * 2, guardian: (T.g || 0) * 2 + (T.safe || 0), trickster: (T.t || 0) * 2 };
+  }
+  function styleOf(T) {
+    const sc = styleScores(T), tot = Object.values(sc).reduce((a, b) => a + b, 0);
+    if (tot < 4) return 'balanced';
+    const [top, v] = Object.entries(sc).sort((a, b) => b[1] - a[1])[0];
+    return v / tot >= 0.45 ? top : 'balanced';
+  }
+  const typicalStyle = (p) => { const c = (p.style && p.style.counts) || {}; const e = Object.entries(c).sort((a, b) => b[1] - a[1]); return e.length && e[0][1] ? e[0][0] : null; };
   // ---- daily sign-in rewards: streak grows each consecutive day, resets if a day is missed ----
   const dayKey = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function dailyReward(day) {
@@ -292,5 +318,5 @@ const Eco = (() => {
     if (d.getDay() === 0 || d.getDay() === 6) return { xp: 2, gp: 1.5, name: 'Weekend bonus', icon: '✨' };
     return { xp: 1, gp: 1, name: null };
   }
-  return { PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
+  return { STYLES, styleOf, styleScores, typicalStyle, PRICE_MULT, boost, dayKey, dailyReward, dailyState, TRACKS, ACH_MAIN, SUB_XP, SUB_LEVEL, SUBS, SUB_OF, BEND, level, powersFor, xpFor, ACH, START_GP, NATIONS, STARTER_TILES, TILE_PRICE, FREE_AVATARS, AVATAR_PRICE, EMOTES, EMO, BOARDS, earnings, newRating, ensure, ownsTile, ownsAvatar, ownsBoard, emoteUnlocked, rankedGames, computeAvatar, MIN_RANKED, START_RATING };
 })();
