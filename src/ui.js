@@ -639,7 +639,7 @@
     else if (G.mode === 'local') showTextBubble(seat, text);
     // 🍈 the Melon Lord
     const s = G.s;
-    if (s.bend && MELON.test(text) && !(s.melon && s.melon.used[seat]) && s.winner === null) {
+    if (s.bend && MELON.test(text) && P.melonLeft(s, seat) > 0 && !(s.melon && s.melon.blind != null) && s.winner === null) {
       const target = 1 - seat;
       if (G.seats[target].kind === 'ai') { s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] }; }
       doBend({ t: 'melon' });
@@ -1497,7 +1497,7 @@
     P.subAvailable(s, seat).forEach((k) => (o += `<button class="bb sub" data-act="subGo" data-k="${k}"><span class="i">${Eco.SUBS[k].icon}</span><span><b>${Eco.SUBS[k].name}</b><small>free · once</small></span></button>`));
     o += '<span class="bb-sep"></span>';
     els.forEach((el) => (o += `<button class="bb spam" data-act="spamGo" data-el="${el}"><span class="i">${Eco.BEND[el].icon}</span><small>${{ fire: 'Flames', water: 'Waves', earth: 'Quake', air: 'Gust' }[el]}</small></button>`));
-    if (!(s.melon && s.melon.used[seat])) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord</small></button>`;
+    if (P.melonLeft(s, seat) > 0) o += `<button class="bb spam" data-act="chatQuick" data-q="MELON LORD! 🍈"><span class="i">🍈</span><small>Melon Lord ×${P.melonLeft(s, seat)}</small></button>`;
     o += `<button class="bb spam" data-act="bendMenu"><span class="i">ⓘ</span><small>Details</small></button>`;
     bar.style.display = 'flex'; bar.innerHTML = o;
   }
@@ -2014,7 +2014,7 @@
     chatOpen: () => {
       G.unread = 0; renderChatBtn();
       sheet(`<h3>Chat</h3><div class="chat-log" id="chat-log"></div>
-        <div class="row wrap" style="margin:8px 0">${['Good luck!', 'Nice move', 'Hmm…', 'GG'].concat(G.s.bend && !(G.s.melon && G.s.melon.used[G.my != null ? G.my : G.s.turn]) ? ['MELON LORD! 🍈'] : []).map((q) => `<button class="btn small" data-act="chatQuick" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+        <div class="row wrap" style="margin:8px 0">${['Good luck!', 'Nice move', 'Hmm…', 'GG'].concat(G.s.bend && P.melonLeft(G.s, G.my != null ? G.my : G.s.turn) > 0 ? ['MELON LORD! 🍈'] : []).map((q) => `<button class="btn small" data-act="chatQuick" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
         <form id="chatf" class="row"><input class="input" id="chat-in" maxlength="140" placeholder="Message…" autocomplete="off"><button class="btn primary" type="submit">Send</button></form>`);
       renderChatLog();
       document.getElementById('chatf').addEventListener('submit', (e) => { e.preventDefault(); const i = document.getElementById('chat-in'); sendChat(i.value); i.value = ''; });

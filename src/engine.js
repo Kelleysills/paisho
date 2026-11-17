@@ -94,6 +94,9 @@ const PaiSho = (() => {
   const RING_ORDER = [[-1,-1],[-1,0],[-1,1],[0,1],[1,1],[1,0],[1,-1],[0,-1]]; // clockwise
 
   // ---------- state ----------
+  const MELON_MAX = 3;
+  // Melon Lord calls left this match (older games stored true/false)
+  function melonLeft(s, p) { const u = s.melon ? s.melon.used[p] : 0; return Math.max(0, MELON_MAX - (u === true ? 1 : +u || 0)); }
   function newGame(opts = {}) {
     const o = Object.assign({ minHarmonies: 4, effects: [[], []], chance: false, maxTurns: 400 }, opts);
     const hands = [0, 1].map((p) => {
@@ -456,9 +459,10 @@ const PaiSho = (() => {
     } else if (a.t === 'melon') {
       const by = a.by != null ? a.by : p;
       if (!s.bend) throw new Error('Elemental mode only');
-      s.melon = s.melon || { used: [false, false], blind: null, bonus: [false, false] };
-      if (s.melon.used[by]) throw new Error('Already used');
-      s.melon.used[by] = true; s.melon.blind = 1 - by;
+      s.melon = s.melon || { used: [0, 0], blind: null, bonus: [false, false] };
+      if (melonLeft(s, by) <= 0) throw new Error('No Melon Lords left');
+      if (s.melon.blind !== null && s.melon.blind !== undefined) throw new Error('Already blinded');
+      s.melon.used[by] = (+s.melon.used[by] || 0) + 1; s.melon.blind = 1 - by;
     } else if (a.t === 'forfeit') {
       s.log.push({ p, turn: s.turnNo, text: 'grabbed the wrong tile while blind and lost the turn' });
       return endTurn(s, desc);
@@ -723,7 +727,7 @@ const PaiSho = (() => {
     return '';
   }
 
-  return {
+  return { melonLeft, MELON_MAX,
     N, idx, rc, xy, onBoard, sqType, quadrant, gateSquares, gateOfSq, gateExits, CENTER_SQ, GATE_NAMES,
     KEY, SPECIAL, ACCENT, KEY_TYPES, EFFECT_TYPES, isKey, isSpecial, isFlower, isAccent, tname,
     SUB_OF, canBend, canAffordBend, bendTargets, sweepDests, bendCost, subAvailable, bloodMoves, metalPairs, hasHarmony,
