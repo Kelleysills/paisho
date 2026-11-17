@@ -495,4 +495,11 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .lb-r{font-size:12px}.lb-r>div{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
 .lb-i{font-size:18px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:var(--panel2)}
 .lb-x{opacity:.35}
-.screen .seg{flex-wrap:wrap;justify-content:center;row-gap:4px}
+
+
+.screen .seg{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:2px}
+.screen .seg::-webkit-scrollbar{display:none}
+.screen .seg button{flex:1 1 auto;font-size:11px;padding:8px 4px;letter-spacing:0;white-space:nowrap;min-width:0}
+.lc-fig svg{width:44px;height:44px;border-radius:50%;background:#0e2229;display:block}
+.loot-card.spirit{box-shadow:0 0 14px #bff4ff;animation:spiritGlow 3s ease-in-out infinite}
+@keyframes spiritGlow{50%{box-shadow:0 0 22px #bff4ff,0 0 4px #fff}}

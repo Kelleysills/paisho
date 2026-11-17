@@ -962,7 +962,8 @@
   function lootCard(id, big) {
     const it = Eco.LOOTI[id]; if (!it) return '';
     const R = Eco.RARITY[it.r];
-    return `<div class="loot-card ${big ? 'big' : ''}" style="--rc:${R.c}"><span class="lc-i">${it.icon}</span><b>${esc(it.name)}</b><small style="color:${R.c}">${R.name}</small></div>`;
+    const ic = id === 's0_yourself' && me && me.fig ? `<span class="lc-fig">${Figure.svg(Figure.of(me, Eco.lvl(me)), { portrait: true })}</span>` : `<span class="lc-i">${it.icon}</span>`;
+    return `<div class="loot-card ${big ? 'big' : ''} ${it.r === 'spirit' ? 'spirit' : ''}" style="--rc:${R.c}">${ic}<b>${esc(it.name)}</b><small style="color:${R.c}">${R.name}</small></div>`;
   }
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
@@ -975,10 +976,10 @@
       body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${(Avatars.price(a.id) || Eco.AVATAR_PRICE)}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'loot') {
       const inv = Object.entries(me.loot || {}).filter(([id, n]) => n > 0 && Eco.LOOTI[id]).sort((a, b) => Eco.RORDER.indexOf(Eco.LOOTI[b[0]].r) - Eco.RORDER.indexOf(Eco.LOOTI[a[0]].r) || Eco.LOOTI[b[0]].value - Eco.LOOTI[a[0]].value);
-      const worth = inv.reduce((a, [id, n]) => a + Eco.LOOTI[id].value * n, 0), found = new Set(Object.keys(me.loot || {}).concat(me.lootSeen || []));
+      const worth = inv.reduce((a, [id, n]) => a + (Eco.LOOTI[id].noSell ? 0 : Eco.LOOTI[id].value) * n, 0), found = new Set(Object.keys(me.loot || {}).concat(me.lootSeen || [])), book = Eco.LOOT.filter((it) => !Eco.RARITY[it.r].hidden || me.spirit), rs = Eco.RORDER.filter((r) => !Eco.RARITY[r].hidden || me.spirit);
       body = `<p class="muted tiny" style="margin:0">Win ranked online matches to find loot. Rarer pieces sell for much more. ${inv.length ? `Your bag is worth <b>${gpFmt(worth)}</b>.` : ''}</p>
-        ${inv.length ? `<div class="menu"><button class="btn small" data-act="sellLoot" data-id="__common">Sell all Common</button></div><div class="loot-grid">${inv.map(([id, n]) => `<div class="loot-item r-${Eco.LOOTI[id].r}">${lootCard(id)}${n > 1 ? `<span class="loot-n">×${n}</span>` : ''}<button class="btn small" data-act="sellLoot" data-id="${id}">Sell 🪙 ${Eco.LOOTI[id].value.toLocaleString()}</button></div>`).join('')}</div>` : '<div class="card tiny muted" style="text-align:center">Your bag is empty. Win a ranked match to find your first piece of loot.</div>'}
-        <div class="field"><label>📖 Collection · ${Eco.LOOT.filter((it) => found.has(it.id)).length}/${Eco.LOOT.length} found</label><div class="loot-book">${Eco.RORDER.map((r) => `<div class="lb-r"><b style="color:${Eco.RARITY[r].c}">${Eco.RARITY[r].name}</b><div>${Eco.LOOT.filter((it) => it.r === r).map((it) => `<span class="lb-i ${found.has(it.id) ? '' : 'lb-x'}" title="${esc(found.has(it.id) ? it.name : '???')}">${found.has(it.id) ? it.icon : '❔'}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+        ${inv.length ? `<div class="menu"><button class="btn small" data-act="sellLoot" data-id="__common">Sell all Common</button></div><div class="loot-grid">${inv.map(([id, n]) => `<div class="loot-item r-${Eco.LOOTI[id].r}">${lootCard(id)}${n > 1 ? `<span class="loot-n">×${n}</span>` : ''}${Eco.LOOTI[id].noSell ? '<span class="tiny muted" style="text-align:center">Can’t be sold</span>' : `<button class="btn small" data-act="sellLoot" data-id="${id}">Sell 🪙 ${Eco.LOOTI[id].value.toLocaleString()}</button>`}</div>`).join('')}</div>` : '<div class="card tiny muted" style="text-align:center">Your bag is empty. Win a ranked match to find your first piece of loot.</div>'}
+        <div class="field"><label>📖 Collection · ${book.filter((it) => found.has(it.id)).length}/${book.length} found</label><div class="loot-book">${rs.map((r) => `<div class="lb-r"><b style="color:${Eco.RARITY[r].c}">${Eco.RARITY[r].name}</b><div>${Eco.LOOT.filter((it) => it.r === r).map((it) => `<span class="lb-i ${found.has(it.id) ? '' : 'lb-x'}" title="${esc(found.has(it.id) ? it.name : '???')}">${found.has(it.id) ? it.icon : '❔'}</span>`).join('')}</div></div>`).join('')}</div></div>`;
     } else if (storeTab === 'emotes') {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
@@ -986,7 +987,7 @@
       body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Always in play when equipped: opponents play in the dark in Elemental games (host wins ties)'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock === 'melon100' ? ((me.melonUses || 0) >= 100 ? `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price.toLocaleString()}</button>` : `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100), then 🪙 100,000</span>`) : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
-      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}${tab('loot', '🎁 Loot')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
+      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}${tab('loot', 'Loot')}<button data-act="go" data-to="character">Clothes</button></div>${body}
       <div class="note">Earn gold: computer games pay a little (more on Hard), online games pay a lot — even a loss earns some. Completing a ring adds a bonus.</div></div>`;
   };
 
@@ -1271,7 +1272,7 @@
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : myBoard() === 'blackout' ? 0 : null, spirit: d.host.board === 'spirit' ? 1 : null });
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : myBoard() === 'blackout' ? 0 : null, spirit: d.host.board === 'spiritRealm' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -1314,14 +1315,15 @@
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17f', items: [
+  const NEWS = { v: '2026-11-17g', items: [
+    ['💰', 'Store prices up', 'With loot paying out, store prices have doubled. Everything you already own stays yours.'],
     ['🎁', 'Loot', 'Win ranked online matches to find Avatar-themed loot, from Common cabbages to Mythic relics. Sell it in the Store’s new Loot tab, and fill your collection book.'],
     ['🌈', 'Host’s board', 'In online games, both players now play on the host’s board. Show it off.'],
     ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
     ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
     ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
     ['🏷️', 'Nation titles', 'Earn a new title at Level 1, 5, 10 and every 10 levels after, up to Level 100.'],
-    ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit board.'],
+    ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit Realm board.'],
     ['⚠️', 'Switching nations', 'Changing nation now starts you over from scratch. Only your gold carries over.'],
     ['🧍', 'Characters', 'Build your own character: body, skin, eyes, hair and outfits. Unlock more clothes, hairstyles and accessories in the store. It shows on your profile and in your game seat.'],
     ['🌀', 'Airbending Masters', 'Air Nomads earn their arrow markings at level 5. Avatars glow in Avatar State.'],
@@ -1383,16 +1385,16 @@
   async function finalChoice() {
     if (!me || !Eco.atFinal(me)) return;
     const pick = await choose('Your final reincarnation is complete', [{ label: '🌟 Rise past Level 100', value: 'ascend', cls: 'primary' }, { label: '👻 Enter the Spirit Realm', value: 'spirit' }],
-      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit board, where your harmonies take two blockers to break.${amAvatar() ? '\n\n👑 You are the Avatar: crossing over gives up the title. You become a past-life spirit who bends all four elements forever (in elemental matches and duels) and can watch over the next Avatar’s matches, with two bends per match to help or humble them, then hints.' : ''}`);
+      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit Realm board, where your harmonies take two blockers to break.${amAvatar() ? '\n\n👑 You are the Avatar: crossing over gives up the title. You become a past-life spirit who bends all four elements forever (in elemental matches and duels) and can watch over the next Avatar’s matches, with two bends per match to help or humble them, then hints.' : ''}`);
     if (pick === 'ascend') { me.surpass = true; await saveMe(); toast('🌟 You’ve risen beyond the cycle!', 3500); }
     else if (pick === 'spirit') {
       const sure = await choose('Enter the Spirit Realm?', [{ label: '👻 Cross over', value: true, cls: 'primary' }], 'This can’t be undone. You keep 10% of your gold.');
       if (!sure) return;
       const wasAvatar = amAvatar();
-      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; if (wasAvatar) me.pastLife = true; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
+      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; if (wasAvatar) me.pastLife = true; me.loot = me.loot || {}; me.loot.s0_yourself = 1; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
       await saveMe();
       if (wasAvatar) { await Store.set('meta', 'avatar', { pid: null, name: null, since: Date.now(), trial: null, pastLife: { pid: me.id, name: me.name, t: Date.now() } }).catch(() => {}); avatarPid = null; updateAvatar(); toast('👻 You gave up the Avatar title and became a past-life spirit. You bend all four elements forever, and you can watch over the next Avatar’s matches.', 6000); }
-      else toast('👻 You’ve crossed into the Spirit Realm. The Spirit board is yours.', 4000);
+      else toast('👻 You’ve crossed into the Spirit Realm. The Spirit Realm board is yours.', 4000);
     } else return;
     closeSheet(); setTimeout(checkAch, 900); go('stats');
   }
@@ -1551,7 +1553,7 @@
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
-    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null, spirit: me && myBoard() === 'spirit' ? (meFirst ? 0 : 1) : null });
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null, spirit: me && myBoard() === 'spiritRealm' ? (meFirst ? 0 : 1) : null });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
@@ -2833,7 +2835,7 @@
       let gain = 0, cnt = 0;
       const ids = d.id === '__common' ? Object.keys(me.loot).filter((id) => Eco.LOOTI[id] && Eco.LOOTI[id].r === 'common') : [d.id];
       if (d.id !== '__common' && Eco.LOOTI[d.id] && Eco.RORDER.indexOf(Eco.LOOTI[d.id].r) >= 3 && !(await choose(`Sell ${Eco.LOOTI[d.id].name}?`, [{ label: `Sell for 🪙 ${Eco.LOOTI[d.id].value.toLocaleString()}`, value: true, cls: 'primary' }], 'It’s ' + Eco.RARITY[Eco.LOOTI[d.id].r].name + '. You might not find another one.'))) return;
-      ids.forEach((id) => { const n = d.id === '__common' ? (me.loot[id] || 0) : Math.min(1, me.loot[id] || 0); if (!n || !Eco.LOOTI[id]) return; me.loot[id] -= n; gain += Eco.LOOTI[id].value * n; cnt += n; if (!me.loot[id]) delete me.loot[id]; });
+      ids.forEach((id) => { if (Eco.LOOTI[id] && Eco.LOOTI[id].noSell) return; const n = d.id === '__common' ? (me.loot[id] || 0) : Math.min(1, me.loot[id] || 0); if (!n || !Eco.LOOTI[id]) return; me.loot[id] -= n; gain += Eco.LOOTI[id].value * n; cnt += n; if (!me.loot[id]) delete me.loot[id]; });
       if (!cnt) return;
       me.gp += gain; me.gpPeak = Math.max(me.gpPeak || 0, me.gp); await saveMe();
       toast(`🪙 Sold ${cnt} for ${gpFmt(gain)}`); const y = window.scrollY; screens.store(); window.scrollTo(0, y);

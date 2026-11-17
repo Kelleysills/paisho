@@ -12,7 +12,7 @@ const Eco = (() => {
   const TILE_PRICE = { stone: 0, boat: 0, wheel: 200, knotweed: 300, orchid: 300, firelily: 350, dahlia: 350, koi: 400, badgermole: 450, skybison: 500, dragon: 600, lotus: 750 };
   // profile pictures (Avatars.LIST ids)
   const FREE_AVATARS = ['gust', 'wave', 'peak', 'flame', 'lantern', 'tea'];
-  const PRICE_MULT = 3; // store prices tripled (Nov 2026); items already owned stay owned
+  const PRICE_MULT = 6; // store prices raised 6× (Nov 2026: 3×, then doubled again with loot); items already owned stay owned
   const AVATAR_PRICE = 150 * PRICE_MULT;
   Object.keys(TILE_PRICE).forEach((k) => (TILE_PRICE[k] *= PRICE_MULT));
   // emotes
@@ -81,7 +81,7 @@ const Eco = (() => {
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: 100000, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     spiritWalker: { name: 'Spirit Walker', price: null, unlock: 'walker', exclusive: true, desc: 'Pure spirit energy. Only for an Avatar who became a past life, and it costs every coin you have.', wood: ['#cdeeff', '#9fd6f7'], light: '#ffffff', dark: '#000000', rim: '#f2fbff', gate: '#10131d', gateEdge: '#ffffff', bg: '#05060c', grid: '#ffffff', gridOp: 0.5, lines: '#ffffff', spectral: true },
-    spirit: { name: 'Spirit World', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
+    spiritRealm: { name: 'Spirit Realm', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
     blackoutOwner: { name: 'Blackout (owner view)', hidden: true, price: null, unlock: 'melon100', wood: ['#141414', '#111111'], light: '#242424', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
     glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
@@ -103,7 +103,7 @@ const Eco = (() => {
     bamboo:  { name: 'Bamboo Grove',     price: 700,  wood: ['#b8c46a', '#7a8a32'], light: '#f8fbe6', dark: '#4f8a3a', rim: '#e2ef9a', gate: '#33501c', gateEdge: '#eaf7b0', bg: '#141c08' },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
-  Object.values(BOARDS).forEach((b) => { if (b.price) b.price *= PRICE_MULT; });
+  Object.values(BOARDS).forEach((b) => { if (b.price && !b.unlock) b.price *= PRICE_MULT; }); // special boards keep their fixed price
   // earnings
   const EARN = {
     ai: { easy: [12, 4, 6], medium: [25, 6, 10], hard: [45, 10, 18] }, // [win, loss, draw]
@@ -154,7 +154,8 @@ const Eco = (() => {
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];
-    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], p.spirit ? ['spirit'] : []))];
+    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], p.spirit ? ['spiritRealm'] : []))];
+    if (p.spirit) { p.loot = p.loot || {}; if (!p.loot.s0_yourself) p.loot.s0_yourself = 1; }
     if (!p.seisFix) { if ((p.melonUses || 0) >= 100 && !p.owned.boards.includes('blackout')) p.owned.boards.push('blackout'); p.seisFix = true; } // anyone who already earned it keeps it
     if (typeof p.rating !== 'number') p.rating = START_RATING;
     p.ranked = p.ranked || { w: 0, l: 0, d: 0 };
@@ -172,8 +173,9 @@ const Eco = (() => {
     epic: { name: 'Epic', w: 45, v: [1300, 2200], c: '#c07cff' },
     legendary: { name: 'Legendary', w: 13, v: [5000, 8500], c: '#ffb43a' },
     mythic: { name: 'Mythic', w: 2, v: [25000, 30000], c: '#ff6ad5' },
+    spirit: { name: 'Spirit', w: 0, v: [0, 0], c: '#bff4ff', noSell: true, hidden: true },
   };
-  const RORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const RORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'spirit'];
   const LOOT_DEF = {
     common: [['Cabbage', '🥬'], ['Sea Prunes', '🫐'], ['Tea Leaves', '🍃'], ['Chipped Pai Sho Tile', '🀄'], ['Earth Kingdom Coin', '🪙'], ['Fire Nation Coin', '🪙'], ['Water Tribe Coin', '🪙'], ['Rice Ball', '🍙'], ['Moon Peach', '🍑'], ['Egg Custard Tart', '🥧'], ['Fire Flakes', '🌶️'], ['Bowl of Jook', '🥣'], ['Fish Hook', '🪝'], ['Seal Jerky', '🥓'], ['Tuft of Bison Fur', '🦬'], ['River Stone', '🪨'], ['Clay Pot', '🏺'], ['Bamboo Shoot', '🎋'], ['Paper Lantern', '🏮'], ['Silk Thread', '🧵'], ['Straw Sandals', '🩴'], ['Paper Kite', '🪁'], ['Ink Brush', '🖌️'], ['Torn Scroll', '📜'], ['Coil of Rope', '🪢'], ['Fishing Net', '🕸️'], ['Glider Feather', '🪶'], ['Lotus Petal', '🌸'], ['Fire Lily Seed', '🌱'], ['Ice Shard', '🧊'], ['Cactus Juice', '🌵'], ['Hot Leaf Juice', '🍵'], ['Mango', '🥭'], ['Steamed Bun', '🥟'], ['Seashell', '🐚'], ['Smooth Pebble', '⚪'], ['Candle Stub', '🕯️'], ['Wooden Bowl', '🥢'], ['Market Ticket', '🎫'], ['Sack of Rice', '🌾'], ['Dried Squid', '🦑'], ['Bag of Nuts', '🥜'], ['Moon Flower', '🌼'], ['Sand Dollar', '🪸'], ['Cracked Teacup', '☕']],
     uncommon: [['Jasmine Tea Set', '🫖'], ['Earth Kingdom Helmet', '⛑️'], ['Fire Nation Armor Plate', '🛡️'], ['Air Nomad Prayer Beads', '📿'], ['Water Tribe Boomerang', '🪃'], ['Battle Fan', '🪭'], ['Ice Skates', '⛸️'], ['Wolf-Pelt Hood', '🐺'], ['Bison Whistle', '🎶'], ['Komodo Rhino Horn', '🦏'], ['Platypus Bear Egg', '🥚'], ['Turtle Duck Feather', '🦆'], ['Catgator Scale', '🐊'], ['Badgermole Claw', '🦡'], ['Ostrich Horse Saddle', '🐎'], ['Moon Shard', '🌙'], ['Sun Stone', '☀️'], ['Meteor Pebble', '☄️'], ['Spirit Lantern', '🏮'], ['Ember Island Ticket', '🎟️'], ['Map of the Great Wall', '🗺️'], ['Swamp Vine', '🌿'], ['Pro-bending Gloves', '🥊'], ['Tsungi Horn', '📯'], ['Hog Monkey Mask', '🐒'], ['Firework Rocket', '🎆'], ['Messenger Hawk', '🦅'], ['Jade Carving', '🗿'], ['Snow Leopard Pelt', '🐆'], ['Golden Teapot', '🫖'], ['Glider Wing Cloth', '🪁'], ['Polished Gong', '🥁']],
@@ -181,18 +183,19 @@ const Eco = (() => {
     epic: [['Dragon Scale', '🐉'], ['Sky Bison Calf Bell', '🛎️'], ['Moon Spirit Koi', '🐟'], ['Ocean Spirit Koi', '🐠'], ['Lion Turtle Shell Shard', '🐚'], ['Eternal Ember', '🔥'], ['Masterwork Glider', '🪽'], ['Comet Fragment', '☄️'], ['Spirit Oasis Water', '💧'], ['Earth Temple Crystal', '💎'], ['Spirit Vine Seed', '🌱'], ['Avatar Relic Scroll', '📜']],
     legendary: [['Light Spirit Fragment', '✨'], ['Dark Spirit Fragment', '🌑'], ['The Avatar’s Staff', '🪄'], ['Harmonic Convergence Star', '🌟'], ['The First Flame', '🔥'], ['Lion Turtle’s Blessing', '🐢']],
     mythic: [['Spirit of the Avatar', '🪷'], ['Moon and Ocean', '☯️']],
+    spirit: [['Yourself', '🪞']],
   };
   const LOOT = []; const LOOTI = {};
   RORDER.forEach((r) => LOOT_DEF[r].forEach(([name, icon], i) => {
     const id = r[0] + i + '_' + name.toLowerCase().replace(/[^a-z]+/g, '').slice(0, 14);
     const [lo, hi] = RARITY[r].v, h = [...name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-    const it = { id, name, icon, r, value: Math.round((lo + (h % 1000) / 1000 * (hi - lo)) / 5) * 5 };
+    const it = { id, name, icon, r, noSell: !!RARITY[r].noSell, value: Math.round((lo + (h % 1000) / 1000 * (hi - lo)) / 5) * 5 };
     LOOT.push(it); LOOTI[id] = it;
   }));
   function rollLoot(boost = 0) {
     const tot = RORDER.reduce((a, r) => a + RARITY[r].w * (boost && r !== 'common' ? 1 + boost : 1), 0);
     let x = Math.random() * tot, r = 'common';
-    for (const k of RORDER) { x -= RARITY[k].w * (boost && k !== 'common' ? 1 + boost : 1); if (x <= 0) { r = k; break; } }
+    for (const k of RORDER.filter((q) => RARITY[q].w > 0)) { x -= RARITY[k].w * (boost && k !== 'common' ? 1 + boost : 1); if (x <= 0) { r = k; break; } }
     const pool = LOOT.filter((it) => it.r === r);
     return pool[Math.floor(Math.random() * pool.length)];
   }
@@ -360,7 +363,7 @@ const Eco = (() => {
   // reincarnation, ascension and spirit realm achievements
   INCARNATIONS.slice(1).forEach((nm, i) => ACH.push({ id: 'inc_' + (i + 1), name: nm, desc: `Reincarnate ${i + 1} ${i ? 'times' : 'time'}`, icon: '🔄', gp: 2000 * (i + 1), ok: (p) => (p.inc || 0) >= i + 1 }));
   ACH.push({ id: 'ascend', name: 'Beyond the Cycle', desc: 'Finish your final reincarnation and rise past Level 100', icon: '🌟', gp: 20000, ok: (p) => !!p.surpass });
-  ACH.push({ id: 'spirit', name: 'Spirit Walker', desc: 'Finish your final reincarnation and enter the Spirit Realm (unlocks the Spirit board)', icon: '👻', gp: 5000, ok: (p) => !!p.spirit });
+  ACH.push({ id: 'spirit', name: 'Crossed Over', desc: 'Finish your final reincarnation and enter the Spirit Realm (unlocks the Spirit Realm board)', icon: '👻', gp: 5000, ok: (p) => !!p.spirit });
   ACH.push({ id: 'fight1', name: 'First Blood', desc: 'Win a bending duel', icon: '🥋', gp: 200, ok: (p) => (p.fightWins || 0) >= 1 });
   ACH.push({ id: 'fight25', name: 'Duelist', desc: 'Win 25 bending duels', icon: '🥋', gp: 750, ok: (p) => (p.fightWins || 0) >= 25 });
   const NO_SPIRIT = ['lotus', 'arsenal', 'board', 'avatar', 'friend', 'subbender', 'rich'];

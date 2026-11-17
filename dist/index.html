@@ -512,7 +512,14 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .lb-r{font-size:12px}.lb-r>div{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
 .lb-i{font-size:18px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:var(--panel2)}
 .lb-x{opacity:.35}
-.screen .seg{flex-wrap:wrap;justify-content:center;row-gap:4px}
+
+
+.screen .seg{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:2px}
+.screen .seg::-webkit-scrollbar{display:none}
+.screen .seg button{flex:1 1 auto;font-size:11px;padding:8px 4px;letter-spacing:0;white-space:nowrap;min-width:0}
+.lc-fig svg{width:44px;height:44px;border-radius:50%;background:#0e2229;display:block}
+.loot-card.spirit{box-shadow:0 0 14px #bff4ff;animation:spiritGlow 3s ease-in-out infinite}
+@keyframes spiritGlow{50%{box-shadow:0 0 22px #bff4ff,0 0 4px #fff}}
 </style>
 </head>
 <body>
@@ -1633,7 +1640,7 @@ const Eco = (() => {
   const TILE_PRICE = { stone: 0, boat: 0, wheel: 200, knotweed: 300, orchid: 300, firelily: 350, dahlia: 350, koi: 400, badgermole: 450, skybison: 500, dragon: 600, lotus: 750 };
   // profile pictures (Avatars.LIST ids)
   const FREE_AVATARS = ['gust', 'wave', 'peak', 'flame', 'lantern', 'tea'];
-  const PRICE_MULT = 3; // store prices tripled (Nov 2026); items already owned stay owned
+  const PRICE_MULT = 6; // store prices raised 6× (Nov 2026: 3×, then doubled again with loot); items already owned stay owned
   const AVATAR_PRICE = 150 * PRICE_MULT;
   Object.keys(TILE_PRICE).forEach((k) => (TILE_PRICE[k] *= PRICE_MULT));
   // emotes
@@ -1702,7 +1709,7 @@ const Eco = (() => {
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
     blackout: { name: 'Blackout (Seismic)', price: 100000, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     spiritWalker: { name: 'Spirit Walker', price: null, unlock: 'walker', exclusive: true, desc: 'Pure spirit energy. Only for an Avatar who became a past life, and it costs every coin you have.', wood: ['#cdeeff', '#9fd6f7'], light: '#ffffff', dark: '#000000', rim: '#f2fbff', gate: '#10131d', gateEdge: '#ffffff', bg: '#05060c', grid: '#ffffff', gridOp: 0.5, lines: '#ffffff', spectral: true },
-    spirit: { name: 'Spirit World', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
+    spiritRealm: { name: 'Spirit Realm', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
     blackoutOwner: { name: 'Blackout (owner view)', hidden: true, price: null, unlock: 'melon100', wood: ['#141414', '#111111'], light: '#242424', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     sakura:  { name: 'Sakura Spring',    price: 700,  wood: ['#c98b9a', '#8a4f5c'], light: '#fff1f4', dark: '#e07a98', rim: '#ffc8d6', gate: '#6e2a3c', gateEdge: '#ffd3df', bg: '#2a1218' },
     glacier: { name: 'Glacier',          price: 700,  wood: ['#9fc3d6', '#5d8aa4'], light: '#f4fbff', dark: '#6aa9d6', rim: '#e0f4ff', gate: '#24506e', gateEdge: '#c9ecff', bg: '#0e1f2b' },
@@ -1724,7 +1731,7 @@ const Eco = (() => {
     bamboo:  { name: 'Bamboo Grove',     price: 700,  wood: ['#b8c46a', '#7a8a32'], light: '#f8fbe6', dark: '#4f8a3a', rim: '#e2ef9a', gate: '#33501c', gateEdge: '#eaf7b0', bg: '#141c08' },
     sunset:  { name: 'Sunset Tea House', price: 800, wood: ['#a0583a', '#5a2a24'], light: '#fbe7cf', dark: '#c84a5b', rim: '#ffb36b', gate: '#5b1d32', gateEdge: '#ffcf8a', bg: '#2a1018' },
   };
-  Object.values(BOARDS).forEach((b) => { if (b.price) b.price *= PRICE_MULT; });
+  Object.values(BOARDS).forEach((b) => { if (b.price && !b.unlock) b.price *= PRICE_MULT; }); // special boards keep their fixed price
   // earnings
   const EARN = {
     ai: { easy: [12, 4, 6], medium: [25, 6, 10], hard: [45, 10, 18] }, // [win, loss, draw]
@@ -1775,7 +1782,8 @@ const Eco = (() => {
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];
-    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], p.spirit ? ['spirit'] : []))];
+    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], p.spirit ? ['spiritRealm'] : []))];
+    if (p.spirit) { p.loot = p.loot || {}; if (!p.loot.s0_yourself) p.loot.s0_yourself = 1; }
     if (!p.seisFix) { if ((p.melonUses || 0) >= 100 && !p.owned.boards.includes('blackout')) p.owned.boards.push('blackout'); p.seisFix = true; } // anyone who already earned it keeps it
     if (typeof p.rating !== 'number') p.rating = START_RATING;
     p.ranked = p.ranked || { w: 0, l: 0, d: 0 };
@@ -1793,8 +1801,9 @@ const Eco = (() => {
     epic: { name: 'Epic', w: 45, v: [1300, 2200], c: '#c07cff' },
     legendary: { name: 'Legendary', w: 13, v: [5000, 8500], c: '#ffb43a' },
     mythic: { name: 'Mythic', w: 2, v: [25000, 30000], c: '#ff6ad5' },
+    spirit: { name: 'Spirit', w: 0, v: [0, 0], c: '#bff4ff', noSell: true, hidden: true },
   };
-  const RORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const RORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'spirit'];
   const LOOT_DEF = {
     common: [['Cabbage', '🥬'], ['Sea Prunes', '🫐'], ['Tea Leaves', '🍃'], ['Chipped Pai Sho Tile', '🀄'], ['Earth Kingdom Coin', '🪙'], ['Fire Nation Coin', '🪙'], ['Water Tribe Coin', '🪙'], ['Rice Ball', '🍙'], ['Moon Peach', '🍑'], ['Egg Custard Tart', '🥧'], ['Fire Flakes', '🌶️'], ['Bowl of Jook', '🥣'], ['Fish Hook', '🪝'], ['Seal Jerky', '🥓'], ['Tuft of Bison Fur', '🦬'], ['River Stone', '🪨'], ['Clay Pot', '🏺'], ['Bamboo Shoot', '🎋'], ['Paper Lantern', '🏮'], ['Silk Thread', '🧵'], ['Straw Sandals', '🩴'], ['Paper Kite', '🪁'], ['Ink Brush', '🖌️'], ['Torn Scroll', '📜'], ['Coil of Rope', '🪢'], ['Fishing Net', '🕸️'], ['Glider Feather', '🪶'], ['Lotus Petal', '🌸'], ['Fire Lily Seed', '🌱'], ['Ice Shard', '🧊'], ['Cactus Juice', '🌵'], ['Hot Leaf Juice', '🍵'], ['Mango', '🥭'], ['Steamed Bun', '🥟'], ['Seashell', '🐚'], ['Smooth Pebble', '⚪'], ['Candle Stub', '🕯️'], ['Wooden Bowl', '🥢'], ['Market Ticket', '🎫'], ['Sack of Rice', '🌾'], ['Dried Squid', '🦑'], ['Bag of Nuts', '🥜'], ['Moon Flower', '🌼'], ['Sand Dollar', '🪸'], ['Cracked Teacup', '☕']],
     uncommon: [['Jasmine Tea Set', '🫖'], ['Earth Kingdom Helmet', '⛑️'], ['Fire Nation Armor Plate', '🛡️'], ['Air Nomad Prayer Beads', '📿'], ['Water Tribe Boomerang', '🪃'], ['Battle Fan', '🪭'], ['Ice Skates', '⛸️'], ['Wolf-Pelt Hood', '🐺'], ['Bison Whistle', '🎶'], ['Komodo Rhino Horn', '🦏'], ['Platypus Bear Egg', '🥚'], ['Turtle Duck Feather', '🦆'], ['Catgator Scale', '🐊'], ['Badgermole Claw', '🦡'], ['Ostrich Horse Saddle', '🐎'], ['Moon Shard', '🌙'], ['Sun Stone', '☀️'], ['Meteor Pebble', '☄️'], ['Spirit Lantern', '🏮'], ['Ember Island Ticket', '🎟️'], ['Map of the Great Wall', '🗺️'], ['Swamp Vine', '🌿'], ['Pro-bending Gloves', '🥊'], ['Tsungi Horn', '📯'], ['Hog Monkey Mask', '🐒'], ['Firework Rocket', '🎆'], ['Messenger Hawk', '🦅'], ['Jade Carving', '🗿'], ['Snow Leopard Pelt', '🐆'], ['Golden Teapot', '🫖'], ['Glider Wing Cloth', '🪁'], ['Polished Gong', '🥁']],
@@ -1802,18 +1811,19 @@ const Eco = (() => {
     epic: [['Dragon Scale', '🐉'], ['Sky Bison Calf Bell', '🛎️'], ['Moon Spirit Koi', '🐟'], ['Ocean Spirit Koi', '🐠'], ['Lion Turtle Shell Shard', '🐚'], ['Eternal Ember', '🔥'], ['Masterwork Glider', '🪽'], ['Comet Fragment', '☄️'], ['Spirit Oasis Water', '💧'], ['Earth Temple Crystal', '💎'], ['Spirit Vine Seed', '🌱'], ['Avatar Relic Scroll', '📜']],
     legendary: [['Light Spirit Fragment', '✨'], ['Dark Spirit Fragment', '🌑'], ['The Avatar’s Staff', '🪄'], ['Harmonic Convergence Star', '🌟'], ['The First Flame', '🔥'], ['Lion Turtle’s Blessing', '🐢']],
     mythic: [['Spirit of the Avatar', '🪷'], ['Moon and Ocean', '☯️']],
+    spirit: [['Yourself', '🪞']],
   };
   const LOOT = []; const LOOTI = {};
   RORDER.forEach((r) => LOOT_DEF[r].forEach(([name, icon], i) => {
     const id = r[0] + i + '_' + name.toLowerCase().replace(/[^a-z]+/g, '').slice(0, 14);
     const [lo, hi] = RARITY[r].v, h = [...name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-    const it = { id, name, icon, r, value: Math.round((lo + (h % 1000) / 1000 * (hi - lo)) / 5) * 5 };
+    const it = { id, name, icon, r, noSell: !!RARITY[r].noSell, value: Math.round((lo + (h % 1000) / 1000 * (hi - lo)) / 5) * 5 };
     LOOT.push(it); LOOTI[id] = it;
   }));
   function rollLoot(boost = 0) {
     const tot = RORDER.reduce((a, r) => a + RARITY[r].w * (boost && r !== 'common' ? 1 + boost : 1), 0);
     let x = Math.random() * tot, r = 'common';
-    for (const k of RORDER) { x -= RARITY[k].w * (boost && k !== 'common' ? 1 + boost : 1); if (x <= 0) { r = k; break; } }
+    for (const k of RORDER.filter((q) => RARITY[q].w > 0)) { x -= RARITY[k].w * (boost && k !== 'common' ? 1 + boost : 1); if (x <= 0) { r = k; break; } }
     const pool = LOOT.filter((it) => it.r === r);
     return pool[Math.floor(Math.random() * pool.length)];
   }
@@ -1981,7 +1991,7 @@ const Eco = (() => {
   // reincarnation, ascension and spirit realm achievements
   INCARNATIONS.slice(1).forEach((nm, i) => ACH.push({ id: 'inc_' + (i + 1), name: nm, desc: `Reincarnate ${i + 1} ${i ? 'times' : 'time'}`, icon: '🔄', gp: 2000 * (i + 1), ok: (p) => (p.inc || 0) >= i + 1 }));
   ACH.push({ id: 'ascend', name: 'Beyond the Cycle', desc: 'Finish your final reincarnation and rise past Level 100', icon: '🌟', gp: 20000, ok: (p) => !!p.surpass });
-  ACH.push({ id: 'spirit', name: 'Spirit Walker', desc: 'Finish your final reincarnation and enter the Spirit Realm (unlocks the Spirit board)', icon: '👻', gp: 5000, ok: (p) => !!p.spirit });
+  ACH.push({ id: 'spirit', name: 'Crossed Over', desc: 'Finish your final reincarnation and enter the Spirit Realm (unlocks the Spirit Realm board)', icon: '👻', gp: 5000, ok: (p) => !!p.spirit });
   ACH.push({ id: 'fight1', name: 'First Blood', desc: 'Win a bending duel', icon: '🥋', gp: 200, ok: (p) => (p.fightWins || 0) >= 1 });
   ACH.push({ id: 'fight25', name: 'Duelist', desc: 'Win 25 bending duels', icon: '🥋', gp: 750, ok: (p) => (p.fightWins || 0) >= 25 });
   const NO_SPIRIT = ['lotus', 'arsenal', 'board', 'avatar', 'friend', 'subbender', 'rich'];
@@ -2244,28 +2254,28 @@ const Figure = (() => {
   // tier: 0 free starter, 1-3 store
   const OUTFITS = {
     earth_train: { n: 'earth', tier: 0, name: 'Quarry Wraps', price: 0, draw: (b, N, f) => ({ under: G.pantsWide('#5b4330', b) + G.shinWraps(b) + (b === 'femme' ? G.wrapTop(N.main, b) : '') + G.sash('#a88a5c', b) + G.armWraps(b), sleeves: '' }) },
-    earth_tunic: { n: 'earth', tier: 1, name: 'Village Tunic', price: 1500, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#3a2a1c') + G.tunic(N.main, b, 230) + G.collarV(N.light) + G.sash(N.accent, b), sleeves: G.sleeves(N.main, b, 'long', N.dark) }) },
-    earth_armor: { n: 'earth', tier: 2, name: 'Stonewall Armor', price: 4500, draw: (b, N) => ({ under: G.pantsWide('#2e2a22', b) + G.boots('#2a2018') + G.tunic(N.main, b, 238, 10) + G.plates('#4b4436', 72, 128, 140, 190, 4, 5) + G.sash(N.dark, b, false) + G.highCollar(N.dark), sleeves: G.sleeves(N.main, b, 'long', '#4b4436'), over: G.pauldron('#4b4436', b) }) },
-    earth_noble: { n: 'earth', tier: 3, name: 'Jade Court Robe', price: 9000, draw: (b, N) => ({ under: G.boots('#2a2018') + G.tunic(N.dark, b, 258, 16) + G.pattern(N.accent, 66, 134, 140, 252) + G.trimHem(N.accent, b, 258, 16) + G.collarV(N.accent) + G.sash(N.main, b) + G.emblem('earth', 100, 166, 1, N.accent), sleeves: G.sleeves(N.dark, b, 'long', N.accent) }) },
+    earth_tunic: { n: 'earth', tier: 1, name: 'Village Tunic', price: 3000, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#3a2a1c') + G.tunic(N.main, b, 230) + G.collarV(N.light) + G.sash(N.accent, b), sleeves: G.sleeves(N.main, b, 'long', N.dark) }) },
+    earth_armor: { n: 'earth', tier: 2, name: 'Stonewall Armor', price: 9000, draw: (b, N) => ({ under: G.pantsWide('#2e2a22', b) + G.boots('#2a2018') + G.tunic(N.main, b, 238, 10) + G.plates('#4b4436', 72, 128, 140, 190, 4, 5) + G.sash(N.dark, b, false) + G.highCollar(N.dark), sleeves: G.sleeves(N.main, b, 'long', '#4b4436'), over: G.pauldron('#4b4436', b) }) },
+    earth_noble: { n: 'earth', tier: 3, name: 'Jade Court Robe', price: 18000, draw: (b, N) => ({ under: G.boots('#2a2018') + G.tunic(N.dark, b, 258, 16) + G.pattern(N.accent, 66, 134, 140, 252) + G.trimHem(N.accent, b, 258, 16) + G.collarV(N.accent) + G.sash(N.main, b) + G.emblem('earth', 100, 166, 1, N.accent), sleeves: G.sleeves(N.dark, b, 'long', N.accent) }) },
 
     fire_train: { n: 'fire', tier: 0, name: 'Ember Shorts', price: 0, draw: (b, N) => ({ under: G.shorts(N.main, b) + (b === 'femme' ? G.wrapTop(N.main, b) : '') + G.armWraps(b, N.main) + both(P('M78,248 L96,248 L96,258 L78,258 Z', N.main)), sleeves: '' }) },
-    fire_tunic: { n: 'fire', tier: 1, name: 'Cadet Tunic', price: 1500, draw: (b, N) => ({ under: G.pantsFit('#4a2a24', b) + G.boots('#2a1612') + G.tunic(N.main, b, 226) + G.collarV(N.dark) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.main, b, 'mid', N.dark) }) },
-    fire_armor: { n: 'fire', tier: 2, name: 'Flame Guard Armor', price: 4500, draw: (b, N) => ({ under: G.pantsFit('#2b1715', b) + G.boots('#1e1110') + G.tunic('#3a1b18', b, 246, 12) + G.plates(N.main, 72, 128, 138, 188, 3, 1) + G.emblem('fire', 100, 160, 1.5, N.accent) + G.sash(N.accent, b, false) + G.highCollar(N.main), sleeves: G.sleeves('#3a1b18', b, 'long', N.main), over: G.pauldron(N.main, b) }) },
-    fire_royal: { n: 'fire', tier: 3, name: 'Royal Sunrise Robe', price: 9000, draw: (b, N) => ({ under: G.boots('#1e1110') + G.tunic(N.main, b, 260, 18) + both(P('M100,140 L92,140 L86,258 L100,258 Z', N.dark)) + G.trimHem(N.accent, b, 260, 18) + G.highCollar(N.accent) + G.sash(N.accent, b) + G.emblem('fire', 100, 162, 1.3, N.accent), sleeves: G.sleeves(N.main, b, 'long', N.accent), over: G.pauldron(N.dark, b) }) },
+    fire_tunic: { n: 'fire', tier: 1, name: 'Cadet Tunic', price: 3000, draw: (b, N) => ({ under: G.pantsFit('#4a2a24', b) + G.boots('#2a1612') + G.tunic(N.main, b, 226) + G.collarV(N.dark) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.main, b, 'mid', N.dark) }) },
+    fire_armor: { n: 'fire', tier: 2, name: 'Flame Guard Armor', price: 9000, draw: (b, N) => ({ under: G.pantsFit('#2b1715', b) + G.boots('#1e1110') + G.tunic('#3a1b18', b, 246, 12) + G.plates(N.main, 72, 128, 138, 188, 3, 1) + G.emblem('fire', 100, 160, 1.5, N.accent) + G.sash(N.accent, b, false) + G.highCollar(N.main), sleeves: G.sleeves('#3a1b18', b, 'long', N.main), over: G.pauldron(N.main, b) }) },
+    fire_royal: { n: 'fire', tier: 3, name: 'Royal Sunrise Robe', price: 18000, draw: (b, N) => ({ under: G.boots('#1e1110') + G.tunic(N.main, b, 260, 18) + both(P('M100,140 L92,140 L86,258 L100,258 Z', N.dark)) + G.trimHem(N.accent, b, 260, 18) + G.highCollar(N.accent) + G.sash(N.accent, b) + G.emblem('fire', 100, 162, 1.3, N.accent), sleeves: G.sleeves(N.main, b, 'long', N.accent), over: G.pauldron(N.dark, b) }) },
 
     air_train: { n: 'air', tier: 0, name: 'Monk Wraps', price: 0, draw: (b, N) => ({ under: G.pantsWide(N.light, b) + G.boots('#7a4a26') + G.monkWrap(N.main, N.light, b) + G.sash('#b8452a', b), sleeves: '' }) },
-    air_tunic: { n: 'air', tier: 1, name: 'Nomad Tunic', price: 1500, draw: (b, N) => ({ under: G.pantsWide(N.light, b) + G.boots('#7a4a26') + G.tunic(N.light, b, 206, 0) + G.sash(N.main, b, false), sleeves: G.sleeves(N.light, b, 'long', N.main), over: G.mantle(N.main, b) }) },
-    air_cape: { n: 'air', tier: 2, name: 'Sky Mantle', price: 4500, draw: (b, N) => ({ back: G.cape(N.dark, b, 252), under: G.pantsWide(N.light, b) + G.boots('#7a4a26') + G.tunic(N.light, b, 206, 0) + G.sash(N.main, b, false), sleeves: G.sleeves(N.light, b, 'long', N.main), over: G.mantle(N.main, b) + G.emblem('air', 100, 152, 0.9, N.accent) }) },
-    air_vest: { n: 'air', tier: 3, name: 'Glider Vest', price: 9000, draw: (b, N) => ({ under: G.pantsWide(N.light, b) + G.boots('#6a3e1e') + G.tunic(N.light, b, 206, 0) + G.vest('#8a5528', b) + G.sash(N.main, b) + G.highCollar(N.main), sleeves: G.sleeves(N.light, b, 'long', N.main) }) },
+    air_tunic: { n: 'air', tier: 1, name: 'Nomad Tunic', price: 3000, draw: (b, N) => ({ under: G.pantsWide(N.light, b) + G.boots('#7a4a26') + G.tunic(N.light, b, 206, 0) + G.sash(N.main, b, false), sleeves: G.sleeves(N.light, b, 'long', N.main), over: G.mantle(N.main, b) }) },
+    air_cape: { n: 'air', tier: 2, name: 'Sky Mantle', price: 9000, draw: (b, N) => ({ back: G.cape(N.dark, b, 252), under: G.pantsWide(N.light, b) + G.boots('#7a4a26') + G.tunic(N.light, b, 206, 0) + G.sash(N.main, b, false), sleeves: G.sleeves(N.light, b, 'long', N.main), over: G.mantle(N.main, b) + G.emblem('air', 100, 152, 0.9, N.accent) }) },
+    air_vest: { n: 'air', tier: 3, name: 'Glider Vest', price: 18000, draw: (b, N) => ({ under: G.pantsWide(N.light, b) + G.boots('#6a3e1e') + G.tunic(N.light, b, 206, 0) + G.vest('#8a5528', b) + G.sash(N.main, b) + G.highCollar(N.main), sleeves: G.sleeves(N.light, b, 'long', N.main) }) },
 
     water_train: { n: 'water', tier: 0, name: 'Tide Shorts', price: 0, draw: (b, N) => ({ under: G.shorts(N.dark, b) + G.shinWraps(b) + (b === 'femme' ? G.wrapTop(N.main, b) : '') + G.armWraps(b) + P('M90,124 Q100,130 110,124 L110,130 Q100,136 90,130 Z', '#f0ead8'), sleeves: '' }) },
-    water_tunic: { n: 'water', tier: 1, name: 'Tribe Tunic', price: 1500, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#4a3424') + G.tunic(N.light, b, 222, 4) + both(P(`M100,196 L${B[b].hip + 1},196 L${B[b].hip - 4},222 L100,236 Z`, N.light)) + L('M70,222 L100,236 L130,222', N.accent, 3) + G.collarV(N.accent) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.light, b, 'long', N.dark) }) },
-    water_parka: { n: 'water', tier: 2, name: 'Polar Parka', price: 4500, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#4a3424') + G.tunic(N.main, b, 236, 8) + G.fur(230, 238, b, 9) + both(L('M100,140 L100,230', N.accent, 3)) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.main, b, 'long', '#f7f4ee'), over: G.furCollar() }) },
-    water_armor: { n: 'water', tier: 3, name: 'Glacier Armor', price: 9000, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#2a3346') + G.tunic(N.dark, b, 240, 10) + G.plates('#6f9fd2', 72, 128, 138, 192, 4, 4) + G.emblem('water', 100, 152, 1, '#e8f4ff') + G.sash('#e8f4ff', b, false), sleeves: G.sleeves(N.dark, b, 'long', '#6f9fd2'), over: G.pauldron('#6f9fd2', b) }) },
+    water_tunic: { n: 'water', tier: 1, name: 'Tribe Tunic', price: 3000, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#4a3424') + G.tunic(N.light, b, 222, 4) + both(P(`M100,196 L${B[b].hip + 1},196 L${B[b].hip - 4},222 L100,236 Z`, N.light)) + L('M70,222 L100,236 L130,222', N.accent, 3) + G.collarV(N.accent) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.light, b, 'long', N.dark) }) },
+    water_parka: { n: 'water', tier: 2, name: 'Polar Parka', price: 9000, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#4a3424') + G.tunic(N.main, b, 236, 8) + G.fur(230, 238, b, 9) + both(L('M100,140 L100,230', N.accent, 3)) + G.sash(N.dark, b, false), sleeves: G.sleeves(N.main, b, 'long', '#f7f4ee'), over: G.furCollar() }) },
+    water_armor: { n: 'water', tier: 3, name: 'Glacier Armor', price: 18000, draw: (b, N) => ({ under: G.pantsWide(N.dark, b) + G.boots('#2a3346') + G.tunic(N.dark, b, 240, 10) + G.plates('#6f9fd2', 72, 128, 138, 192, 4, 4) + G.emblem('water', 100, 152, 1, '#e8f4ff') + G.sash('#e8f4ff', b, false), sleeves: G.sleeves(N.dark, b, 'long', '#6f9fd2'), over: G.pauldron('#6f9fd2', b) }) },
   };
-  const HAIRSTYLES = { short: { name: 'Short & Messy', price: 0 }, swept: { name: 'Side Swept', price: 0 }, topknot: { name: 'Topknot', price: 0 }, ponytail: { name: 'Ponytail', price: 0 }, buns: { name: 'Twin Buns', price: 0 }, braid: { name: 'Braid', price: 1200 }, long: { name: 'Long & Draping', price: 1200 }, bald: { name: 'Shaved', price: 0 } };
+  const HAIRSTYLES = { short: { name: 'Short & Messy', price: 0 }, swept: { name: 'Side Swept', price: 0 }, topknot: { name: 'Topknot', price: 0 }, ponytail: { name: 'Ponytail', price: 0 }, buns: { name: 'Twin Buns', price: 0 }, braid: { name: 'Braid', price: 2400 }, long: { name: 'Long & Draping', price: 2400 }, bald: { name: 'Shaved', price: 0 } };
 
-  const ACCESSORIES = { none: { name: 'None', price: 0 }, headband: { name: 'Headband', price: 600 }, scarf: { name: 'Travel Scarf', price: 900 }, beads: { name: 'Bead Necklace', price: 900 }, earrings: { name: 'Gold Earrings', price: 1200 } };
+  const ACCESSORIES = { none: { name: 'None', price: 0 }, headband: { name: 'Headband', price: 1200 }, scarf: { name: 'Travel Scarf', price: 1800 }, beads: { name: 'Bead Necklace', price: 1800 }, earrings: { name: 'Gold Earrings', price: 2400 } };
   function accessory(k, N, hairStyle) {
     if (k === 'headband') return P('M58,70 C70,58 130,58 142,70 L142,78 C130,66 70,66 58,78 Z', N.main) + P('M138,72 L152,82 L148,86 L136,78 Z', N.main) + P('M138,74 L150,92 L145,94 L135,80 Z', shade(N.main, -0.15));
     if (k === 'scarf') return P('M80,124 Q100,136 120,124 L124,134 Q100,148 76,134 Z', N.light) + P('M84,134 L96,140 L90,170 L80,166 Z', N.light) + L('M82,152 L92,155 M81,160 L91,163', shade(N.light, -0.25), 1.2);
@@ -2340,7 +2350,7 @@ const Figure = (() => {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" class="figure">${s}</svg>`;
   }
   // prices & ownership: p.owned.fig = ['outfit:air_tunic', 'hair:braid', 'acc:scarf']
-  const OTHER_STARTER = 300;
+  const OTHER_STARTER = 600;
   function priceOf(kind, id, nation) {
     if (kind === 'outfit') { const o = OUTFITS[id]; if (!o) return 0; return o.price || (o.n === nation ? 0 : OTHER_STARTER); }
     if (kind === 'hair') return (HAIRSTYLES[id] || {}).price || 0;
@@ -4287,7 +4297,8 @@ const Guide = (() => {
   function lootCard(id, big) {
     const it = Eco.LOOTI[id]; if (!it) return '';
     const R = Eco.RARITY[it.r];
-    return `<div class="loot-card ${big ? 'big' : ''}" style="--rc:${R.c}"><span class="lc-i">${it.icon}</span><b>${esc(it.name)}</b><small style="color:${R.c}">${R.name}</small></div>`;
+    const ic = id === 's0_yourself' && me && me.fig ? `<span class="lc-fig">${Figure.svg(Figure.of(me, Eco.lvl(me)), { portrait: true })}</span>` : `<span class="lc-i">${it.icon}</span>`;
+    return `<div class="loot-card ${big ? 'big' : ''} ${it.r === 'spirit' ? 'spirit' : ''}" style="--rc:${R.c}">${ic}<b>${esc(it.name)}</b><small style="color:${R.c}">${R.name}</small></div>`;
   }
   screens.store = () => {
     if (!me) { app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span style="width:42px"></span></div><div class="screen"><div class="card">Create a player (or sign in) to earn gold pieces and unlock tiles, pictures, emotes and boards.</div><button class="btn primary" data-act="toLogin">Sign in or create a player</button></div>`; return; }
@@ -4300,10 +4311,10 @@ const Guide = (() => {
       body = `<div class="store-grid">${Avatars.LIST.map((a) => { const own = Eco.ownsAvatar(me, a.id); return `<div class="item ${own ? 'owned' : ''}">${Avatars.svg(a.id, 56)}<div class="nm">${a.label}</div><div class="ds">${Avatars.EL[a.el].name}</div>${me.avatar === a.id ? '<span class="tiny" style="color:#9fd18b">✓ Wearing</span>' : own ? `<button class="btn small" data-act="equipAvatar" data-id="${a.id}">Wear</button>` : `<button class="btn small primary" data-act="buyItem" data-kind="avatars" data-id="${a.id}">🪙 ${(Avatars.price(a.id) || Eco.AVATAR_PRICE)}</button>`}</div>`; }).join('')}</div>`;
     } else if (storeTab === 'loot') {
       const inv = Object.entries(me.loot || {}).filter(([id, n]) => n > 0 && Eco.LOOTI[id]).sort((a, b) => Eco.RORDER.indexOf(Eco.LOOTI[b[0]].r) - Eco.RORDER.indexOf(Eco.LOOTI[a[0]].r) || Eco.LOOTI[b[0]].value - Eco.LOOTI[a[0]].value);
-      const worth = inv.reduce((a, [id, n]) => a + Eco.LOOTI[id].value * n, 0), found = new Set(Object.keys(me.loot || {}).concat(me.lootSeen || []));
+      const worth = inv.reduce((a, [id, n]) => a + (Eco.LOOTI[id].noSell ? 0 : Eco.LOOTI[id].value) * n, 0), found = new Set(Object.keys(me.loot || {}).concat(me.lootSeen || [])), book = Eco.LOOT.filter((it) => !Eco.RARITY[it.r].hidden || me.spirit), rs = Eco.RORDER.filter((r) => !Eco.RARITY[r].hidden || me.spirit);
       body = `<p class="muted tiny" style="margin:0">Win ranked online matches to find loot. Rarer pieces sell for much more. ${inv.length ? `Your bag is worth <b>${gpFmt(worth)}</b>.` : ''}</p>
-        ${inv.length ? `<div class="menu"><button class="btn small" data-act="sellLoot" data-id="__common">Sell all Common</button></div><div class="loot-grid">${inv.map(([id, n]) => `<div class="loot-item r-${Eco.LOOTI[id].r}">${lootCard(id)}${n > 1 ? `<span class="loot-n">×${n}</span>` : ''}<button class="btn small" data-act="sellLoot" data-id="${id}">Sell 🪙 ${Eco.LOOTI[id].value.toLocaleString()}</button></div>`).join('')}</div>` : '<div class="card tiny muted" style="text-align:center">Your bag is empty. Win a ranked match to find your first piece of loot.</div>'}
-        <div class="field"><label>📖 Collection · ${Eco.LOOT.filter((it) => found.has(it.id)).length}/${Eco.LOOT.length} found</label><div class="loot-book">${Eco.RORDER.map((r) => `<div class="lb-r"><b style="color:${Eco.RARITY[r].c}">${Eco.RARITY[r].name}</b><div>${Eco.LOOT.filter((it) => it.r === r).map((it) => `<span class="lb-i ${found.has(it.id) ? '' : 'lb-x'}" title="${esc(found.has(it.id) ? it.name : '???')}">${found.has(it.id) ? it.icon : '❔'}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+        ${inv.length ? `<div class="menu"><button class="btn small" data-act="sellLoot" data-id="__common">Sell all Common</button></div><div class="loot-grid">${inv.map(([id, n]) => `<div class="loot-item r-${Eco.LOOTI[id].r}">${lootCard(id)}${n > 1 ? `<span class="loot-n">×${n}</span>` : ''}${Eco.LOOTI[id].noSell ? '<span class="tiny muted" style="text-align:center">Can’t be sold</span>' : `<button class="btn small" data-act="sellLoot" data-id="${id}">Sell 🪙 ${Eco.LOOTI[id].value.toLocaleString()}</button>`}</div>`).join('')}</div>` : '<div class="card tiny muted" style="text-align:center">Your bag is empty. Win a ranked match to find your first piece of loot.</div>'}
+        <div class="field"><label>📖 Collection · ${book.filter((it) => found.has(it.id)).length}/${book.length} found</label><div class="loot-book">${rs.map((r) => `<div class="lb-r"><b style="color:${Eco.RARITY[r].c}">${Eco.RARITY[r].name}</b><div>${Eco.LOOT.filter((it) => it.r === r).map((it) => `<span class="lb-i ${found.has(it.id) ? '' : 'lb-x'}" title="${esc(found.has(it.id) ? it.name : '???')}">${found.has(it.id) ? it.icon : '❔'}</span>`).join('')}</div></div>`).join('')}</div></div>`;
     } else if (storeTab === 'emotes') {
       const av = amAvatar();
       body = `<p class="muted tiny" style="margin:0">Common emotes are free. Nation emotes unlock with your nation${av ? '' : ' (the Avatar gets all of them)'}.</p><div class="emo-grid">${Eco.EMOTES.map((x) => { const un = Eco.emoteUnlocked(me, x.id, av); const why = un ? '✓' : x.kind === 'store' ? `<button class="btn small primary" data-act="buyItem" data-kind="emotes" data-id="${x.id}" style="padding:4px 8px;min-height:30px">🪙 ${x.price}</button>` : x.kind === 'avatar' ? '👑 Avatar only' : Eco.NATIONS[x.kind] ? Eco.NATIONS[x.kind].name + ' Nation' : ''; return `<div class="emo ${un ? '' : 'locked'}" style="${un ? '' : 'opacity:.75'}"><span class="e">${x.e}</span><span class="t">${esc(x.t)}</span><span class="tiny">${why}</span></div>`; }).join('')}</div>`;
@@ -4311,7 +4322,7 @@ const Guide = (() => {
       body = `<p class="muted tiny" style="margin:0">Board themes: in online games, everyone plays on the <b>host’s</b> board. Your nation’s board is free.</p><div class="store-grid">${Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden).map(([k, b]) => { const own = Eco.ownsBoard(me, k); return `<div class="item ${own ? 'owned' : ''}"><button class="bprev-btn" data-act="boardPreview" data-id="${k}" aria-label="Preview">${boardPreview(k)}<span class="bprev-hint">▶ Preview</span></button><div class="nm">${b.name}</div>${b.unlock ? `<div class="ds">${b.desc || 'Always in play when equipped: opponents play in the dark in Elemental games (host wins ties)'}</div>` : ''}${me.board === k ? '<span class="tiny" style="color:#9fd18b">✓ In use</span>' : own ? `<button class="btn small" data-act="equipBoard" data-id="${k}">Use</button>` : b.unlock === 'walker' ? (me.pastLife ? `<button class="btn small primary" data-act="buyWalker">🪙 All ${gpFmt(me.gp || 0)}</button>` : '<span class="tiny muted">🔒 Only an Avatar reborn as a past-life spirit · costs all your gold</span>') : b.unlock === 'spirit' ? '<span class="tiny muted">🔒 Enter the Spirit Realm</span>' : b.unlock === 'melon100' ? ((me.melonUses || 0) >= 100 ? `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price.toLocaleString()}</button>` : `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100), then 🪙 100,000</span>`) : b.unlock ? `<span class="tiny muted">🔒 Call the Melon Lord 100× (${Math.min(100, me.melonUses || 0)}/100)</span>` : `<button class="btn small primary" data-act="buyItem" data-kind="boards" data-id="${k}">🪙 ${b.price}</button>`}</div>`; }).join('')}</div>`;
     }
     app.innerHTML = `<div class="topbar"><button class="iconbtn" data-act="go" data-to="home">‹</button><h2>Store</h2><span class="gp-pill">${gpFmt(me.gp)}</span></div>
-      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}${tab('loot', '🎁 Loot')}<button data-act="go" data-to="character">👘 Clothes</button></div>${body}
+      <div class="screen"><div class="seg">${tab('tiles', 'Tiles')}${tab('avatars', 'Pictures')}${tab('emotes', 'Emotes')}${tab('boards', 'Boards')}${tab('loot', 'Loot')}<button data-act="go" data-to="character">Clothes</button></div>${body}
       <div class="note">Earn gold: computer games pay a little (more on Hard), online games pay a lot — even a loss earns some. Completing a ring adds a bonus.</div></div>`;
   };
 
@@ -4596,7 +4607,7 @@ const Guide = (() => {
     if (d.guest && d.guest.pid === pid) return startOnline(d);
     if (d.status !== 'open') return toast('That game already has two players');
     const guest = { pid, name: myName(), avatar: myAvatar(), fig: myFig(), board: myBoard(), pw: Eco.powersFor(me, amAvatar()), fx: setup.fx[0].filter((t) => Eco.ownsTile(me, t)) };
-    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : myBoard() === 'blackout' ? 0 : null, spirit: d.host.board === 'spirit' ? 1 : null });
+    const s = P.newGame({ effects: [guest.fx, d.host.fx], minHarmonies: d.opts.minH, chance: d.opts.chance, bending: !!d.opts.bending, subPractice: !!d.opts.subPractice, powers: [guest.pw || { nation: null }, d.host.pw || { nation: null }], seismic: d.host.board === 'blackout' ? 1 : myBoard() === 'blackout' ? 0 : null, spirit: d.host.board === 'spiritRealm' ? 1 : null });
     const nd = Object.assign({}, d, { guest, pids: [d.host.pid, guest.pid], status: 'playing', state: JSON.stringify(s), ver: 1, updated: Date.now() });
     delete nd.id;
     if (Store.kind === 'firebase') nd.uids = Array.from(new Set((d.uids || []).concat(FB.uid)));
@@ -4639,14 +4650,15 @@ const Guide = (() => {
     show();
   }
   // ---------- What's new (shown once per update) ----------
-  const NEWS = { v: '2026-11-17f', items: [
+  const NEWS = { v: '2026-11-17g', items: [
+    ['💰', 'Store prices up', 'With loot paying out, store prices have doubled. Everything you already own stays yours.'],
     ['🎁', 'Loot', 'Win ranked online matches to find Avatar-themed loot, from Common cabbages to Mythic relics. Sell it in the Store’s new Loot tab, and fill your collection book.'],
     ['🌈', 'Host’s board', 'In online games, both players now play on the host’s board. Show it off.'],
     ['👻', 'Past lives', 'If the Avatar enters the Spirit Realm, they give up the title and become a past-life spirit: all four elements forever, plus watching over the next Avatar’s matches with two bends per match and hints.'],
     ['☯️', 'Avatar duels', 'The Avatar (and past lives) can blast with all four elements in bending duels.'],
     ['🥋', 'Bending duels', 'Fight a friend in real time with your character: strike, blast, block and dodge. The winner takes gold from the loser, more for beating a higher level. Practice against a training dummy any time.'],
     ['🏷️', 'Nation titles', 'Earn a new title at Level 1, 5, 10 and every 10 levels after, up to Level 100.'],
-    ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit board.'],
+    ['🔄', 'Reincarnation', 'Reach Level 100 to reincarnate: back to Level 1 with new achievements, up to six times. After your final life, rise past 100 or enter the Spirit Realm for a ghostly look and the Spirit Realm board.'],
     ['⚠️', 'Switching nations', 'Changing nation now starts you over from scratch. Only your gold carries over.'],
     ['🧍', 'Characters', 'Build your own character: body, skin, eyes, hair and outfits. Unlock more clothes, hairstyles and accessories in the store. It shows on your profile and in your game seat.'],
     ['🌀', 'Airbending Masters', 'Air Nomads earn their arrow markings at level 5. Avatars glow in Avatar State.'],
@@ -4708,16 +4720,16 @@ const Guide = (() => {
   async function finalChoice() {
     if (!me || !Eco.atFinal(me)) return;
     const pick = await choose('Your final reincarnation is complete', [{ label: '🌟 Rise past Level 100', value: 'ascend', cls: 'primary' }, { label: '👻 Enter the Spirit Realm', value: 'spirit' }],
-      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit board, where your harmonies take two blockers to break.${amAvatar() ? '\n\n👑 You are the Avatar: crossing over gives up the title. You become a past-life spirit who bends all four elements forever (in elemental matches and duels) and can watch over the next Avatar’s matches, with two bends per match to help or humble them, then hints.' : ''}`);
+      `Rise: keep everything and keep leveling past 100.\nSpirit Realm: start over at Level 1 with 10% of your gold (${gpFmt(Math.floor((me.gp || 0) * 0.1))}). Your achievements stay and new Spirit achievements open up. Your character turns ghostly and you unlock the Spirit Realm board, where your harmonies take two blockers to break.${amAvatar() ? '\n\n👑 You are the Avatar: crossing over gives up the title. You become a past-life spirit who bends all four elements forever (in elemental matches and duels) and can watch over the next Avatar’s matches, with two bends per match to help or humble them, then hints.' : ''}`);
     if (pick === 'ascend') { me.surpass = true; await saveMe(); toast('🌟 You’ve risen beyond the cycle!', 3500); }
     else if (pick === 'spirit') {
       const sure = await choose('Enter the Spirit Realm?', [{ label: '👻 Cross over', value: true, cls: 'primary' }], 'This can’t be undone. You keep 10% of your gold.');
       if (!sure) return;
       const wasAvatar = amAvatar();
-      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; if (wasAvatar) me.pastLife = true; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
+      me.xpLife = (me.xpLife || 0) + (me.xp || 0); me.xp = 0; me.gp = Math.floor((me.gp || 0) * 0.1); me.spirit = true; if (wasAvatar) me.pastLife = true; me.loot = me.loot || {}; me.loot.s0_yourself = 1; me.spiritBase = Eco.snapshotSpirit(me); me.spiritBest = 0; Eco.ensure(me);
       await saveMe();
       if (wasAvatar) { await Store.set('meta', 'avatar', { pid: null, name: null, since: Date.now(), trial: null, pastLife: { pid: me.id, name: me.name, t: Date.now() } }).catch(() => {}); avatarPid = null; updateAvatar(); toast('👻 You gave up the Avatar title and became a past-life spirit. You bend all four elements forever, and you can watch over the next Avatar’s matches.', 6000); }
-      else toast('👻 You’ve crossed into the Spirit Realm. The Spirit board is yours.', 4000);
+      else toast('👻 You’ve crossed into the Spirit Realm. The Spirit Realm board is yours.', 4000);
     } else return;
     closeSheet(); setTimeout(checkAch, 900); go('stats');
   }
@@ -4876,7 +4888,7 @@ const Guide = (() => {
     const seats = meFirst ? [human, other] : [other, human];
     const fxMe = S.fx[0].filter((t) => Eco.ownsTile(me, t)), fxOther = mode === 'ai' ? AI.AI_EFFECTS[S.level].slice() : S.fx[1].filter((t) => Eco.ownsTile(S.p2.prof || null, t));
     const pwMe = Eco.powersFor(me, amAvatar()), pwOther = mode === 'ai' ? { nation: null } : Eco.powersFor(S.p2.prof || null, false);
-    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null, spirit: me && myBoard() === 'spirit' ? (meFirst ? 0 : 1) : null });
+    const s = P.newGame({ effects: meFirst ? [fxMe, fxOther] : [fxOther, fxMe], minHarmonies: +S.minH, chance: !!S.chance, bending: !!S.bending || !!S.subPractice, subPractice: !!S.subPractice, powers: meFirst ? [pwMe, pwOther] : [pwOther, pwMe], seismic: me && myBoard() === 'blackout' ? (meFirst ? 0 : 1) : null, spirit: me && myBoard() === 'spiritRealm' ? (meFirst ? 0 : 1) : null });
     G = { mode, s, seats, my: mode === 'ai' ? (meFirst ? 0 : 1) : null, history: [], sel: null, showH: true, opts: { timer: +S.timer, enigma: !!S.enigma, chance: !!S.chance }, recorded: false };
     gameScreen();
   }
@@ -6158,7 +6170,7 @@ const Guide = (() => {
       let gain = 0, cnt = 0;
       const ids = d.id === '__common' ? Object.keys(me.loot).filter((id) => Eco.LOOTI[id] && Eco.LOOTI[id].r === 'common') : [d.id];
       if (d.id !== '__common' && Eco.LOOTI[d.id] && Eco.RORDER.indexOf(Eco.LOOTI[d.id].r) >= 3 && !(await choose(`Sell ${Eco.LOOTI[d.id].name}?`, [{ label: `Sell for 🪙 ${Eco.LOOTI[d.id].value.toLocaleString()}`, value: true, cls: 'primary' }], 'It’s ' + Eco.RARITY[Eco.LOOTI[d.id].r].name + '. You might not find another one.'))) return;
-      ids.forEach((id) => { const n = d.id === '__common' ? (me.loot[id] || 0) : Math.min(1, me.loot[id] || 0); if (!n || !Eco.LOOTI[id]) return; me.loot[id] -= n; gain += Eco.LOOTI[id].value * n; cnt += n; if (!me.loot[id]) delete me.loot[id]; });
+      ids.forEach((id) => { if (Eco.LOOTI[id] && Eco.LOOTI[id].noSell) return; const n = d.id === '__common' ? (me.loot[id] || 0) : Math.min(1, me.loot[id] || 0); if (!n || !Eco.LOOTI[id]) return; me.loot[id] -= n; gain += Eco.LOOTI[id].value * n; cnt += n; if (!me.loot[id]) delete me.loot[id]; });
       if (!cnt) return;
       me.gp += gain; me.gpPeak = Math.max(me.gpPeak || 0, me.gp); await saveMe();
       toast(`🪙 Sold ${cnt} for ${gpFmt(gain)}`); const y = window.scrollY; screens.store(); window.scrollTo(0, y);
