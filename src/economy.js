@@ -79,7 +79,7 @@ const Eco = (() => {
     fire:    { name: 'Fire Nation',   price: 400, nation: 'fire',  wood: ['#5a2a1a', '#2c120b'], light: '#f2dcbc', dark: '#b51f18', rim: '#f2b52f', gate: '#4e0b08', gateEdge: '#ffc44d', bg: '#170806' },
     moon:    { name: 'Moonlit',       price: 600, wood: ['#34405e', '#171d31'], light: '#dce1f2', dark: '#5d61a0', rim: '#d3daff', gate: '#1b2042', gateEdge: '#aab4ff', bg: '#0d1020' },
     jade:    { name: 'Jade Garden',   price: 600, wood: ['#406552', '#243a2f'], light: '#e8f0e3', dark: '#3a906a', rim: '#bfe6c8', gate: '#1d3b2c', gateEdge: '#9de0b3', bg: '#101d16' },
-    blackout: { name: 'Blackout (Seismic)', price: null, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
+    blackout: { name: 'Blackout (Seismic)', price: 100000, unlock: 'melon100', wood: ['#050505', '#000000'], light: '#0b0b0b', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
     spiritWalker: { name: 'Spirit Walker', price: null, unlock: 'walker', exclusive: true, desc: 'Pure spirit energy. Only for an Avatar who became a past life, and it costs every coin you have.', wood: ['#cdeeff', '#9fd6f7'], light: '#ffffff', dark: '#000000', rim: '#f2fbff', gate: '#10131d', gateEdge: '#ffffff', bg: '#05060c', grid: '#ffffff', gridOp: 0.5, lines: '#ffffff', spectral: true },
     spirit: { name: 'Spirit World', price: null, unlock: 'spirit', desc: 'Your harmonies need two blockers to break in games you host.', wood: ['#1d3b45', '#14303a'], light: '#cfeef0', dark: '#5fa9b3', rim: '#bff4ff', gate: '#2c5d68', gateEdge: '#dffaff', bg: '#0e2229', grid: '#ffffff', gridOp: 0.25, lines: '#e8fdff' },
     blackoutOwner: { name: 'Blackout (owner view)', hidden: true, price: null, unlock: 'melon100', wood: ['#141414', '#111111'], light: '#242424', dark: '#000000', rim: '#e8e8e8', gate: '#000000', gateEdge: '#f0f0f0', bg: '#000000', grid: '#ffffff', gridOp: 0.22, lines: '#ffffff', lightHatch: true },
@@ -154,7 +154,8 @@ const Eco = (() => {
     p.owned.tiles = [...new Set((p.owned.tiles || []).concat(STARTER_TILES))];
     p.owned.avatars = [...new Set((p.owned.avatars || []).concat(FREE_AVATARS, p.avatar ? [p.avatar] : []))];
     p.owned.emotes = p.owned.emotes || [];
-    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], (p.melonUses || 0) >= 100 ? ['blackout'] : [], p.spirit ? ['spirit'] : []))];
+    p.owned.boards = [...new Set((p.owned.boards || []).concat(['classic'], p.nation ? [p.nation] : [], p.spirit ? ['spirit'] : []))];
+    if (!p.seisFix) { if ((p.melonUses || 0) >= 100 && !p.owned.boards.includes('blackout')) p.owned.boards.push('blackout'); p.seisFix = true; } // anyone who already earned it keeps it
     if (typeof p.rating !== 'number') p.rating = START_RATING;
     p.ranked = p.ranked || { w: 0, l: 0, d: 0 };
     p.board = p.board || 'classic';
