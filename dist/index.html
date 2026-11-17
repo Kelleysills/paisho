@@ -3956,6 +3956,8 @@ const Guide = (() => {
         try { const ds = JSON.parse(nd.draft.s); if (ds.turnNo === G.s.turnNo && ds.turn === G.s.turn) { if (!G.draftLive) toast('🪽 Watching ' + G.seats[1 - G.my].name + '’s turn live'); G.draftLive = true; G.s = ds; if (!G.metal) renderGame(); } } catch (e) {}
       }
     });
+    // practice games made before the update: give the Avatar all four sub-bendings
+    try { const pw = G.s.opts.powers && G.s.opts.powers[G.my]; if (G.s.opts.subPractice && pw && amAvatar() && (pw.subs || []).length < 4) { pw.avatar = true; pw.subs = ['metal', 'lightning', 'blood', 'flight']; if (isHumanTurn()) pushOnline(); } } catch (e) {}
     gameScreen();
     const here = () => G && G.mode === 'online' && Store.patch('games', G.code, { here: { [G.my]: Date.now() } }).catch(() => {});
     here(); G.hereTimer = setInterval(() => { if (!G || G.mode !== 'online') return clearInterval(G && G.hereTimer); if (!document.hidden) here(); }, 45000);
