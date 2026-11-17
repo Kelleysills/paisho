@@ -359,3 +359,8 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 /* rules, chat and descriptions stay in the reading font */
 .guide,.guide *,.chat-log,.chat-log *,.dm-m,.dm-m *,.text-bubble,.tiny,.muted,p,.note,input,textarea{font-family:'Nunito Sans',system-ui,sans-serif}
 .guide h3,.guide h2,.guide summary{font-family:var(--fun)}
+
+.bd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bd-sw{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}.bd-sw span{font-size:10px;line-height:1.2;opacity:.85}
+.bd-sw.locked svg{filter:grayscale(1) brightness(.6)}.bd-sw.ach svg{filter:drop-shadow(0 0 4px rgba(242,207,110,.7))}.bd-sw.locked.ach svg{filter:grayscale(1) brightness(.6)}
+.trow .bd-sw span{display:none}

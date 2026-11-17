@@ -376,6 +376,11 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 /* rules, chat and descriptions stay in the reading font */
 .guide,.guide *,.chat-log,.chat-log *,.dm-m,.dm-m *,.text-bubble,.tiny,.muted,p,.note,input,textarea{font-family:'Nunito Sans',system-ui,sans-serif}
 .guide h3,.guide h2,.guide summary{font-family:var(--fun)}
+
+.bd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bd-sw{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}.bd-sw span{font-size:10px;line-height:1.2;opacity:.85}
+.bd-sw.locked svg{filter:grayscale(1) brightness(.6)}.bd-sw.ach svg{filter:drop-shadow(0 0 4px rgba(242,207,110,.7))}.bd-sw.locked.ach svg{filter:grayscale(1) brightness(.6)}
+.trow .bd-sw span{display:none}
 </style>
 </head>
 <body>
@@ -3325,6 +3330,7 @@ const Guide = (() => {
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${Eco.rankedGames(p) >= Eco.MIN_RANKED ? p.rating : '—'}</div><div class="k">⭐ Rank</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       ${styleCard(p, false)}
+      ${boardsCard(Eco.ensure(Object.assign({}, p)))}
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr><tr><td>Online</td><td class="n">${rec(st.online)}</td></tr><tr><td>Computer · Hard</td><td class="n">${rec(st.ai.hard)}</td></tr><tr><td>Computer · Medium</td><td class="n">${rec(st.ai.medium)}</td></tr><tr><td>Computer · Easy</td><td class="n">${rec(st.ai.easy)}</td></tr></table></div>
       <div class="field"><label>🏆 Achievements · ${got.length.toLocaleString()}/${Eco.ACH.length.toLocaleString()}</label><div class="ach-chips">${best.map((a) => `<span class="chip" title="${esc(a.desc)}">${a.icon || '🏆'} ${esc(a.name)}</span>`).join('') || '<span class="muted tiny">None yet</span>'}</div></div>
 </div>`);
@@ -3720,6 +3726,13 @@ const Guide = (() => {
     sheet(`<div style="text-align:center"><div style="font-size:40px">📣</div><h3 style="margin:2px 0 10px">What’s new</h3></div><div class="tlist">${NEWS.items.map(([i, t, d]) => `<div class="trow" style="align-items:center"><span style="font-size:26px">${i}</span><div><b>${t}</b><br><span class="tiny">${d}</span></div></div>`).join('')}</div>
       <div class="menu" style="margin-top:10px"><button class="btn primary" data-act="newsStore">Visit the store</button><button class="btn" data-act="closeSheet">Nice!</button></div>`);
   }
+  function boardsCard(p) {
+    const all = Object.entries(Eco.BOARDS).filter(([, b]) => !b.hidden);
+    const own = all.filter(([k]) => Eco.ownsBoard(p, k)), special = all.filter(([, b]) => b.unlock);
+    const sw = (k, b, locked) => `<div class="bd-sw ${locked ? 'locked' : ''} ${b.unlock ? 'ach' : ''}" title="${esc(b.name)}"><svg viewBox="-10 -10 20 20" width="44" height="44"><circle r="9.5" fill="${b.bg}" stroke="${b.rim}" stroke-width="0.8"/><circle r="8.5" fill="${b.wood[0]}"/><polygon points="0,0 0,-8.5 -8.5,0" fill="${b.light}"/><polygon points="0,0 0,8.5 8.5,0" fill="${b.light}"/><polygon points="0,0 0,-8.5 8.5,0" fill="${b.dark}"/><polygon points="0,0 0,8.5 -8.5,0" fill="${b.dark}"/>${b.lightHatch ? '<circle r="5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/><circle r="2.5" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".3"/>' : ''}</svg><span>${locked ? '🔒 ' : b.unlock ? '🏆 ' : ''}${esc(b.name)}</span></div>`;
+    const ach = special.map(([k, b]) => { const got = Eco.ownsBoard(p, k); const prog = b.unlock === 'melon100' ? ` · 🍈 ${Math.min(100, p.melonUses || 0)}/100 Melon Lords` : ''; return `<div class="trow" style="align-items:center${got ? '' : ';opacity:.7'}">${sw(k, b, !got)}<div><b>${esc(b.name)}</b><br><span class="tiny">${got ? 'Unlocked! ✓' : 'Locked'}${prog}</span></div></div>`; }).join('');
+    return `<div class="card"><div class="field" style="margin:0"><label>🎨 Boards unlocked · ${own.length}/${all.length}</label>${ach ? `<div class="tlist" style="margin-bottom:8px">${ach}</div>` : ''}<div class="bd-grid">${own.filter(([, b]) => !b.unlock).map(([k, b]) => sw(k, b, false)).join('')}</div></div></div>`;
+  }
   function styleCard(p, withLegend = true) {
     const c = (p.style && p.style.counts) || {}, total = Object.values(c).reduce((a, b) => a + b, 0), st = p.stats || {};
     const typ = Eco.typicalStyle(p), T = typ && Eco.STYLES[typ];
@@ -3865,7 +3878,7 @@ const Guide = (() => {
       if (statsTab === 'ach') { body.innerHTML = tabs + achBody(); return; }
       body.innerHTML = tabs;
     }
-    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}${styleCard(me)}
+    body.insertAdjacentHTML('beforeend', (st ? `${Avatars.card(meCard(), esc, { big: true, noStats: true })}${lvlBar(me.xp || 0)}${styleCard(me)}${boardsCard(me)}
       <div class="stat-grid"><div class="stat"><div class="v">${st.games}</div><div class="k">Games</div></div><div class="stat"><div class="v">${st.wins}</div><div class="k">Wins</div></div><div class="stat"><div class="v">${pct(st)}</div><div class="k">Win rate</div></div>
       <div class="stat"><div class="v">${st.streak}</div><div class="k">Streak</div></div><div class="stat"><div class="v">${st.best}</div><div class="k">Best streak</div></div><div class="stat"><div class="v">${st.rings}</div><div class="k">Rings won</div></div></div>
       <div class="card"><table class="lb"><tr><th>Mode</th><th class="n">W–L–D</th></tr>
