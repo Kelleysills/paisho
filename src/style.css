@@ -364,3 +364,19 @@ h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,
 .bd-sw{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}.bd-sw span{font-size:10px;line-height:1.2;opacity:.85}
 .bd-sw.locked svg{filter:grayscale(1) brightness(.6)}.bd-sw.ach svg{filter:drop-shadow(0 0 4px rgba(242,207,110,.7))}.bd-sw.locked.ach svg{filter:grayscale(1) brightness(.6)}
 .trow .bd-sw span{display:none}
+
+/* layout: only the board shrinks when space is tight (big system font sizes, tall headers) */
+.game>*{flex-shrink:0}
+.game>.board-wrap{flex:1 1 auto;min-height:150px;height:auto}
+.bb b{font-size:12px;font-size-adjust:none;white-space:nowrap}
+.seat .sty-blip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* info panel: fixed height, scrolls, tabs between tile description and suggested move */
+.info{display:block;height:74px;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 12px;position:relative}
+.info-tabs{display:flex;gap:4px;position:sticky;top:0;z-index:1;margin:-2px 0 4px;background:var(--panel)}
+.info-tabs button{flex:1;padding:3px 8px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:12px}
+.info-tabs button.on{background:var(--panel2);color:var(--gold2);border-color:var(--gold)}
+.info-body{display:flex;gap:10px;align-items:flex-start}
+.info-body .info-txt{flex:1;min-width:0}
+.info-row{display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0}
+.info-body .btn{position:sticky;top:30px}

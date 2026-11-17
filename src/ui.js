@@ -12,6 +12,7 @@
   const av = (name, cls = '') => avs[name] ? `<span class="avatar av-img ${cls}">${Avatars.svg(avs[name], '100%')}</span>` : `<span class="avatar ${cls}" style="background:hsl(${hues[name] != null ? hues[name] : hueOf(name)},55%,62%)">${esc(initials(name))}</span>`;
   let avatarPid = null;
   const meCard = () => Object.assign({}, me, { avatar: me.avatar || 'whitelotus', isAvatar: !!(me && avatarPid && me.id === avatarPid), lvl: Eco.level(me.xp || 0), xp: me.xp || 0 });
+  const APP_V = 20261117; // bump when the rules engine changes so outdated opponents get flagged
   const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
   const saveMe = () => (me ? (delete me._mig, Store.set('players', me.id, me)).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
   async function loadAvatar() { try { const m = await Store.get('meta', 'avatar'); avatarPid = (m && m.pid) || null; } catch (e) {} }
@@ -596,7 +597,7 @@
     // during the opponent's turn online: queue it; their phone applies it instantly
     if (G.mode === 'online' && !isHumanTurn()) {
       let s3; try { s3 = P.apply(G.s, a); } catch (e) { toast(a.t === 'melon' ? 'No Melon Lords left this match' : 'That bend isn’t possible'); renderBoard(); return false; }
-      if (a.t === 'melon') G.s = s3; // count it locally right away so it can't be spammed before their phone applies it
+      if (a.t === 'melon' || a.t === 'sub') G.s = s3; // count it locally right away so it can't be re-sent before their phone applies it
       const id = 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await Store.patch('games', G.code, { bq: { [id]: a } }).catch(() => toast('Couldn’t send — check your connection'));
       if (a.t === 'bend') G.bendsUsed = (G.bendsUsed || 0) + 1; G.trkB = (G.trkB || 0) + 1;
@@ -624,7 +625,7 @@
       if (G.s.bqDone.includes(id)) return;
       const a = nd.bq[id];
       try { const s2 = P.apply(G.s, a); s2.bqDone = (G.s.bqDone || []).concat([id]); G.s = s2; changed = true; showFx(a.t === 'bend' ? a.el : a.t === 'melon' ? 'melon' : 'fire'); toast(a.t === 'melon' ? `🍈 ${G.seats[a.by].name} called the MELON LORD! You’re going blind…` : `${G.seats[a.by].name} ${a.t === 'bend' ? Eco.BEND[a.el].verb.toLowerCase() + (a.el === 'air' ? 's' : a.el === 'water' ? 'es' : 's') + ' one of your tiles!' : 'used ' + Eco.SUBS[a.kind].name + '!'}`, 3200); }
-      catch (e) { G.s = P.clone(G.s); G.s.bqDone = (G.s.bqDone || []).concat([id]); }
+      catch (e) { G.s = P.clone(G.s); G.s.bqDone = (G.s.bqDone || []).concat([id]); Store.patch('games', G.code, { bqFail: { [id]: { by: a.by, kind: a.kind || a.t, why: String(e && e.message || e).slice(0, 80), t: Date.now() } } }).catch(() => {}); }
     });
     if (changed) { G.sel = null; G.history = []; renderGame(); pushOnline(); }
   }
@@ -1145,6 +1146,9 @@
       if (nd.chat) Object.keys(nd.chat).forEach((id) => { const m = nd.chat[id]; if (m && !(G.chat || []).some((x) => x.id === id)) addChat({ id, seat: m.seat, text: String(m.text || '').slice(0, 140), t: m.t }, G.chatReady && m.seat !== G.my); });
       G.chatReady = true;
       if (nd.emote && nd.emote.t > (G.lastEmoteT || 0)) { G.lastEmoteT = nd.emote.t; if (nd.emote.seat !== G.my) showBubble(nd.emote.seat, nd.emote.id); }
+      // a bending I queued during their turn didn't land
+      if (nd.bqFail) Object.entries(nd.bqFail).forEach(([id, f]) => { G.failSeen = G.failSeen || {}; if (!f || f.by !== G.my || G.failSeen[id]) return; G.failSeen[id] = 1; if (Date.now() - (f.t || 0) < 10 * 60000) toast(`⚠️ Your ${({ metal: 'Metalbending', lightning: 'Lightning', blood: 'Bloodbending', flight: 'Flight', gust: 'Gust', melon: 'Melon Lord', bend: 'bending', avatarState: 'Avatar State' })[f.kind] || 'bending'} didn’t land on their board${/not available|cannot|bad/i.test(f.why) ? '' : ''}. If it keeps happening, ask them to close and reopen the app.`, 4500); });
+      if (nd.here && nd.here['v' + (1 - G.my)] != null && nd.here['v' + (1 - G.my)] < APP_V && !G.oldWarned) { G.oldWarned = true; toast('📲 ' + G.seats[1 - G.my].name + ' is on an older version of the app. Ask them to close and reopen it so everything works.', 5000); }
       // 🪽 Flight: the opponent came back to the match
       if (nd.here && nd.here[1 - G.my]) { const t = nd.here[1 - G.my]; if (G.hereT !== undefined && t > G.hereT + 20000 && P.flightOn(G.s, G.my)) { toast('👀 ' + G.seats[1 - G.my].name + ' is back in the match. Your Flight is watching!', 4000); buzz(20); } G.hereT = Math.max(G.hereT || 0, t); }
       if ((nd.ver || 0) > G.ver) {
@@ -1159,7 +1163,7 @@
     // practice games made before the update: give the Avatar all four sub-bendings
     try { const pw = G.s.opts.powers && G.s.opts.powers[G.my]; if (G.s.opts.subPractice && pw && amAvatar() && (pw.subs || []).length < 4) { pw.avatar = true; pw.subs = ['metal', 'lightning', 'blood', 'flight']; if (isHumanTurn()) pushOnline(); } } catch (e) {}
     gameScreen();
-    const here = () => G && G.mode === 'online' && Store.patch('games', G.code, { here: { [G.my]: Date.now() } }).catch(() => {});
+    const here = () => G && G.mode === 'online' && Store.patch('games', G.code, { here: { [G.my]: Date.now(), ['v' + G.my]: APP_V } }).catch(() => {});
     here(); G.hereTimer = setInterval(() => { if (!G || G.mode !== 'online') return clearInterval(G && G.hereTimer); if (!document.hidden) here(); }, 45000);
     if (G.s.bend && P.flightOn(G.s, 1 - G.my) && G.seats[1 - G.my].pid) Push.send(G.seats[1 - G.my].pid, '🪽 ' + G.seats[G.my].name + ' is back in your game', 'Your Flight lets you watch their turn live (game ' + G.code + ')', 'fl-' + G.code);
   }
@@ -1422,8 +1426,8 @@
     const sc = Eco.styleScores(T), tot = Object.values(sc).reduce((a, b) => a + b, 0);
     if (tot < 4) return '';
     const cur = Eco.styleOf(T), C = Eco.STYLES[cur], usual = usualStyle(k);
-    const adj = STY_ADJ[cur], txt = !usual ? C.name : usual === cur ? C.name + ' ✓' : adj.charAt(0).toUpperCase() + adj.slice(1) + ' than usual';
-    return `<span class="sty-blip" style="--c:${C.color}" title="${esc(C.name + ': ' + C.desc)}">${C.icon} ${txt}</span>`;
+    const U = usual && Eco.STYLES[usual], txt = !usual ? C.name : usual === cur ? C.name + ' ✓' : `${C.name} · usually ${U.icon}`;
+    return `<span class="sty-blip" style="--c:${C.color}" title="${esc(usual && usual !== cur ? `${STY_ADJ[cur]} than usual — ` : '')}${esc(C.name + ': ' + C.desc)}">${C.icon} ${txt}</span>`;
   }
   function renderSeats() {
     const H = P.harmonies(G.s);
@@ -1529,23 +1533,39 @@
   }
   function renderInfo(type, owner) {
     const el = document.getElementById('info'); if (!el) return;
-    if (!type && G && G.blindOn) { el.innerHTML = '<span>🍈 <b>You’re blind!</b> Tap a tile, then where it goes. Grab one of theirs and you lose the turn. A legal move earns a bonus.</span>'; return; }
-    if (!type) {
-      if (G && hintsOn() && isHumanTurn()) {
-        const a = G.ana && G.ana.s === G.s ? G.ana : null, opp = esc(G.seats[1 - G.s.turn].name);
-        if (G.sel && G.sel.kind === 'tile') { el.innerHTML = `<span>💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring</span>`; return; }
-        const sg = a && a.sug ? `<br>🧭 <b>Try:</b> ${sugText(a.sug)}` : '';
-        const show = a && a.sug ? `<button class="btn small" data-act="showSug" style="flex:none;padding:6px 10px">Show</button>` : '';
-        if (a && a.win) { el.innerHTML = `<span style="flex:1">⭐ <b>You can close a ring this turn!</b>${sg}</span>${show}`; return; }
-        if (a && a.danger) { el.innerHTML = `<span style="flex:1">⚠️ <b>${opp} is one move from a ring</b> — block it.${sg}</span>${show}`; return; }
-        if (a && a.sug) { el.innerHTML = `<span style="flex:1">🧭 <b>Suggested:</b> ${sugText(a.sug)}<br><span class="tiny">💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span></span>${show}`; return; }
-        el.innerHTML = `<span>💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span>`; return;
-      }
-      el.innerHTML = `<span>Tap any tile for its rules. Gold lines are harmonies.</span>`; return;
+    if (type) { G.infoTile = { type, owner }; G.infoTab = 'desc'; }
+    else if (G && G.infoTab === 'desc' && !G.infoPinned) G.infoTab = null;
+    G.infoPinned = false;
+    const hints = G && hintsOn() && isHumanTurn() && !G.blindOn;
+    // suggestion pane
+    let sug = '', show = '';
+    if (G && G.blindOn) sug = '🍈 <b>You’re blind!</b> Tap a tile, then where it goes. Grab one of theirs and you lose the turn. A legal move earns a bonus.';
+    else if (hints) {
+      const a = G.ana && G.ana.s === G.s ? G.ana : null, opp = esc(G.seats[1 - G.s.turn].name);
+      const sg = a && a.sug ? `<br>🧭 <b>Try:</b> ${sugText(a.sug)}` : '';
+      if (a && a.sug) show = `<button class="btn small" data-act="showSug" style="flex:none;padding:6px 10px">Show</button>`;
+      if (G.sel && G.sel.kind === 'tile') sug = `💡 <b style="color:#7cc48a">Green +N</b> = new harmonies for you · <b style="color:#6fc6e8">blue ring</b> = breaks one of ${opp}’s · ★ = completes a ring` + sg;
+      else if (a && a.win) sug = `⭐ <b>You can close a ring this turn!</b>${sg}`;
+      else if (a && a.danger) sug = `⚠️ <b>${opp} is one move from a ring</b> — block it.${sg}`;
+      else if (a && a.sug) sug = `🧭 <b>Suggested:</b> ${sugText(a.sug)}<br><span class="tiny">💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}</span>`;
+      else sug = `💡 ${TIPS[(G.s.turnNo >> 1) % TIPS.length]}`;
     }
-    const inf = Guide.INFO[type];
-    const ps = Guide.partners(type).filter((x) => x.ok).map((x) => x.type);
-    el.innerHTML = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span style="flex:1"><b>${P.tname(type)}</b> · ${inf[1]}<br><span class="tiny">${ps.length ? 'Harmonizes with: ' + [...new Set(ps)].map((t) => `<span style="display:inline-block;vertical-align:middle;width:18px;height:18px">${Glyphs.svg(t, owner || 0, 'style="width:18px;height:18px"')}</span>`).join('') : 'Doesn’t harmonize'}</span></span><button class="btn small ghost" data-act="tileDetails" data-t="${type}" data-o="${owner == null ? 0 : owner}" style="flex:none;padding:6px 8px">Rules ›</button>`;
+    // description pane
+    let desc = '';
+    const t0 = G && G.infoTile;
+    if (t0 && Guide.INFO[t0.type]) {
+      const type = t0.type, owner = t0.owner;
+      const inf = Guide.INFO[type];
+      const ps = Guide.partners(type).filter((x) => x.ok).map((x) => x.type);
+      desc = `${Glyphs.svg(type, owner == null ? 0 : owner)}<span style="flex:1"><b>${P.tname(type)}</b> · ${inf[1]}<br><span class="tiny">${ps.length ? 'Harmonizes with: ' + [...new Set(ps)].map((t) => `<span style="display:inline-block;vertical-align:middle;width:18px;height:18px">${Glyphs.svg(t, owner || 0, 'style="width:18px;height:18px"')}</span>`).join('') : 'Doesn’t harmonize'}</span></span><button class="btn small ghost" data-act="tileDetails" data-t="${type}" data-o="${owner == null ? 0 : owner}" style="flex:none;padding:6px 8px">Rules ›</button>`;
+    }
+    const has = { sug: !!sug, desc: !!desc };
+    let tab = G && G.infoTab && has[G.infoTab] ? G.infoTab : has.sug ? 'sug' : has.desc ? 'desc' : null;
+    if (G) G.infoTab = tab;
+    const toggle = has.sug && has.desc ? `<div class="info-tabs"><button class="${tab === 'desc' ? 'on' : ''}" data-act="infoTab" data-k="desc">📖 Tile</button><button class="${tab === 'sug' ? 'on' : ''}" data-act="infoTab" data-k="sug">🧭 Move</button></div>` : '';
+    const body = tab === 'sug' ? `<span class="info-txt">${sug}</span>${show}` : tab === 'desc' ? `<span class="info-row">${desc}</span>` : `<span class="info-txt">Tap any tile for its rules. Gold lines are harmonies.</span>`;
+    el.innerHTML = `${toggle}<div class="info-body">${body}</div>`;
+    el.scrollTop = 0;
   }
   function renderTray() {
     const el = document.getElementById('tray'); if (!el) return;
@@ -1901,8 +1921,10 @@
     function size() { if (!cv) return; const r = wrap.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; }
     const shown = []; // {strokes, seat, until, fade}
     function draw() {
-      const c = canvas(), x = c.getContext('2d'), w = c.width, h = c.height, now = Date.now();
-      x.clearRect(0, 0, w, h);
+      const c = canvas(), x = c.getContext('2d'), now = Date.now(), dpr = window.devicePixelRatio || 1, q = sq();
+      x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+      x.setTransform(1, 0, 0, 1, q.ox * dpr, q.oy * dpr);
+      const w = q.d * dpr, h = q.d * dpr;
       const items = shown.concat(live ? [{ strokes: live.strokes, seat: live.seat, until: Infinity }] : []);
       items.forEach((it) => {
         const a = it.until === Infinity ? 1 : Math.max(0, Math.min(1, (it.until - now) / 600));
@@ -1918,7 +1940,8 @@
       if (!wrap || !wrap.isConnected) return;
       shown.push({ strokes, seat, until: Date.now() + SHOW_MS }); requestAnimationFrame(draw); buzz(6);
     }
-    const pt = (e) => { const r = wrap.getBoundingClientRect(); return [Math.round(((e.clientX - r.left) / r.width) * 1000) / 1000, Math.round(((e.clientY - r.top) / r.height) * 1000) / 1000]; };
+    const sq = () => { const r = wrap.getBoundingClientRect(), d = Math.min(r.width, r.height); return { x: r.left + (r.width - d) / 2, y: r.top + (r.height - d) / 2, d, ox: (r.width - d) / 2, oy: (r.height - d) / 2 }; };
+    const pt = (e) => { const q = sq(); return [Math.round(((e.clientX - q.x) / q.d) * 1000) / 1000, Math.round(((e.clientY - q.y) / q.d) * 1000) / 1000]; };
     const npts = () => (live ? live.strokes.reduce((n, s) => n + s.length, 0) : 0);
     function finish() {
       if (!live) return;
@@ -2297,6 +2320,7 @@
     loFx: (d) => { const L = getLoadouts(); const arr = L.list[loTab].fx; const i = arr.indexOf(d.t); if (i >= 0) arr.splice(i, 1); else if (arr.length < 6) arr.push(d.t); else return toast('Up to 6 effect tiles'); saveLoadouts(L.list, L.active); const y = window.scrollY; screens.loadouts(); window.scrollTo(0, y); },
     loPreset: (d) => { const L = getLoadouts(); const owned = P.EFFECT_TYPES.filter((t) => Eco.ownsTile(me, t)); L.list[loTab].fx = d.v === 'none' ? [] : d.v === 'flowers' ? Object.keys(P.SPECIAL).filter((t) => owned.includes(t)) : owned.sort(() => Math.random() - 0.5).slice(0, 6); saveLoadouts(L.list, L.active); screens.loadouts(); },
     useLoadout: (d) => { setup.fx[0] = getLoadouts().list[+d.i].fx.slice(); rerenderSetup(); },
+    infoTab: (d) => { G.infoTab = d.k; G.infoPinned = true; renderInfo(null); },
     showSug: () => {
       if (!G || !G.ana || !G.ana.sug || G.ana.s !== G.s) return;
       const a = G.ana.sug.a;
