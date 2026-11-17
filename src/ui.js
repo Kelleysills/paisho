@@ -15,6 +15,12 @@
   const APP_V = 20261117; // bump when the rules engine changes so outdated opponents get flagged
   const amAvatar = () => !!(me && avatarPid && me.id === avatarPid);
   const saveMe = () => (me ? (delete me._mig, Store.set('players', me.id, me)).catch(() => toast('Couldn’t save — check your connection')) : Promise.resolve());
+  // pull counters from the server so a stale copy in memory never overwrites an admin fix or another device
+  async function syncCounters() {
+    if (!me) return;
+    try { const sv = await Store.get('players', me.id); if (sv && (sv.melonUses || 0) > (me.melonUses || 0)) { me.melonUses = sv.melonUses; Eco.ensure(me); } } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncCounters(); });
   async function loadAvatar() { try { const m = await Store.get('meta', 'avatar'); avatarPid = (m && m.pid) || null; } catch (e) {} }
   function ensureMe() { if (!me) return; const before = JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board]); Eco.ensure(me); if (before !== JSON.stringify([me.gp, me.owned, me.rating, me.ranked, me.board])) saveMe(); }
   const gpFmt = (n) => '🪙 ' + (n || 0).toLocaleString();
@@ -673,7 +679,7 @@
       Promise.resolve(doBend({ t: 'melon' })).then((ok) => {
         if (!ok || !G) return;
         G.melonCalls = (G.melonCalls || 0) + 1;
-        if (me) { me.melonUses = (me.melonUses || 0) + 1; saveMe(); if (me.melonUses === 100) setTimeout(checkAch, 1500); }
+        if (me) syncCounters().then(() => { me.melonUses = (me.melonUses || 0) + 1; saveMe(); if (me.melonUses >= 100) setTimeout(checkAch, 1500); });
         toast('🍈 MELON LORD! ' + G.seats[target].name + ' is blinded for their next move');
       });
     }
