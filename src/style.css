@@ -348,3 +348,14 @@ body input,body textarea,body [contenteditable="true"]{-webkit-user-select:text;
 .metal-panel .mb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:inherit;font:inherit;font-size:18px}
 .metal-panel .mb small{font-size:10px;opacity:.85}.metal-panel .mb.on{background:#c0c8d0;color:#1a1a1a;border-color:#fff}.metal-panel .mb.go{background:rgba(242,207,110,.25);border-color:#f2cf6e}
 .metal-panel .mb:disabled{opacity:.35}
+
+/* ---- Avatar Airbender display font (FontGet.com, free with credit): titles, names, buttons, labels ---- */
+@font-face{font-family:'Airbender';src:url('AvatarAirbender.ttf') format('truetype');font-display:swap}
+:root{--fun:'Airbender','Cinzel',serif}
+h1,h2,h3,.disp,.seat .hc,.trow .mv,.stat .v,.code,.pc-name,.pc-code,.pc-stats b,.pc-crown,.topbar h2,
+.btn,.bb b,.mb,.seg button,.nm,.seat .meta .nm,.field>label,.gp-pill,.lvl-top b,.res-row .rr-r,.res-row b,.dc-b,.daily-card b,
+.sty-head b,.ach-th b,.trow>div>b,.chip,.pc-nation,.event-banner b,.rr-m b,.dd .dn,.sty-l,.mp-top b,.coach-h,.tab,.stat .k{font-family:var(--fun);letter-spacing:.03em;font-size-adjust:.56}
+.btn small,.bb small,.mb small,.trow .tiny,.btn .tiny{font-family:'Nunito Sans',system-ui,sans-serif;letter-spacing:0}
+/* rules, chat and descriptions stay in the reading font */
+.guide,.guide *,.chat-log,.chat-log *,.dm-m,.dm-m *,.text-bubble,.tiny,.muted,p,.note,input,textarea{font-family:'Nunito Sans',system-ui,sans-serif}
+.guide h3,.guide h2,.guide summary{font-family:var(--fun)}

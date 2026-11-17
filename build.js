@@ -6,7 +6,7 @@ fs.mkdirSync(path.join(__dirname,'dist'),{recursive:true});
 fs.writeFileSync(path.join(__dirname,'dist','index.html'),html);
 console.log('built dist/index.html',html.length,'bytes');
 // GitHub Pages copy at the repo root (installable PWA)
-for (const f of ['manifest.webmanifest','sw.js','icon-192.png','icon-512.png']) fs.copyFileSync(path.join(__dirname,'web',f), path.join(__dirname,f));
+for (const f of ['manifest.webmanifest','sw.js','icon-192.png','icon-512.png','AvatarAirbender.ttf']) fs.copyFileSync(path.join(__dirname,'web',f), path.join(__dirname,f));
 fs.copyFileSync(path.join(__dirname,'dist','index.html'), path.join(__dirname,'index.html'));
 fs.writeFileSync(path.join(__dirname,'.nojekyll'),'');
 console.log('copied GitHub Pages files to repo root');
